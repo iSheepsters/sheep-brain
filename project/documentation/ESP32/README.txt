@@ -2,7 +2,7 @@
 GitHub:
 
 Product Page:
-https://www.amazon.com/gp/product/B06WP9RQ9V/
+https://www.amazon.com/gp/product/B076MSLFC9/
 
 Wiki:
 

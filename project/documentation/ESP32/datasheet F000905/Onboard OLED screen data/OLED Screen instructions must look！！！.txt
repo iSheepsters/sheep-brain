@@ -1,0 +1,4 @@
+1. 0.96 inch is 128 * 64 dot matrix;
+2. 0.91 inch is 128 * 32 dot matrix;
+3. Both screens use SSD1306 driver chip, use IIC communication, OLED screen and ESP8266 or ESP32 chip OLED connection diagram, please refer to Diagram;
+4. The display part of the circuit is not added to the power reset circuit, initialization before the need for IO to reset it, or may not be able to initialize.
