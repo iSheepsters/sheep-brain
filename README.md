@@ -16,9 +16,9 @@ For OSX, we had to install the following:
 
 | Module | I2C  | Serial | Notes |
 | --- | --- | --- | --- |
+| GPS | No | Yes |  |
 | MP3 | No | Yes |  |
 | Touch  | Yes  | No |  |
-| GPS | No | Yes |  |
 | LORA | No | No | Attached to ESP32 Development Board |
 | OLED Display | Yes | No | Attached to ESP32 Development Board |
 | FM Receiver | Yes | No | Not purchased yet. TEA5767 maybe?
