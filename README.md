@@ -14,11 +14,11 @@ For OSX, we had to install the following:
 
 # Hardware
 
-| Module | I2C  | Serial | Notes |
-| --- | --- | --- | --- |
-| GPS | No | Yes |  |
-| MP3 | No | Yes |  |
-| Touch  | Yes  | No |  |
-| LORA | No | No | Attached to ESP32 Development Board |
-| OLED Display | Yes | No | Attached to ESP32 Development Board |
-| FM Receiver | Yes | No | Not purchased yet. TEA5767 maybe?
+| Module | I2C  | Serial | SPI |  Notes |
+| --- | --- | --- | --- | --- |
+| GPS | No | Yes | No |
+| MP3 | No | Yes | No |
+| Touch  | Yes  | No | No |
+| LORA | No | No | Yes | Attached to ESP32 Development Board |
+| OLED Display | Yes | No | No | Attached to ESP32 Development Board |
+| FM Receiver | Yes | No | No | Not purchased yet. TEA5767 maybe?
