@@ -20,6 +20,6 @@ For OSX, we had to install the following:
 | MP3 | No | **Yes** | No |
 | USB | No | **Yes** | No | Must reserve Serial0 for USB programming? |
 | Touch  | **Yes**  | No | No |
-| OLED Display | **Yes** | No | No | Attached to ESP32 Development Board. OLED also uses 1 pin needed for `Serial1` |
+| OLED Display | **Yes** | No | No | Attached to ESP32 Development Board. OLED also uses 1 pin needed for `Serial2` |
 | FM Receiver | **Yes** | No | No | Not purchased yet. TEA5767 maybe?
 | LORA | No | No | **Yes** | Attached to ESP32 Development Board |
