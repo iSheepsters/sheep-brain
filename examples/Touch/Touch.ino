@@ -63,14 +63,21 @@ void setup() {
   display.setCursor(0,0);
   display.print("B");
   display.display();
-  delay(1000);
+  delay(500);
   for (int i=0; i<4; i++) {
     display.print("a");
-    delay(1000);
     display.display();
+    delay(500);
   }
   display.clearDisplay();
   display.display();
+
+  display.clearDisplay();
+  display.println("Ready");
+  display.display();
+//  delay(1000);
+//  display.clearDisplay();
+//  display.display();
 }
 
 int sensorTable[12] = {0,0,0,0,0,0,0,0,0,0,0,0};
