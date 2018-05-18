@@ -19,8 +19,12 @@ BSD license, all text above must be included in any redistribution
 #include "Adafruit_MPR121.h"
 #include "Adafruit_SSD1306.h"
 
+//#define USE_DISPLAY
+
+#ifdef USE_DISPLAY
 #define OLED_RESET 0  // GPIO0 aka D3
 Adafruit_SSD1306 display(OLED_RESET);
+#endif
 
 // You can have up to 4 on one i2c bus but one is enough for testing!
 Adafruit_MPR121 cap = Adafruit_MPR121();
@@ -31,7 +35,7 @@ uint16_t lasttouched = 0;
 uint16_t currtouched = 0;
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   Serial.println();
   Serial.println("Booted up!");
 
@@ -43,7 +47,7 @@ void setup() {
   if (!cap.begin(0x5A)) {
     Serial.println("MPR121 not found, check wiring?");
 //    u8x8.drawString(0, 2, "No touch sensors");
-    delay(100);
+    delay(1000);
 //    display.drawString(0,1,"Touch Failed");
 //    display.display();
     while (1);
@@ -55,6 +59,8 @@ void setup() {
 
 
   delay(1000);
+
+#ifdef USE_DISPLAY
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
   display.clearDisplay();
 //  display.invertDisplay(1);
@@ -75,6 +81,7 @@ void setup() {
   display.clearDisplay();
   display.println("Ready");
   display.display();
+#endif
 //  delay(1000);
 //  display.clearDisplay();
 //  display.display();
@@ -83,6 +90,7 @@ void setup() {
 int sensorTable[12] = {0,0,0,0,0,0,0,0,0,0,0,0};
 
 void displayState() {
+#ifdef USE_DISPLAY
   display.clearDisplay();
   display.setCursor(0,0);
   for ( int i = 0; i < 12; i++ ) {
@@ -92,6 +100,7 @@ void displayState() {
     }
   }
   display.display();
+#endif
 }
 
 void loop() {
