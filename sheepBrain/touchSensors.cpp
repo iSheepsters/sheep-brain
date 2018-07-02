@@ -3,19 +3,18 @@
 
 #include "touchSensors.h"
 
-
+#include "Adafruit_ZeroFFT.h"
 
 Adafruit_MPR121 cap = Adafruit_MPR121();
 
+#include "printf.h"
 
-const uint16_t pettingBufferSize = 128;
+
+const uint16_t pettingBufferSize = 512;
 uint16_t pettingData[numPettingSensors][pettingBufferSize];
 uint16_t pettingDataPosition = 0;
 
-unsigned long lastTouch[numSensors];
-
-uint16_t touchData[pettingBufferSize];
-
+unsigned long lastTouch[numTouchSensors];
 
 const uint8_t  FFI = 3;
 const uint8_t  SFI = 2;
@@ -28,16 +27,16 @@ boolean  fixed = false;
 unsigned long nextTouchSample = 0;
 
 void setupTouch() {
-  for(int t = 0; t < numTouchSensors; t++) {
+  for (int t = 0; t < numTouchSensors; t++) {
     lastTouch[t] = 0;
-    for(int i = 0; i < pettingBufferSize; i++) {
+    for (int i = 0; i < pettingBufferSize; i++) {
       pettingData[t][i] = 0;
     }
   }
-  
+
   // Default address is 0x5A, if tied to 3.3V its 0x5B
   // If tied to SDA its 0x5C and if SCL then 0x5D
-   while  (!cap.begin(0x5A)) {
+  while  (!cap.begin(0x5A)) {
     Serial.println("MPR121 not found, check wiring?");
     delay(1000);
   }
@@ -49,23 +48,103 @@ void setupTouch() {
   delay(200);
   calibrate();
   dumpConfiguration();
+  delay(200);
+  freeze();
 }
 
-uint16_t getTouchData(unsigned long now) {
+const boolean trace = false;
+int16_t touchData[pettingBufferSize];
+
+const uint16_t  intervalBetweenSamples = 15;
+const uint16_t sampleRate = 1000 / intervalBetweenSamples;
+float detectPetting(uint8_t touchSensor, uint16_t sampleSize, float * confidence) {
+  if (touchSensor >= numPettingSensors) return 0;
+
+
+  uint16_t i = 0;
+  int16_t pos = pettingDataPosition - sampleSize;
+  if (pos < 0) pos += pettingBufferSize;
+  uint32_t total = 0;
+  while (i < sampleSize) {
+    uint16_t v = pettingData[touchSensor][pos];
+    touchData[i] = v;
+    total += v;
+    pos++;
+    if (pos >= pettingBufferSize)
+      pos = 0;
+    i++;
+  }
+  uint16_t avg = total / sampleSize;
+  //  printf(Serial, "avg = %d\n", avg);
+  uint16_t max = 10;
+  for (int i = 0; i < sampleSize; i++) {
+    int16_t v = touchData[i] - avg;
+    touchData[i] = v;
+    //     Serial.println(touchData[i]);
+    if (max < v)
+      max = v;
+    else if (max < -v)
+      max = -v;
+  }
+  for (int i = 0; i < sampleSize; i++) {
+    touchData[i] =  (((int32_t)touchData[i]) * 10000) / max;
+
+  }
+  ZeroFFT(touchData, sampleSize);
+  total = 0;
+  for (int i = 0; i < sampleSize / 2; i++) {
+    total += touchData[i];
+  }
+  avg = total / sampleSize;
+  if (trace) {
+    Serial.print("avg: ");
+    Serial.println(avg);
+  }
+
+  if (avg < 50)
+    avg = 50;
+  float answer = 0.0;
+  max = avg;
+  for (int i = 1; i < sampleSize / 2; i++) {
+    float hz = FFT_BIN(i, sampleRate, sampleSize);
+    float hzNext = FFT_BIN(i+1, sampleRate, sampleSize);
+    uint16_t value = touchData[i] + touchData[i+1];
+    if (trace) {
+      Serial.print(hz);
+      Serial.print(" Hz: ");
+      Serial.println(value / ((float)avg));
+    }
+
+    if (hz > 4) break;
+    if (hz > 0.5 && max < value) {
+      max = value;
+      answer = (touchData[i]*hz + touchData[i+1]*hzNext)/value;
+    }
+  }
+
+  if (max < 5 * avg)
+    answer = 0.0;
+  *confidence = max / avg;
+  return answer;
+}
+
+
+void updateTouchData(unsigned long now) {
   if (nextTouchSample <= now) {
-    pettingDataPosition = pettingDataPosition+1;
+    nextTouchSample = now + 15;
+    pettingDataPosition = pettingDataPosition + 1;
     if (pettingDataPosition >= pettingBufferSize)
-    pettingDataPosition = 0;
-    for(int t = 0; t < numTouchSensors; t++) { 
+      pettingDataPosition = 0;
+    for (int t = 0; t < numTouchSensors; t++) {
       uint16_t v = cap.filteredData(t);
       uint16_t b = cap.baselineData(t);
       if (v < b) {
         lastTouch[t] = now;
       }
       if (t < numPettingSensors) {
-         pettingData[t][pettingDataPosition] = v;
+        pettingData[t][pettingDataPosition] = v;
       }
-      
+
     }
   }
 }
@@ -73,10 +152,10 @@ uint16_t getTouchData(unsigned long now) {
 void dumpData() {
 
   // debugging info, what
-  if (true) for (uint8_t i = 0; i <= lastSensor; i++) {
+  if (true) for (uint8_t i = 0; i <= lastTouchSensor; i++) {
       Serial.print(cap.filteredData(i)); Serial.print("\t");
     }
-  if (!fixed) for (uint8_t i = 0; i <= lastSensor; i++) {
+  if (!fixed) for (uint8_t i = 0; i <= lastTouchSensor; i++) {
       Serial.print(cap.baselineData(i)); Serial.print("\t");
     }
   Serial.println();
@@ -189,7 +268,7 @@ void adjust() {
   Serial.println("Changing to adjustable baselines");
 
   changeMode(0xBF);
-   fixed = false;
+  fixed = false;
 }
 
 
@@ -206,7 +285,7 @@ void calibrate() {
   uint8_t mode = cap.readRegister8(MPR121_ECR);
 
   cap.writeRegister(MPR121_ECR, 0);
-  for (int i = 0; i <= lastSensor; i++) {
+  for (int i = 0; i <= lastTouchSensor; i++) {
     cap.writeRegister(MPR121_BASELINE_0 + i, calculateBaseline(cap.filteredData(i)));
   }
   cap.writeRegister(MPR121_ECR, mode);

@@ -4,12 +4,9 @@
 #include "sound.h"
 #include "printf.h"
 #include "touchSensors.h"
-#include "Adafruit_ZeroFFT.h"
-
-u
-uint16_t touchData
 
 
+unsigned long nextPettingReport;
 
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
@@ -22,8 +19,9 @@ void setup() {
     delay( 20);
     Serial.println(i);
   }
+  Serial.println("Setting up touch");
   setupTouch();
-  setupSound();
+  //setupSound();
 
 
 
@@ -39,6 +37,7 @@ void setup() {
   //pinMode(8, INPUT_PULLUP);
 
   Serial.println("Ready");
+  nextPettingReport = millis() + 2000;
 
 }
 
@@ -49,32 +48,31 @@ unsigned long nextUpdate2 = 0;
 uint16_t lasttouched = 0;
 uint16_t currtouched = 0;
 
+
+
 void loop() {
   unsigned long now = millis();
-  if (true) {
+  updateTouchData(now);
+  if (nextPettingReport < now) {
+    nextPettingReport = now + 500;
+    for (int i = 0; i < numPettingSensors; i++) {
 
-    currtouched = cap.touched();
-    uint16_t newTouch = currtouched & ~lasttouched;
-    if (currtouched != 0) {
-      Serial.print(currtouched, HEX);
+      float confidence = 0.0;
+      /// int i = 7;
+      float hz = detectPetting(i, 128, &confidence);
+      digitalWrite(LED_BUILTIN, hz > 0.0);
+      Serial.print(hz);
       Serial.print(" ");
-      Serial.println(newTouch, HEX);
+      //       Serial.print(confidence);
+      //      Serial.print(" ");
     }
-    lasttouched = currtouched;
-    for (int i = 0; i < 13; i++) {
-      if ((newTouch >> i) & 1 == 1) {
-        Serial.print("touched ");
-        Serial.println(i);
-        playFile("%d.mp3", i);
-        completeMusic();
-        playFile("baa%d.mp3", i % 10);
-      }
-    }
-
-
+    Serial.println();
   }
 
-  
+}
+
+void unused() {
+  unsigned long now = millis();
   if (Serial && Serial.available()) {
     nextUpdate = now;
     nextUpdate2 = now + 5000;
@@ -87,7 +85,7 @@ void loop() {
 
         case 'b':
           stopMusic();
-          playFile("baa%d.mp3", 1 + random(8));
+          playFile("baa % d.mp3", 1 + random(8));
           break;
         case '1':
           stopMusic();
