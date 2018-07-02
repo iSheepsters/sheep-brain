@@ -17,7 +17,7 @@ CRGB leds[NUM_STRIPS * NUM_LEDS_PER_STRIP];
 void setup() {
   pinMode(led, OUTPUT);
   digitalWrite(led, HIGH);
-  LEDS.addLeds<OCTOWS2811>(leds, NUM_LEDS_PER_STRIP);
+  LEDS.addLeds<OCTOWS2811, RGB>(leds, NUM_LEDS_PER_STRIP);
   LEDS.show();
   Serial.begin(115200);
   // setup LEDS and turn them off
@@ -29,8 +29,6 @@ void setup() {
   }
 
 
-  LEDS.addLeds<OCTOWS2811>(leds, NUM_LEDS_PER_STRIP);
-  LEDS.show();
   setupComm();
   LEDS.setBrightness(255);
   for (int i = 0; i < 10; i++) {
@@ -53,18 +51,21 @@ void loop() {
   for (int i = 0; i < NUM_STRIPS; i++) {
     for (int j = 0; j < NUM_LEDS_PER_STRIP; j++) {
       uint8_t h = (32 * i) + hue + j;
-      if (h> 20)
+      if (h > 20)
         leds[(i * NUM_LEDS_PER_STRIP) + j] = CHSV(h, 192, 255);
       else  leds[(i * NUM_LEDS_PER_STRIP) + j]  = 0;
     }
   }
 
   // Set the first n leds on each strip to show which strip it is
-  if (false)
+  if (true)
 
     for (int i = 0; i < NUM_STRIPS; i++) {
+      leds[(i * NUM_LEDS_PER_STRIP) + 0] = CRGB::Red;
+      leds[(i * NUM_LEDS_PER_STRIP) + 1] = CRGB::Green;
+      leds[(i * NUM_LEDS_PER_STRIP) + 2] = CRGB::Blue;
       for (int j = 0; j <= i; j++) {
-        leds[(i * NUM_LEDS_PER_STRIP) + j] = CRGB::Red;
+        leds[(i * NUM_LEDS_PER_STRIP) + j + 3] = CRGB::Red;
       }
     }
 
