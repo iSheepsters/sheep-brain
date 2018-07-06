@@ -63,10 +63,10 @@ Adafruit_VS1053_FilePlayer musicPlayer =
 #define MAX9744_I2CADDR 0x4B
 
 // We'll track the volume level in this variable.
-int8_t thevol = 31;
+int8_t thevol = 48;
 
 
-
+unsigned long lastSoundStarted = 0;
 
 void setupSound() {
   Serial.println("\n\nAdafruit VS1053 Musicmaker Feather Test");
@@ -78,11 +78,10 @@ void setupSound() {
 
   Serial.println(F("VS1053 found"));
 
-  if (! setvolume(thevol)) {
+  if (! setvolume(thevol))
     Serial.println("Failed to set volume, MAX9744 not found!");
-
-  }
-  else Serial.println("MAX9744 found");
+  else
+    Serial.println("MAX9744 found");
 
   unsigned long start = millis();
   musicPlayer.sineTest(0x44, 1000);    // Make a tone to indicate VS1053 is working
@@ -97,10 +96,10 @@ void setupSound() {
   Serial.println("SD OK!");
 
   // list files
-  printDirectory(SD.open("/"), 0);
+  //printDirectory(SD.open("/"), 0);
 
   // Set volume for left, right channels. lower numbers == louder volume!
-  musicPlayer.setVolume(0, 0xfe);
+  musicPlayer.setVolume(0, 0);
 
 #if defined(__AVR_ATmega32U4__)
   // Timer interrupts are not suggested, better to use DREQ interrupt!
@@ -113,6 +112,11 @@ void setupSound() {
   // audio playing
   musicPlayer.useInterrupt(VS1053_FILEPLAYER_PIN_INT);  // DREQ int
 #endif
+  playFile("baa0.mp3");
+}
+
+void baa() {
+  playFile("baa%d.mp3", 1 + random(8));
 }
 
 // Setting the volume is very simple! Just write the 6-bit
@@ -141,6 +145,19 @@ void completeMusic() {
   }
 }
 
+
+
+void slowlyStopMusic() {
+  if (musicPlayer.playingMusic) {
+    for (int i = 0; i < 256; i += 8) {
+      musicPlayer.setVolume(i, i);
+      delay(10);
+    }
+    Serial.println("Music slowly stopped");
+    musicPlayer.stopPlaying();
+    musicPlayer.setVolume(0, 0);
+  }
+}
 
 void stopMusic() {
   if (musicPlayer.playingMusic) {
@@ -179,7 +196,7 @@ void printDirectory(File dir, int numTabs) {
 }
 
 boolean playFile(const char *fmt, ... ) {
-  stopMusic();
+  slowlyStopMusic();
   char buf[256]; // resulting string limited to 256 chars
   va_list args;
   va_start (args, fmt );
@@ -188,6 +205,7 @@ boolean playFile(const char *fmt, ... ) {
   Serial.print("Playing ");
   Serial.println(buf);
 
-  return musicPlayer.playFullFile(buf);
+  lastSoundStarted = millis();
+  return musicPlayer.startPlayingFile(buf);
 
 }

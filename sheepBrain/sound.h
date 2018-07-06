@@ -9,6 +9,9 @@ extern void completeMusic();
 extern void printDirectory(File dir, int numTabs);
 extern boolean setvolume(int8_t v) ;
 extern void setupSound();
+extern void baa();
+
+extern unsigned long lastSoundStarted;
 
 extern boolean playFile(const char *fmt, ... );
 

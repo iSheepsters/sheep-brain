@@ -7,12 +7,20 @@
 
 Adafruit_MPR121 cap = Adafruit_MPR121();
 
+#define _BV(bit)   (1 << ((uint8_t)bit))
+
 #include "printf.h"
 
 
 const uint16_t pettingBufferSize = 512;
 uint16_t pettingData[numPettingSensors][pettingBufferSize];
 uint16_t pettingDataPosition = 0;
+
+uint16_t timeTouched[numTouchSensors];
+uint16_t touchedThisInterval;
+unsigned long nextTouchInterval = 0;
+const uint16_t touchInterval = 250;
+
 
 unsigned long lastTouch[numTouchSensors];
 
@@ -26,13 +34,25 @@ boolean  fixed = false;
 
 unsigned long nextTouchSample = 0;
 
+
+const boolean trace = false;
+
+uint16_t lastTouched = 0;
+uint16_t currTouched = 0;
+uint16_t newTouched = 0;
+int16_t touchData[pettingBufferSize];
+
+
+boolean isTouched(enum TouchSensor sensor) {
+  return (currTouched & _BV(sensor)) != 0;
+}
+boolean newTouch(enum TouchSensor sensor) {
+  return (newTouched & _BV(sensor)) != 0;
+}
+
+
 void setupTouch() {
-  for (int t = 0; t < numTouchSensors; t++) {
-    lastTouch[t] = 0;
-    for (int i = 0; i < pettingBufferSize; i++) {
-      pettingData[t][i] = 0;
-    }
-  }
+  Serial.println("setting up touch");
 
   // Default address is 0x5A, if tied to 3.3V its 0x5B
   // If tied to SDA its 0x5C and if SCL then 0x5D
@@ -41,6 +61,12 @@ void setupTouch() {
     delay(1000);
   }
   Serial.println("MPR121 found!");
+  for (int t = 0; t < numTouchSensors; t++) {
+    lastTouch[t] = 0;
+    for (int i = 0; i < pettingBufferSize; i++) {
+      pettingData[t][i] = 0;
+    }
+  }
   dumpConfiguration();
   Serial.println("Applying configuration");
   mySetup();
@@ -52,84 +78,31 @@ void setupTouch() {
   freeze();
 }
 
-const boolean trace = false;
-int16_t touchData[pettingBufferSize];
-
 const uint16_t  intervalBetweenSamples = 15;
 const uint16_t sampleRate = 1000 / intervalBetweenSamples;
-float detectPetting(uint8_t touchSensor, uint16_t sampleSize, float * confidence) {
-  if (touchSensor >= numPettingSensors) return 0;
-
-
-  uint16_t i = 0;
-  int16_t pos = pettingDataPosition - sampleSize;
-  if (pos < 0) pos += pettingBufferSize;
-  uint32_t total = 0;
-  while (i < sampleSize) {
-    uint16_t v = pettingData[touchSensor][pos];
-    touchData[i] = v;
-    total += v;
-    pos++;
-    if (pos >= pettingBufferSize)
-      pos = 0;
-    i++;
-  }
-  uint16_t avg = total / sampleSize;
-  //  printf(Serial, "avg = %d\n", avg);
-  uint16_t max = 10;
-  for (int i = 0; i < sampleSize; i++) {
-    int16_t v = touchData[i] - avg;
-    touchData[i] = v;
-    //     Serial.println(touchData[i]);
-    if (max < v)
-      max = v;
-    else if (max < -v)
-      max = -v;
-  }
-  for (int i = 0; i < sampleSize; i++) {
-    touchData[i] =  (((int32_t)touchData[i]) * 10000) / max;
-
-  }
-  ZeroFFT(touchData, sampleSize);
-  total = 0;
-  for (int i = 0; i < sampleSize / 2; i++) {
-    total += touchData[i];
-  }
-  avg = total / sampleSize;
-  if (trace) {
-    Serial.print("avg: ");
-    Serial.println(avg);
-  }
-
-  if (avg < 50)
-    avg = 50;
-  float answer = 0.0;
-  max = avg;
-  for (int i = 1; i < sampleSize / 2; i++) {
-    float hz = FFT_BIN(i, sampleRate, sampleSize);
-    float hzNext = FFT_BIN(i+1, sampleRate, sampleSize);
-    uint16_t value = touchData[i] + touchData[i+1];
-    if (trace) {
-      Serial.print(hz);
-      Serial.print(" Hz: ");
-      Serial.println(value / ((float)avg));
-    }
-
-    if (hz > 4) break;
-    if (hz > 0.5 && max < value) {
-      max = value;
-      answer = (touchData[i]*hz + touchData[i+1]*hzNext)/value;
-    }
-  }
-
-  if (max < 5 * avg)
-    answer = 0.0;
-  *confidence = max / avg;
-  return answer;
-}
 
 
 void updateTouchData(unsigned long now) {
+  currTouched = cap.touched();
+  newTouched = currTouched & ~lastTouched;
+  lastTouched = currTouched;
+  if (newTouched  != 0 || nextTouchInterval < now) {
+    for (int i = 0; i < numTouchSensors; i++) {
+      if ((touchedThisInterval & _BV(i)) != 0)
+        timeTouched[i]++;
+      else
+        timeTouched[i] = 0;
+      Serial.print(timeTouched[i]);
+      Serial.print(" ");
+    }
+    Serial.println();
+    touchedThisInterval = currTouched;
+    nextTouchInterval = now + touchInterval;
+  } else
+    touchedThisInterval |= currTouched;
+
+
+
   if (nextTouchSample <= now) {
     nextTouchSample = now + 15;
     pettingDataPosition = pettingDataPosition + 1;
@@ -149,6 +122,9 @@ void updateTouchData(unsigned long now) {
   }
 }
 
+uint16_t touchDuration(enum TouchSensor sensor) {
+  return timeTouched[sensor] * touchInterval;
+}
 void dumpData() {
 
   // debugging info, what
@@ -279,7 +255,7 @@ void freeze() {
 }
 
 uint8_t calculateBaseline(uint16_t value) {
-  return  (value - 16) >> 2;
+  return  (value - 12) >> 2;
 }
 void calibrate() {
   uint8_t mode = cap.readRegister8(MPR121_ECR);
@@ -290,3 +266,75 @@ void calibrate() {
   }
   cap.writeRegister(MPR121_ECR, mode);
 }
+
+float detectPetting(uint8_t touchSensor, uint16_t sampleSize, float * confidence) {
+  if (touchSensor >= numPettingSensors) return 0;
+
+
+  uint16_t i = 0;
+  int16_t pos = pettingDataPosition - sampleSize;
+  if (pos < 0) pos += pettingBufferSize;
+  uint32_t total = 0;
+  while (i < sampleSize) {
+    uint16_t v = pettingData[touchSensor][pos];
+    touchData[i] = v;
+    total += v;
+    pos++;
+    if (pos >= pettingBufferSize)
+      pos = 0;
+    i++;
+  }
+  uint16_t avg = total / sampleSize;
+  //  printf(Serial, "avg = %d\n", avg);
+  uint16_t max = 10;
+  for (int i = 0; i < sampleSize; i++) {
+    int16_t v = touchData[i] - avg;
+    touchData[i] = v;
+    //     Serial.println(touchData[i]);
+    if (max < v)
+      max = v;
+    else if (max < -v)
+      max = -v;
+  }
+  for (int i = 0; i < sampleSize; i++) {
+    touchData[i] =  (((int32_t)touchData[i]) * 10000) / max;
+
+  }
+  ZeroFFT(touchData, sampleSize);
+  total = 0;
+  for (int i = 0; i < sampleSize / 2; i++) {
+    total += touchData[i];
+  }
+  avg = total / sampleSize;
+  if (trace) {
+    Serial.print("avg: ");
+    Serial.println(avg);
+  }
+
+  if (avg < 50)
+    avg = 50;
+  float answer = 0.0;
+  max = avg;
+  for (int i = 1; i < sampleSize / 2; i++) {
+    float hz = FFT_BIN(i, sampleRate, sampleSize);
+    float hzNext = FFT_BIN(i + 1, sampleRate, sampleSize);
+    uint16_t value = touchData[i] + touchData[i + 1];
+    if (trace) {
+      Serial.print(hz);
+      Serial.print(" Hz: ");
+      Serial.println(value / ((float)avg));
+    }
+
+    if (hz > 4) break;
+    if (hz > 0.5 && max < value) {
+      max = value;
+      answer = (touchData[i] * hz + touchData[i + 1] * hzNext) / value;
+    }
+  }
+
+  if (max < 5 * avg)
+    answer = 0.0;
+  *confidence = max / avg;
+  return answer;
+}
+

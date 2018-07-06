@@ -39,9 +39,44 @@ void setup() {
   }
 }
 
+const  uint8_t HEAD_STRIP = 0;
+const  uint8_t LEFT_STRIP = 1;
+const  uint8_t RIGHT_STRIP = 2;
+
+const  uint8_t HEAD_BOTTOM = 17;
+const  uint8_t HEAD_EYES = 4;
+const  uint8_t HEAD_TOP = 4;
+const  uint8_t HEAD_HALF = 25;
+
+boolean isEye(int led) {
+  if (HEAD_BOTTOM <= led && led < HEAD_BOTTOM + HEAD_EYES)
+    return true;
+  if (HEAD_HALF + HEAD_TOP <= led && led < HEAD_HALF + HEAD_TOP + HEAD_EYES)
+    return true;
+  return false;
+}
+
 unsigned long nextUpdate = 0;
+unsigned long nextBlinkEnds = 0;
+unsigned long nextBlinkStarts = 0;
+boolean blinking;
+void startBlink(unsigned long now) {
+  blinking = true;
+  uint16_t blinkDuration = random(50, 100);
+  nextBlinkEnds = now + blinkDuration;
+  nextBlinkStarts = now + blinkDuration * 3 + 500 + random(1, 4000);
+}
+
 void loop() {
+
   unsigned long now = millis();
+  if (blinking) {
+    if (nextBlinkEnds < now)
+      blinking = false;
+  }  else if (nextBlinkStarts < now) {
+    startBlink(now);
+  }
+
   if (nextUpdate < now) {
     Serial.println("sheepSlaveBrain");
     print_i2c_status();
@@ -50,22 +85,27 @@ void loop() {
   static uint8_t hue = 0;
   for (int i = 0; i < NUM_STRIPS; i++) {
     for (int j = 0; j < NUM_LEDS_PER_STRIP; j++) {
+      int pos = (i * NUM_LEDS_PER_STRIP) + j;
       uint8_t h = (32 * i) + hue + j;
-      if (h > 20)
-        leds[(i * NUM_LEDS_PER_STRIP) + j] = CHSV(h, 192, 255);
-      else  leds[(i * NUM_LEDS_PER_STRIP) + j]  = 0;
+      if (i == HEAD_STRIP && isEye(j)) {
+        if (blinking)
+          leds[pos] = 0;
+        else
+          leds[pos] = CRGB(255, 255, 255);
+      } else {
+        if (h >= 0)
+          leds[(i * NUM_LEDS_PER_STRIP) + j] = CHSV(h, 255, 255);
+        else  leds[(i * NUM_LEDS_PER_STRIP) + j]  = 0;
+      }
     }
   }
 
-  // Set the first n leds on each strip to show which strip it is
-  if (true)
 
+  // Set the first n leds on each strip to show which strip it is
+  if (false)
     for (int i = 0; i < NUM_STRIPS; i++) {
-      leds[(i * NUM_LEDS_PER_STRIP) + 0] = CRGB::Red;
-      leds[(i * NUM_LEDS_PER_STRIP) + 1] = CRGB::Green;
-      leds[(i * NUM_LEDS_PER_STRIP) + 2] = CRGB::Blue;
       for (int j = 0; j <= i; j++) {
-        leds[(i * NUM_LEDS_PER_STRIP) + j + 3] = CRGB::Red;
+        leds[(i * NUM_LEDS_PER_STRIP) + j] = CRGB::Red;
       }
     }
 
