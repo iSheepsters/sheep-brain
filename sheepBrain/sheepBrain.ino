@@ -14,11 +14,8 @@ unsigned long nextPettingReport;
 
 enum State {
   Bored,
-  Attentive,
-  Accepting,
-  Playtime,
-  NotYet,
-  Unhappy
+  Welcoming,
+  Riding
 };
 
 enum State currState = Bored;
@@ -26,17 +23,20 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   Wire.begin();
   Serial.begin(115200);
+
+
   for (int i = 1; i < 10; i++) {
     digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
-    delay(200);                     // wait for a second
+    delay(20);                     // wait for a second
     digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
-    delay(200);
+    delay(20);
     Serial.println(i);
   }
-  Serial.println("Setting up touch");
-  setupTouch();
   if (useSound)
     setupSound();
+  Serial.println("Setting up touch");
+  setupTouch();
+
 
 
   if (useOLED) {
@@ -56,33 +56,59 @@ void setup() {
   nextPettingReport = millis() + 2000;
 }
 
-unsigned long nextBaa = 2000;
+unsigned long nextBaa = 10000;
 
 
-void updateState() {
-  switch (currState) {
-    case Bored:
+void updateState(unsigned long now) {
+  if (touchDuration(BACK_SENSOR) > 1200 &&
+      (touchDuration(LEFT_SENSOR) > 550 || touchDuration(RIGHT_SENSOR) > 550 )
+      || touchDuration(BACK_SENSOR) > 9500)  {
+    if (currState != Riding) {
+      playRiding();
+      nextBaa = now + 12000 + random(1, 15000);
+      currState = Riding;
+      Serial.println("riding");
+    }
 
-    case Attentive:
-    case Accepting:
-    case Playtime:
-    case NotYet:
-    case Unhappy:
-      Serial.println("state");
 
   }
+  else if (untouchDuration(BACK_SENSOR) > 10000
+           && untouchDuration(HEAD_SENSOR) > 10000
+           && untouchDuration(RUMP_SENSOR) > 10000) {
+    if (currState != Bored) {
+      if (!musicPlayer.playingMusic) {
+        playBored();
+        nextBaa = now + 12000 + random(1, 15000);
+      }
+      currState = Bored;
+      Serial.println("bored");
+    }
+  }
+  else {
+    if (currState != Welcoming) {
+      if (!musicPlayer.playingMusic || currState == Bored) {
+        playWelcoming();
+        nextBaa = now + 12000 + random(1, 15000);
+      }
+      currState = Welcoming;
+      Serial.println("welcoming");
+    }
+
+  }
+
 }
 void loop() {
   unsigned long now = millis();
   updateTouchData(now);
-
+  if (now > 10000)
+    updateState(now);
   for (int i = 0; i < numTouchSensors; i++) {
     if (((newTouched >> i) & 1 ) != 0) {
-     // printf(Serial,"touched %d\n", i);
+      // printf(Serial,"touched %d\n", i);
       //playFile("%d.mp3", i);
     }
   }
-  
+
   if (false && nextPettingReport < now) {
     nextPettingReport = now + 250;
     for (int i = 0; i < numPettingSensors; i++) {
@@ -105,8 +131,23 @@ void loop() {
 void checkForSound() {
   unsigned long now = millis();
   if (nextBaa < now && !musicPlayer.playingMusic) {
-    baa();
-    nextBaa = now + 4000 + random(1, 10000);
+    if (random(3) == 0) {
+      baa();
+      nextBaa = now + 4000 + random(1, 10000);
+    } else {
+      switch (currState) {
+        case Bored:
+          playBored();
+          break;
+        case Welcoming:
+          playWelcoming();
+          break;
+        case Riding:
+          playRiding();
+          break;
+      }
+    }
+    nextBaa = now + 12000 + random(1, 15000);
   }
   if (Serial && Serial.available()) {
     char c = Serial.read();
@@ -116,26 +157,17 @@ void checkForSound() {
       Serial.println(c);
       switch (c) {
 
-        case 'b':
+        case 'a':
           playFile("baa%d.mp3", 1 + random(8));
           break;
-        case '1':
-          Serial.println(musicPlayer.playFullFile("baa1.mp3"));
+        case 'w':
+          playWelcoming();
           break;
-        case '2':
-          Serial.println(musicPlayer.playFullFile("baa2.mp3"));
+        case 'r':
+          playRiding();
           break;
-        case '3':
-          Serial.println(musicPlayer.playFullFile("baa3.mp3"));
-          break;
-        case '4':
-          Serial.println(musicPlayer.playFullFile("baa4.mp3"));
-          break;
-        case 'h':
-          Serial.println(musicPlayer.startPlayingFile("herd1.ogg"));
-          break;
-        case 'x':
-          Serial.println(musicPlayer.startPlayingFile("scream1.mp3"));
+        case 'b':
+          playBored();
           break;
         case 'd':
           Serial.println(musicPlayer.startPlayingFile("drumbone.mp3"));

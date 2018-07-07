@@ -33,6 +33,7 @@ extern void adjust();
 extern void updateTouchData(unsigned long now);
 extern boolean isTouched(enum TouchSensor sensor);
 extern uint16_t touchDuration(enum TouchSensor sensor);
+extern uint16_t untouchDuration(enum TouchSensor sensor);
 extern boolean newTouch(enum TouchSensor sensor);
 
 extern float detectPetting(uint8_t touchSensor, uint16_t sampleSize, float * confidence);

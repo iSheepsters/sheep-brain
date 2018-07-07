@@ -68,7 +68,23 @@ int8_t thevol = 48;
 
 unsigned long lastSoundStarted = 0;
 
+
+void playBored() {
+  playFile("bored/bored-%d.mp3", random(1,10));
+}
+void playRiding() {
+  playFile("riding/riding-%d.mp3", random(1,7));
+}
+void playWelcoming() {
+  playFile("w/w-%d.mp3", random(1,7));
+}
+
 void setupSound() {
+   if (! setvolume(0))
+    Serial.println("Failed to set volume, MAX9744 not found!");
+  else
+    Serial.println("MAX9744 found");
+
   Serial.println("\n\nAdafruit VS1053 Musicmaker Feather Test");
 
   if (! musicPlayer.begin()) { // initialise the music player
@@ -77,12 +93,12 @@ void setupSound() {
   }
 
   Serial.println(F("VS1053 found"));
-
   if (! setvolume(thevol))
     Serial.println("Failed to set volume, MAX9744 not found!");
   else
     Serial.println("MAX9744 found");
 
+ 
   unsigned long start = millis();
   musicPlayer.sineTest(0x44, 1000);    // Make a tone to indicate VS1053 is working
   unsigned long end = millis();
@@ -96,7 +112,7 @@ void setupSound() {
   Serial.println("SD OK!");
 
   // list files
-  //printDirectory(SD.open("/"), 0);
+  printDirectory(SD.open("/"), 0);
 
   // Set volume for left, right channels. lower numbers == louder volume!
   musicPlayer.setVolume(0, 0);

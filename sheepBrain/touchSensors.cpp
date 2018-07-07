@@ -17,6 +17,7 @@ uint16_t pettingData[numPettingSensors][pettingBufferSize];
 uint16_t pettingDataPosition = 0;
 
 uint16_t timeTouched[numTouchSensors];
+uint16_t timeUntouched[numTouchSensors];
 uint16_t touchedThisInterval;
 unsigned long nextTouchInterval = 0;
 const uint16_t touchInterval = 250;
@@ -88,11 +89,15 @@ void updateTouchData(unsigned long now) {
   lastTouched = currTouched;
   if (newTouched  != 0 || nextTouchInterval < now) {
     for (int i = 0; i < numTouchSensors; i++) {
-      if ((touchedThisInterval & _BV(i)) != 0)
+      if ((touchedThisInterval & _BV(i)) != 0) {
         timeTouched[i]++;
-      else
+        timeUntouched[i] = 0;
+        Serial.print(timeTouched[i]);
+      } else {
         timeTouched[i] = 0;
-      Serial.print(timeTouched[i]);
+        timeUntouched[i]++;
+        Serial.print(-timeUntouched[i]);
+      }
       Serial.print(" ");
     }
     Serial.println();
@@ -125,6 +130,10 @@ void updateTouchData(unsigned long now) {
 uint16_t touchDuration(enum TouchSensor sensor) {
   return timeTouched[sensor] * touchInterval;
 }
+uint16_t untouchDuration(enum TouchSensor sensor) {
+  return timeUntouched[sensor] * touchInterval;
+}
+
 void dumpData() {
 
   // debugging info, what

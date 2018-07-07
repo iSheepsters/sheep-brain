@@ -10,6 +10,9 @@ extern void printDirectory(File dir, int numTabs);
 extern boolean setvolume(int8_t v) ;
 extern void setupSound();
 extern void baa();
+extern void playBored();
+extern void playRiding();
+extern void playWelcoming();
 
 extern unsigned long lastSoundStarted;
 
