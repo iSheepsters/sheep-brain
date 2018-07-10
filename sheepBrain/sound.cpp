@@ -53,8 +53,6 @@
 #endif
 
 
-
-
 Adafruit_VS1053_FilePlayer musicPlayer =
   Adafruit_VS1053_FilePlayer(VS1053_RESET, VS1053_CS, VS1053_DCS, VS1053_DREQ, CARDCS);
 
@@ -64,7 +62,6 @@ Adafruit_VS1053_FilePlayer musicPlayer =
 
 // We'll track the volume level in this variable.
 int8_t thevol = 48;
-
 
 unsigned long lastSoundStarted = 0;
 
@@ -80,7 +77,7 @@ void playWelcoming() {
 }
 
 void setupSound() {
-   if (! setvolume(0))
+   if (! setVolume(0))
     Serial.println("Failed to set volume, MAX9744 not found!");
   else
     Serial.println("MAX9744 found");
@@ -93,7 +90,7 @@ void setupSound() {
   }
 
   Serial.println(F("VS1053 found"));
-  if (! setvolume(thevol))
+  if (! setVolume(thevol))
     Serial.println("Failed to set volume, MAX9744 not found!");
   else
     Serial.println("MAX9744 found");
@@ -105,15 +102,7 @@ void setupSound() {
   Serial.println(F("sineTest complete"));
   Serial.println(end - start);
   Serial.println();
-  if (!SD.begin(CARDCS)) {
-    Serial.println(F("SD failed, or not present"));
-    while (1);  // don't do anything more
-  }
-  Serial.println("SD OK!");
-
-  // list files
-  printDirectory(SD.open("/"), 0);
-
+  
   // Set volume for left, right channels. lower numbers == louder volume!
   musicPlayer.setVolume(0, 0);
 
@@ -137,7 +126,7 @@ void baa() {
 
 // Setting the volume is very simple! Just write the 6-bit
 // volume to the i2c bus. That's it!
-boolean setvolume(int8_t v) {
+boolean setVolume(int8_t v) {
 
   // cant be higher than 63 or lower than 0
   if (v > 63) v = 63;
@@ -182,33 +171,6 @@ void stopMusic() {
     delay(50);
   }
 
-}
-
-
-/// File listing helper
-void printDirectory(File dir, int numTabs) {
-  while (true) {
-
-    File entry =  dir.openNextFile();
-    if (! entry) {
-      // no more files
-      //Serial.println("**nomorefiles**");
-      break;
-    }
-    for (uint8_t i = 0; i < numTabs; i++) {
-      Serial.print('\t');
-    }
-    Serial.print(entry.name());
-    if (entry.isDirectory()) {
-      Serial.println("/");
-      printDirectory(entry, numTabs + 1);
-    } else {
-      // files have sizes, directories do not
-      Serial.print("\t\t");
-      Serial.println(entry.size(), DEC);
-    }
-    entry.close();
-  }
 }
 
 boolean playFile(const char *fmt, ... ) {

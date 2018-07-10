@@ -1,3 +1,5 @@
+#include <Adafruit_SleepyDog.h>
+
 #define USE_OCTOWS2811
 #include<OctoWS2811.h>
 #include<FastLED.h>
@@ -37,6 +39,11 @@ void setup() {
     digitalWrite(led, LOW);    // turn the LED off by making the voltage LOW
     delay(100);
   }
+  int countdownMS = Watchdog.enable(4000);
+  Serial.print("Enabled the watchdog with max countdown of ");
+  Serial.print(countdownMS, DEC);
+  Serial.println(" milliseconds!");
+  Serial.println();
 }
 
 const  uint8_t HEAD_STRIP = 0;
@@ -68,7 +75,7 @@ void startBlink(unsigned long now) {
 }
 
 void loop() {
-
+  Watchdog.reset();
   unsigned long now = millis();
   if (blinking) {
     if (nextBlinkEnds < now)

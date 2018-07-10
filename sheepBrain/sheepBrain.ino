@@ -1,14 +1,17 @@
+#include <Adafruit_SleepyDog.h>
 
 #include <Wire.h>
 #include "all.h"
 #include "sound.h"
 #include "printf.h"
 #include "touchSensors.h"
+#include "soundFile.h"
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-const boolean useSound = true;
+const boolean useSound = false;
 const boolean useOLED = false;
+const boolean useTouch = false;
 Adafruit_SSD1306 display = Adafruit_SSD1306();
 unsigned long nextPettingReport;
 
@@ -18,11 +21,23 @@ enum State {
   Riding
 };
 
+SoundCollection boredSounds;
+SoundCollection ridingSounds;
+SoundCollection welcomingSounds;
+
+
 enum State currState = Bored;
 void setup() {
+
   pinMode(LED_BUILTIN, OUTPUT);
   Wire.begin();
   Serial.begin(115200);
+  while (!Serial) {
+    digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
+    delay(200);                     // wait for a second
+    digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
+    delay(200);
+  }
 
 
   for (int i = 1; i < 10; i++) {
@@ -32,10 +47,23 @@ void setup() {
     delay(20);
     Serial.println(i);
   }
+
+
+  setupSD();
+  boredSounds.load("bored");
+  ridingSounds.load("riding");
+  welcomingSounds.load("w");
+  myprintf(Serial, "%d bored files\n", boredSounds.count);
+
+  myprintf(Serial, "%d riding files\n", ridingSounds.count);
+  myprintf(Serial, "%d welcoming files\n", welcomingSounds.count);
+
   if (useSound)
     setupSound();
-  Serial.println("Setting up touch");
-  setupTouch();
+  if (useTouch) {
+    Serial.println("Setting up touch");
+    setupTouch();
+  }
 
 
 
@@ -54,6 +82,8 @@ void setup() {
 
   Serial.println("Ready");
   nextPettingReport = millis() + 2000;
+  int countdownMS = Watchdog.enable(4000);
+  myprintf(Serial, "Watchdog set, %d ms timeout\n", countdownMS);
 }
 
 unsigned long nextBaa = 10000;
@@ -97,7 +127,13 @@ void updateState(unsigned long now) {
   }
 
 }
+
 void loop() {
+  Watchdog.reset();
+  
+}
+void loop0() {
+  Watchdog.reset();
   unsigned long now = millis();
   updateTouchData(now);
   if (now > 10000)
@@ -195,7 +231,7 @@ void checkForSound() {
           if (thevol > 63) thevol = 63;
           if (thevol < 0) thevol = 0;
 
-          setvolume(thevol);
+          setVolume(thevol);
           break;
       }
     }
