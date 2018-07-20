@@ -1,25 +1,63 @@
 #include <Adafruit_SleepyDog.h>
+#include <Wire.h>
 
-#define USE_OCTOWS2811
-#include<OctoWS2811.h>
 #include<FastLED.h>
 
 #include "all.h"
 #include "comm.h"
 const int led = 13;
 
-#define NUM_LEDS_PER_STRIP 500
-#define NUM_STRIPS 8
+const uint16_t NUM_LEDS_PER_STRIP  = 400;
+const uint8_t NUM_STRIPS  = 8;
+
+const uint8_t GRID_HEIGHT = 25;
+const uint8_t QUARTER_GRID_WIDTH = 8;
+const uint8_t HALF_GRID_WIDTH = 16;
+const uint8_t GRID_WIDTH = 2 * HALF_GRID_WIDTH;
 
 CRGB leds[NUM_STRIPS * NUM_LEDS_PER_STRIP];
 
-// Pin layouts on the teensy 3:
-// OctoWS2811: 2,14,7,8,6,20,21,5
+CRGB & getSheepLEDFor(uint8_t x, uint8_t y) {
+  // 0 <= x < 2*GRID_HEIGHT
+  // 0 <= y < GRID_HEIGHT
+  uint8_t strip;
+  uint16_t pos;
+  if (x >= HALF_GRID_WIDTH) {
+    strip = 2;
+    pos = (x - HALF_GRID_WIDTH) * GRID_HEIGHT;
+
+  } else {
+    strip = 1;
+    pos = (HALF_GRID_WIDTH - 1 - x) * GRID_HEIGHT;
+  }
+  if ((x + strip) % 2 == 0)
+    pos += y;
+  else
+    pos += (GRID_HEIGHT - 1 - y);
+
+  return leds[strip * NUM_LEDS_PER_STRIP + pos];
+}
+
+void copyLEDs() {
+  uint16_t halfWay = 4 * NUM_LEDS_PER_STRIP;
+  for (int i = 0; i < halfWay; i++) {
+    leds[i + halfWay] =  leds[i];
+  }
+}
+class Animation {
+    // row = 0..24
+    // col = 0..15
+
+    virtual void initialize() = 0;
+    virtual void update(unsigned long now) = 0;
+};
+
 
 void setup() {
   pinMode(led, OUTPUT);
   digitalWrite(led, HIGH);
-  LEDS.addLeds<OCTOWS2811, RGB>(leds, NUM_LEDS_PER_STRIP);
+  LEDS.addLeds<WS2811_PORTD, NUM_STRIPS, RGB>(leds, NUM_LEDS_PER_STRIP)
+  .setCorrection(TypicalLEDStrip);
   LEDS.show();
   Serial.begin(115200);
   // setup LEDS and turn them off
@@ -32,6 +70,7 @@ void setup() {
 
 
   setupComm();
+  Serial.println("comm set up");
   LEDS.setBrightness(255);
   for (int i = 0; i < 10; i++) {
     digitalWrite(led, HIGH);   // turn the LED on (HIGH is the voltage level)
@@ -39,11 +78,13 @@ void setup() {
     digitalWrite(led, LOW);    // turn the LED off by making the voltage LOW
     delay(100);
   }
-  int countdownMS = Watchdog.enable(4000);
-  Serial.print("Enabled the watchdog with max countdown of ");
-  Serial.print(countdownMS, DEC);
-  Serial.println(" milliseconds!");
-  Serial.println();
+  if (true) {
+    int countdownMS = Watchdog.enable(4000);
+    Serial.print("Enabled the watchdog with max countdown of ");
+    Serial.print(countdownMS, DEC);
+    Serial.println(" milliseconds!");
+    Serial.println();
+  }
 }
 
 const  uint8_t HEAD_STRIP = 0;
@@ -74,8 +115,94 @@ void startBlink(unsigned long now) {
   nextBlinkStarts = now + blinkDuration * 3 + 500 + random(1, 4000);
 }
 
+int counter = 0;
+
+
+void privateLights() {
+  for (int x = 0; x < GRID_WIDTH; x++)
+    getSheepLEDFor(x, GRID_HEIGHT - 1) = CRGB::Red;
+}
+
+void rumpLights() {
+  for (int x = HALF_GRID_WIDTH - 3; x < HALF_GRID_WIDTH + 3; x++)
+    for (int y = GRID_HEIGHT - 4; y < GRID_HEIGHT - 1; y++)
+      getSheepLEDFor(x, y) = CRGB::White;
+}
+
+void leftLights() {
+
+  // left side
+  for (int y = 5; y < 12; y++)
+    getSheepLEDFor( QUARTER_GRID_WIDTH, y) = CRGB::White;
+}
+void rightLights() {
+  // right side
+  for (int y = 5; y < 12; y++)
+    getSheepLEDFor( QUARTER_GRID_WIDTH + HALF_GRID_WIDTH, y) = CRGB::White;
+}
+void backLights() {
+  // back side
+  for (int x = HALF_GRID_WIDTH - 1; x <= HALF_GRID_WIDTH; x++)
+    for (int y = 5; y < 12; y++)
+      getSheepLEDFor( x, y) = CRGB::White;
+}
+void headLights() {
+  // head
+  for (int j = HEAD_BOTTOM + HEAD_EYES; j < HEAD_BOTTOM + HEAD_EYES + 2 * HEAD_TOP; j++)
+    leds[ j] = CRGB::Green;
+}
+
+
 void loop() {
-  Watchdog.reset();
+  if (true)
+    Watchdog.reset();
+
+  if (false) {
+    //LEDS.clear();
+    for (int x = 0; x < GRID_WIDTH; x++)
+      getSheepLEDFor(x, counter) = CHSV(x * 10, 255, 255);
+    privateLights();
+
+    rumpLights();
+
+    leftLights();
+
+    rightLights();
+
+    backLights();
+
+    headLights();
+    LEDS.show();
+
+    for (int x = 0; x < GRID_WIDTH; x++)
+      getSheepLEDFor(x, counter) = CRGB::Black;
+    counter++;
+    if (counter >= GRID_HEIGHT) counter = 0;
+
+
+    delay(100);
+  }
+
+  if (false) {
+    for (int i = counter; i < counter + 20 && i < 400; i++) {
+      leds[(1 * NUM_LEDS_PER_STRIP) + i] = CRGB::Blue;
+      leds[(2 * NUM_LEDS_PER_STRIP) + i] = CRGB::Green;
+    }
+
+    LEDS.show();
+
+    for (int i = counter; i < counter + 20 && i < 400; i++) {
+      leds[(1 * NUM_LEDS_PER_STRIP) + i] = CRGB::Black;
+      leds[(2 * NUM_LEDS_PER_STRIP) + i] = CRGB::Black;
+    }
+    counter++;
+    if (counter >= 400)
+      counter = 0;
+    delay(10);
+  }
+
+
+
   unsigned long now = millis();
   if (blinking) {
     if (nextBlinkEnds < now)
@@ -86,39 +213,78 @@ void loop() {
 
   if (nextUpdate < now) {
     Serial.println("sheepSlaveBrain");
-    print_i2c_status();
     nextUpdate = now + 20000;
   }
+
+  LEDS.clear();
+  for (int x = 0; x < GRID_WIDTH; x++)
+    for (int y = 0; y < GRID_HEIGHT; y++)
+      getSheepLEDFor(x, y) = CRGB::Black;
+
+
   static uint8_t hue = 0;
-  for (int i = 0; i < NUM_STRIPS; i++) {
-    for (int j = 0; j < NUM_LEDS_PER_STRIP; j++) {
-      int pos = (i * NUM_LEDS_PER_STRIP) + j;
-      uint8_t h = (32 * i) + hue + j;
-      if (i == HEAD_STRIP && isEye(j)) {
-        if (blinking)
-          leds[pos] = 0;
-        else
-          leds[pos] = CRGB(255, 255, 255);
-      } else {
-        if (h >= 0)
-          leds[(i * NUM_LEDS_PER_STRIP) + j] = CHSV(h, 255, 255);
-        else  leds[(i * NUM_LEDS_PER_STRIP) + j]  = 0;
+
+  if (true) {
+    for (int x = 0; x < HALF_GRID_WIDTH; x++)
+      for (int y = 0; y < GRID_HEIGHT; y++) {
+        getSheepLEDFor(HALF_GRID_WIDTH + x, y) = CHSV(x * 8 + hue, 255, 255);
+        getSheepLEDFor(HALF_GRID_WIDTH - 1 - x, y) = CHSV(x * 8 + hue, 255, 255);
       }
-    }
   }
+
+  static uint8_t tracerX = 0;
+  static uint8_t tracerY = 0;
+
+
+
+  for (int j = 0; j < 50; j++)
+    if (isEye(j)) {
+      if (blinking)
+        leds[j] =  CRGB::Black;
+      else
+        leds[j] = CRGB::White;
+    } else
+      leds[j] = CRGB::White;
+
+  uint8_t touchData = mem[0];
+
+  if (touchData & 0x1)
+    privateLights();
+  if (touchData & 0x2)
+    rumpLights();
+  if (touchData & 0x4)
+    leftLights();
+  if (touchData & 0x8)
+    rightLights();
+  if (touchData & 0x10)
+    backLights();
+  if (touchData & 0x20)
+    headLights();
 
 
   // Set the first n leds on each strip to show which strip it is
-  if (false)
+  if (true)
     for (int i = 0; i < NUM_STRIPS; i++) {
       for (int j = 0; j <= i; j++) {
         leds[(i * NUM_LEDS_PER_STRIP) + j] = CRGB::Red;
       }
     }
 
+  if (true) {
+    for (int x = tracerX; x <= tracerX + 10 && x < GRID_WIDTH; x++)
+      getSheepLEDFor(x, tracerY) = CRGB::White;
+    tracerX ++;
+    if (tracerX >= GRID_WIDTH) {
+      tracerX = 0;
+      tracerY++;
+      if (tracerY >= GRID_HEIGHT)
+        tracerY = 0;
+    }
+  }
   hue++;
-
+  copyLEDs();
   LEDS.show();
-  LEDS.delay(10);
+
+  delay(10);
 }
 
