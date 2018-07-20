@@ -6,12 +6,13 @@
 #include "printf.h"
 #include "touchSensors.h"
 #include "soundFile.h"
+#include "comm.h"
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-const boolean useSound = false;
+const boolean useSound = true;
 const boolean useOLED = false;
-const boolean useTouch = false;
+const boolean useTouch = true;
 Adafruit_SSD1306 display = Adafruit_SSD1306();
 unsigned long nextPettingReport;
 
@@ -26,13 +27,14 @@ SoundCollection ridingSounds;
 SoundCollection welcomingSounds;
 
 
+unsigned long nextCalibration = 5000;
 enum State currState = Bored;
 void setup() {
 
   pinMode(LED_BUILTIN, OUTPUT);
   Wire.begin();
   Serial.begin(115200);
-  while (!Serial) {
+  while (!Serial && millis() < 1000) {
     digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
     delay(200);                     // wait for a second
     digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
@@ -49,22 +51,25 @@ void setup() {
   }
 
 
-  setupSD();
-  boredSounds.load("bored");
-  ridingSounds.load("riding");
-  welcomingSounds.load("w");
-  myprintf(Serial, "%d bored files\n", boredSounds.count);
 
-  myprintf(Serial, "%d riding files\n", ridingSounds.count);
-  myprintf(Serial, "%d welcoming files\n", welcomingSounds.count);
 
-  if (useSound)
+  if (useSound) {
     setupSound();
+    setupSD();
+    boredSounds.load("bored");
+    ridingSounds.load("riding");
+    welcomingSounds.load("w");
+    myprintf(Serial, "%d bored files\n", boredSounds.count);
+
+    myprintf(Serial, "%d riding files\n", ridingSounds.count);
+    myprintf(Serial, "%d welcoming files\n", welcomingSounds.count);
+  }
   if (useTouch) {
     Serial.println("Setting up touch");
     setupTouch();
   }
 
+  setupComm();
 
 
   if (useOLED) {
@@ -84,6 +89,7 @@ void setup() {
   nextPettingReport = millis() + 2000;
   int countdownMS = Watchdog.enable(4000);
   myprintf(Serial, "Watchdog set, %d ms timeout\n", countdownMS);
+  nextCalibration = millis() + 5000;
 }
 
 unsigned long nextBaa = 10000;
@@ -128,9 +134,40 @@ void updateState(unsigned long now) {
 
 }
 
+
+
 void loop() {
   Watchdog.reset();
-  
+  unsigned long now = millis();
+  if (nextCalibration < now) {
+    calibrate();
+    nextCalibration = 0x7fffffff;
+  }
+  updateTouchData(now);
+  uint8_t t = 0;
+  for (int i = 0; i < 6; i ++) {
+    if (cap.filteredData(i) < cap.baselineData(i))
+      t |= 1 << i;
+  }
+
+  uint8_t v = sendSlave(0, t);
+  if (v != 0) {
+    Serial.print("Transmission error: " );
+    Serial.println(v);
+  }
+  Serial.print(t, HEX);
+  Serial.print("  ");
+  Serial.print(currTouched, HEX);
+  Serial.print("  ");
+  for (int i = 0; i < 6; i++) {
+    Serial.print(cap.filteredData(i) - cap.baselineData(i));
+    Serial.print(" ");
+    
+  }
+  Serial.println();
+  delay(200);
+
+
 }
 void loop0() {
   Watchdog.reset();
@@ -138,6 +175,7 @@ void loop0() {
   updateTouchData(now);
   if (now > 10000)
     updateState(now);
+
   for (int i = 0; i < numTouchSensors; i++) {
     if (((newTouched >> i) & 1 ) != 0) {
       // printf(Serial,"touched %d\n", i);

@@ -72,7 +72,7 @@ void setupTouch() {
   Serial.println("Applying configuration");
   mySetup();
   dumpConfiguration();
-  delay(200);
+  delay(2000);
   calibrate();
   dumpConfiguration();
   delay(200);
@@ -85,6 +85,7 @@ const uint16_t sampleRate = 1000 / intervalBetweenSamples;
 
 void updateTouchData(unsigned long now) {
   currTouched = cap.touched();
+  if (true) return;
   newTouched = currTouched & ~lastTouched;
   lastTouched = currTouched;
   if (newTouched  != 0 || nextTouchInterval < now) {
@@ -264,7 +265,7 @@ void freeze() {
 }
 
 uint8_t calculateBaseline(uint16_t value) {
-  return  (value - 12) >> 2;
+  return  (value - 5) >> 2;
 }
 void calibrate() {
   uint8_t mode = cap.readRegister8(MPR121_ECR);

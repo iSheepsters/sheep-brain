@@ -93,7 +93,7 @@ boolean SoundFile::eligibleToPlay(uint32_t now) {
 SoundFile * currentSoundFile = NULL;
 
 void setupSD() {
-  if (!SD.begin(4 /* CARDCS */)) {
+  if (!SD.begin(5 /* CARDCS */)) {
     Serial.println(F("SD failed, or not present"));
     while (1);  // don't do anything more
   }
