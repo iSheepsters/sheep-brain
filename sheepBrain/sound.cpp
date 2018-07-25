@@ -5,6 +5,7 @@
 
 
 #include "sound.h"
+#include "soundFile.h"
 
 #include <Wire.h>
 // These are the pins used
@@ -31,6 +32,7 @@ Adafruit_VS1053_FilePlayer musicPlayer =
 int8_t thevol = 32;
 
 unsigned long lastSoundStarted = 0;
+unsigned long lastSound = 0;
 
 
 
@@ -81,10 +83,13 @@ void setupSound() {
 
 
 void updateSound(unsigned long now) {
-  if (musicPlaying.playingMusic) {
+  if (musicPlayer.playingMusic) {
+    if (currentSoundFile)
+      currentSoundFile->lastPlaying = now;
     lastSound = now;
-    musicPlaying.feedMusic();
-  }
+    musicPlayer.feedBuffer();
+  } else
+    currentSoundFile = NULL;
 }
 
 // Setting the volume is very simple! Just write the 6-bit
@@ -138,7 +143,11 @@ void stopMusic() {
 }
 
 boolean playFile(const char *fmt, ... ) {
+  if (currentSoundFile) {
+    currentSoundFile->lastPlaying = millis();
+  }
   slowlyStopMusic();
+  currentSoundFile = NULL;
   char buf[256]; // resulting string limited to 256 chars
   va_list args;
   va_start (args, fmt );

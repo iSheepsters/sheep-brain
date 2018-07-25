@@ -10,9 +10,10 @@ extern void completeMusic();
 
 extern boolean setVolume(int8_t v);
 extern void setupSound();
-extern unsigned long lastSound = 0;
+extern unsigned long lastSound;
 
-extern void updateSound(unsligned long now);
+extern void updateSound(unsigned long now);
+extern void slowlyStopMusic();
 extern unsigned long lastSoundStarted;
 
 extern boolean playFile(const char *fmt, ... );

@@ -9,8 +9,7 @@ class SoundFile {
     char name[13];
     uint32_t lastStarted;
     uint32_t lastPlaying;
-    uint32_t duration;
-    boolean eligibleToPlay(uint32_t);
+    boolean eligibleToPlay(uint32_t,  boolean quietTime);
 };
 
 class SoundCollection {
@@ -24,8 +23,8 @@ class SoundCollection {
     void list();
 
     boolean load(const char * s);
-    SoundFile* chooseSound(uint32_t now);
-    void playSound(uint32_t now);
+    SoundFile* chooseSound(uint32_t now,  boolean quietTime);
+    void playSound(uint32_t now,  boolean quietTime);
 };
 
 

@@ -136,7 +136,7 @@ void updateState(unsigned long now) {
       (touchDuration(LEFT_SENSOR) > 550 || touchDuration(RIGHT_SENSOR) > 550 )
       || touchDuration(BACK_SENSOR) > 9500)  {
     if (currState != Riding) {
-      ridingSounds.playSound(now);
+      ridingSounds.playSound(now, false);
       nextBaa = now + 12000 + random(1, 15000);
       currState = Riding;
       Serial.println("riding");
@@ -149,7 +149,7 @@ void updateState(unsigned long now) {
            && untouchDuration(RUMP_SENSOR) > 10000) {
     if (currState != Bored) {
       if (!musicPlayer.playingMusic) {
-        boredSounds.playSound(now);
+        boredSounds.playSound(now, false);
         nextBaa = now + 12000 + random(1, 15000);
       }
       currState = Bored;
@@ -159,7 +159,7 @@ void updateState(unsigned long now) {
   else {
     if (currState != Welcoming) {
       if (!musicPlayer.playingMusic || currState == Bored) {
-        welcomingSounds.playSound(now);
+        welcomingSounds.playSound(now, false);
         nextBaa = now + 12000 + random(1, 15000);
       }
       currState = Welcoming;
@@ -175,7 +175,7 @@ void updateState(unsigned long now) {
 void loop0() {
   Watchdog.reset();
   unsigned long now = millis();
-  updateSound();
+  updateSound(now);
   updateGPS();
   if (nextCalibration < now) {
     Serial.println("Calibrate");
@@ -224,7 +224,7 @@ void loop() {
 
   //  Serial.println(millis());
   unsigned long now = millis();
-  updateSound();
+  updateSound(now);
   if (nextReport < now ) {
     switch (currState) {
       case Bored:
@@ -313,18 +313,18 @@ void checkForSound() {
   unsigned long now = millis();
   if (nextBaa < now && !musicPlayer.playingMusic) {
     if (random(3) == 0) {
-      baaSounds.playSound(now);
+      baaSounds.playSound(now, true);
       nextBaa = now + 4000 + random(1, 10000);
     } else {
       switch (currState) {
         case Bored:
-          boredSounds.playSound(now);
+          boredSounds.playSound(now, true);
           break;
         case Welcoming:
-          welcomingSounds.playSound(now);
+          welcomingSounds.playSound(now, true);
           break;
         case Riding:
-          ridingSounds.playSound(now);
+          ridingSounds.playSound(now, true);
           break;
       }
     }
@@ -347,13 +347,13 @@ void checkForCommand(unsigned long now) {
           playFile("baa%d.mp3", 1 + random(8));
           break;
         case 'w':
-          welcomingSounds.playSound(now);
+          welcomingSounds.playSound(now, false);
           break;
         case 'r':
-          ridingSounds.playSound(now);
+          ridingSounds.playSound(now, false);
           break;
         case 'b':
-          boredSounds.playSound(now);
+          boredSounds.playSound(now, false);
           break;
         case 'd':
           Serial.println(musicPlayer.startPlayingFile("drumbone.mp3"));

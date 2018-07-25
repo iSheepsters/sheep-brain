@@ -76,34 +76,44 @@ void SoundCollection::list() {
   }
 }
 
-void SoundCollection::playSound(uint32_t now) {
-  SoundFile *s  = chooseSound(now);
+void SoundCollection::playSound(uint32_t now, boolean quietTime) {
+  SoundFile *s  = chooseSound(now, quietTime);
   if (s == NULL) {
     Serial.println("No sound found");
     return;
-  }
+  };
+  slowlyStopMusic();
+  s->lastStarted = s->lastPlaying = now;
 
- 
-  if (!playFile("%s/%s",name, s->name )) {
+  if (!playFile("%s/%s", name, s->name )) {
     Serial.println("Could not start ");
 
   }
 }
 
 
-SoundFile * SoundCollection::chooseSound(uint32_t now) {
+SoundFile * SoundCollection::chooseSound(uint32_t now,  boolean quietTime) {
   if (count == 0) return NULL;
   for (int i = 0; i < 3; i++) {
     SoundFile *s = &(files[random(count)]);
-    if (s->eligibleToPlay(now))
+    if (s->eligibleToPlay(now, quietTime))
       return s;
   }
   return NULL;
 }
 
-boolean SoundFile::eligibleToPlay(uint32_t now) {
+boolean SoundFile::eligibleToPlay(uint32_t now, boolean quietTime) {
   if (lastStarted == 0 || now == 0) return true;
-  uint32_t minimumQuietTime = duration * 3 + 120000L;
+  unsigned long duration = 3000;
+  if (lastPlaying > lastStarted+3000)
+    duration = lastPlaying - lastStarted;
+
+  uint32_t minimumQuietTime = duration  + 15000L;
+  if (quietTime && lastSound + minimumQuietTime > now)
+    return false;
+
+  uint32_t minimumRepeatTime = duration * 3 + 120000L;
+
   return lastPlaying + minimumQuietTime < now;
 }
 
