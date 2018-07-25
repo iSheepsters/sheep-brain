@@ -15,10 +15,13 @@ const uint8_t QUARTER_GRID_WIDTH = 8;
 const uint8_t HALF_GRID_WIDTH = 16;
 const uint8_t GRID_WIDTH = 2 * HALF_GRID_WIDTH;
 
+CRGB unusedLED;
 CRGB leds[NUM_STRIPS * NUM_LEDS_PER_STRIP];
 
 CRGB & getSheepLEDFor(uint8_t x, uint8_t y) {
-  // 0 <= x < 2*GRID_HEIGHT
+  if (x >= GRID_WIDTH || y >=GRID_HEIGHT)
+  return unusedLED;
+  // 0 <= x < GRID_WIDTH
   // 0 <= y < GRID_HEIGHT
   uint8_t strip;
   uint16_t pos;
@@ -277,6 +280,7 @@ void loop() {
     if (tracerX >= GRID_WIDTH) {
       tracerX = 0;
       tracerY++;
+      
       if (tracerY >= GRID_HEIGHT)
         tracerY = 0;
     }
