@@ -16,8 +16,8 @@ const uint16_t pettingBufferSize = 512;
 uint16_t pettingData[numPettingSensors][pettingBufferSize];
 uint16_t pettingDataPosition = 0;
 
-uint16_t timeTouched[numTouchSensors];
-uint16_t timeUntouched[numTouchSensors];
+int32_t timeTouched[numTouchSensors];
+int32_t timeUntouched[numTouchSensors];
 uint16_t touchedThisInterval;
 unsigned long nextTouchInterval = 0;
 const uint16_t touchInterval = 1000;
@@ -127,10 +127,16 @@ void updateTouchData(unsigned long now) {
   }
 }
 
-uint16_t touchDuration(enum TouchSensor sensor) {
+int32_t combinedTouchDuration(enum TouchSensor sensor) {
+  if (timeTouched[sensor] > 0)
+    return timeTouched[sensor] * touchInterval;
+  return -timeUntouched[sensor] * touchInterval;
+
+}
+int32_t touchDuration(enum TouchSensor sensor) {
   return timeTouched[sensor] * touchInterval;
 }
-uint16_t untouchDuration(enum TouchSensor sensor) {
+int32_t untouchDuration(enum TouchSensor sensor) {
   return timeUntouched[sensor] * touchInterval;
 }
 

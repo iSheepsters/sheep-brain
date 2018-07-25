@@ -132,8 +132,15 @@ unsigned long nextBaa = 10000;
 
 
 void updateState(unsigned long now) {
+  myprintf(Serial,"state %d: %6d %6d %6d %6d %6d\n", currState,
+  combinedTouchDuration(HEAD_SENSOR),
+  combinedTouchDuration(BACK_SENSOR),
+  combinedTouchDuration(LEFT_SENSOR),
+  combinedTouchDuration(RIGHT_SENSOR),
+  combinedTouchDuration(RUMP_SENSOR));
+  
   if (touchDuration(BACK_SENSOR) > 1200 &&
-      (touchDuration(LEFT_SENSOR) > 550 || touchDuration(RIGHT_SENSOR) > 550 )
+      (touchDuration(LEFT_SENSOR) > 550 || touchDuration(RIGHT_SENSOR) > 550 ||  touchDuration(RUMP_SENSOR) > 550 )
       || touchDuration(BACK_SENSOR) > 9500)  {
     if (currState != Riding) {
       ridingSounds.playSound(now, false);
@@ -141,8 +148,6 @@ void updateState(unsigned long now) {
       currState = Riding;
       Serial.println("riding");
     }
-
-
   }
   else if (untouchDuration(BACK_SENSOR) > 10000
            && untouchDuration(HEAD_SENSOR) > 10000
@@ -156,7 +161,9 @@ void updateState(unsigned long now) {
       Serial.println("bored");
     }
   }
-  else {
+  else if( touchDuration(BACK_SENSOR) > 100 ||
+      touchDuration(LEFT_SENSOR) > 100 || touchDuration(RIGHT_SENSOR) > 100 
+      ||  touchDuration(RUMP_SENSOR) > 100  ||  touchDuration(HEAD_SENSOR) > 100) {
     if (currState != Welcoming) {
       if (!musicPlayer.playingMusic || currState == Bored) {
         welcomingSounds.playSound(now, false);
@@ -228,16 +235,16 @@ void loop() {
   if (nextReport < now ) {
     switch (currState) {
       case Bored:
-        myprintf(Serial, "%d State Bored\n", now);
+        myprintf(Serial, "%d State Bored, %f volts\n", now, batteryVoltage());
         break;
       case Welcoming:
-        myprintf(Serial, "%d State Welcoming\n", now);
+        myprintf(Serial, "%d State Welcoming, %f volts\n", now, batteryVoltage());
         break;
       case Riding:
-        myprintf(Serial, "%d State Riding\n", now);
+        myprintf(Serial, "%d State Riding, %f volts\n", now, batteryVoltage());
         break;
       default:
-        myprintf(Serial, "%d State unknown\n", now);
+        myprintf(Serial, "%d State %d unknown, %f volts\n", now,currState,  batteryVoltage());
         break;
     }
     nextReport = now + 5000;
@@ -278,7 +285,7 @@ void loop() {
 
   if (now > 10000) {
     updateState(now);
-    //sendSlave(1, (uint8_t) currState);
+    sendSlave(1, (uint8_t) currState);
   }
 
   for (int i = 0; i < numTouchSensors; i++) {

@@ -26,7 +26,7 @@ void setupComm() {
   Serial.println(slaveAddress, HEX);
   // init vars
   addr = 0;
-  for (size_t i = 0; i < MEM_LEN; i++)
+  for (int i = 0; i < MEM_LEN; i++)
     mem[i] = 0;
   // register events
   Wire.onReceive(receiveEvent);
@@ -43,17 +43,37 @@ void receiveEvent(int len)
   Serial.print("receive event at ");
   Serial.println(millis());
   // grab addr
+  uint8_t check = Wire.read();
+  if (check != 42) {
+    myprintf(Serial, "got bad check byte of %d, discarding rest of data\n");
+    while (Wire.available()) {
+      myprintf(Serial, "discarding %d\n", Wire.read());
+    }
+    Serial.println();
+    return;
+  }
+
   addr = Wire.read();
-  while (Wire.available()) {
+  myprintf(Serial, "Check byte of %d, addr of %d\n", check, addr);
+  if (Wire.available()) {
     uint8_t value =  Wire.read();
     if (addr <= MEM_LEN) {
       mem[addr] = value; // copy data to mem
 
-      printf(Serial, "mem[%d] = %d\n", addr, value);
-      addr++;
+      myprintf(Serial, "mem[%d] = %d\n", addr, value);
+      int count = 0;
+      while (Wire.available()) {
+        uint8_t value2 =  Wire.read();
+        count++;
+
+      }
+      if (count > 0)
+        myprintf(Serial, "discarded %d bytes\n", count);
     }
+    Serial.println();
+  } else {
+    Serial.println("No bytes available");
   }
-  Serial.println();
 }
 
 
@@ -69,7 +89,7 @@ void requestEvent(void)
     v = mem[addr];
 
   Wire.write(v);
-  printf(Serial, "Sent mem[%d] which is %d\n", addr, v);
+  myprintf(Serial, "Sent mem[%d] which is %d\n", addr, v);
   addr++;
 }
 

@@ -15,12 +15,18 @@ const uint8_t QUARTER_GRID_WIDTH = 8;
 const uint8_t HALF_GRID_WIDTH = 16;
 const uint8_t GRID_WIDTH = 2 * HALF_GRID_WIDTH;
 
+enum State {
+  Bored,
+  Welcoming,
+  Riding
+};
+
 CRGB unusedLED;
 CRGB leds[NUM_STRIPS * NUM_LEDS_PER_STRIP];
 
 CRGB & getSheepLEDFor(uint8_t x, uint8_t y) {
-  if (x >= GRID_WIDTH || y >=GRID_HEIGHT)
-  return unusedLED;
+  if (x >= GRID_WIDTH || y >= GRID_HEIGHT)
+    return unusedLED;
   // 0 <= x < GRID_WIDTH
   // 0 <= y < GRID_HEIGHT
   uint8_t strip;
@@ -159,7 +165,7 @@ void headLights() {
 void loop() {
   if (true)
     Watchdog.reset();
-
+  State currState = (State) mem[1];
   if (false) {
     //LEDS.clear();
     for (int x = 0; x < GRID_WIDTH; x++)
@@ -215,7 +221,7 @@ void loop() {
   }
 
   if (nextUpdate < now) {
-    Serial.println("sheepSlaveBrain");
+    myprintf(Serial, "sheepSlaveBrain %d\n", currState);
     nextUpdate = now + 20000;
   }
 
@@ -227,17 +233,36 @@ void loop() {
 
   static uint8_t hue = 0;
 
+
   if (true) {
     for (int x = 0; x < HALF_GRID_WIDTH; x++)
       for (int y = 0; y < GRID_HEIGHT; y++) {
-        getSheepLEDFor(HALF_GRID_WIDTH + x, y) = CHSV(x * 8 + hue, 255, 255);
-        getSheepLEDFor(HALF_GRID_WIDTH - 1 - x, y) = CHSV(x * 8 + hue, 255, 255);
+        uint8_t v = 255;
+        switch (currState) {
+          case Welcoming:
+            v = (x * 137 + 179 * y + now / 10);
+            if (v < 128) {
+              v = 128;
+            } else 
+              v = (v+190)/2;
+            break;
+          case Bored:
+            v = 128;
+            break;
+          case Riding:
+            float r = (-y + now / 100.0) * 2.0 * PI * 5 / GRID_HEIGHT;
+            v = sin(r) * 64 + 128 + 64;
+            break;
+
+        }
+        getSheepLEDFor(HALF_GRID_WIDTH + x, y) = CHSV(x * 8 + hue, 255, v);
+        getSheepLEDFor(HALF_GRID_WIDTH - 1 - x, y) = CHSV(x * 8 + hue, 255, v);
       }
   }
 
-  static uint8_t tracerX = 0;
-  static uint8_t tracerY = 0;
-
+  const uint8_t TRACER_LENGTH = 10;
+  static int8_t tracerX = 1 - TRACER_LENGTH;
+  static int8_t tracerY = 0;
 
 
   for (int j = 0; j < 50; j++)
@@ -274,13 +299,13 @@ void loop() {
     }
 
   if (true) {
-    for (int x = tracerX; x <= tracerX + 10 && x < GRID_WIDTH; x++)
+    for (int x = tracerX; x <= tracerX + TRACER_LENGTH && x < GRID_WIDTH; x++)
       getSheepLEDFor(x, tracerY) = CRGB::White;
     tracerX ++;
     if (tracerX >= GRID_WIDTH) {
-      tracerX = 0;
+      tracerX = 1 - TRACER_LENGTH;
       tracerY++;
-      
+
       if (tracerY >= GRID_HEIGHT)
         tracerY = 0;
     }

@@ -32,8 +32,9 @@ extern void freeze();
 extern void adjust();
 extern void updateTouchData(unsigned long now);
 extern boolean isTouched(enum TouchSensor sensor);
-extern uint16_t touchDuration(enum TouchSensor sensor);
-extern uint16_t untouchDuration(enum TouchSensor sensor);
+extern int32_t touchDuration(enum TouchSensor sensor);
+extern int32_t combinedTouchDuration(enum TouchSensor sensor);
+extern int32_t untouchDuration(enum TouchSensor sensor);
 extern boolean newTouch(enum TouchSensor sensor);
 extern uint8_t calculateBaseline(uint16_t value);
 
