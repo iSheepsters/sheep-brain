@@ -20,13 +20,13 @@ uint16_t timeTouched[numTouchSensors];
 uint16_t timeUntouched[numTouchSensors];
 uint16_t touchedThisInterval;
 unsigned long nextTouchInterval = 0;
-const uint16_t touchInterval = 250;
+const uint16_t touchInterval = 1000;
 
 
 unsigned long lastTouch[numTouchSensors];
 
 const uint8_t  FFI = 3;
-const uint8_t  SFI = 2;
+const uint8_t  SFI = 3;
 const uint8_t  ESI = 0;
 const uint8_t  CDC = 16;
 const uint8_t  CDT = 1;
@@ -84,10 +84,9 @@ const uint16_t sampleRate = 1000 / intervalBetweenSamples;
 
 
 void updateTouchData(unsigned long now) {
-  currTouched = cap.touched();
-  if (true) return;
-  newTouched = currTouched & ~lastTouched;
   lastTouched = currTouched;
+  currTouched = cap.touched();
+  newTouched = currTouched & ~lastTouched;
   if (newTouched  != 0 || nextTouchInterval < now) {
     for (int i = 0; i < numTouchSensors; i++) {
       if ((touchedThisInterval & _BV(i)) != 0) {
@@ -215,14 +214,15 @@ void changeMode(uint8_t newMode) {
 }
 
 
+const uint8_t ELE_EN = 6;
 void setECR(bool updateBaseline) {
   // 0b10111111
   // CL = 01
   // EXPROX = ELEPROX_EN
-  // ELE_EN = 1111
+  // ELE_EN = (number of sensors to enable)
   uint8_t CL = updateBaseline ? 0x10 : 0x01;
 
-  cap.writeRegister(MPR121_ECR, (CL << 6) | (ELEPROX_EN << 4) | 0x0f);
+  cap.writeRegister(MPR121_ECR, (CL << 6) | (ELEPROX_EN << 4) | ELE_EN);
 
 }
 
@@ -265,7 +265,9 @@ void freeze() {
 }
 
 uint8_t calculateBaseline(uint16_t value) {
-  return  (value - 5) >> 2;
+  uint16_t baseline = value & 0xfffc;
+  if (value - baseline < 3) baseline = baseline - 4;
+  return  (baseline >> 2);
 }
 void calibrate() {
   uint8_t mode = cap.readRegister8(MPR121_ECR);
@@ -347,4 +349,5 @@ float detectPetting(uint8_t touchSensor, uint16_t sampleSize, float * confidence
   *confidence = max / avg;
   return answer;
 }
+
 

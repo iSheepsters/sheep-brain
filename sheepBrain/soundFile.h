@@ -20,9 +20,14 @@ class SoundCollection {
     uint16_t count;
     SoundFile *files;
 
+
+    void list();
+
     boolean load(const char * s);
     SoundFile* chooseSound(uint32_t now);
+    void playSound(uint32_t now);
 };
 
 
 extern SoundFile * currentSoundFile;
+

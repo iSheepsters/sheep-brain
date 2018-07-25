@@ -1,34 +1,15 @@
 #include <Arduino.h>
 #include "soundFile.h"
+#include "sound.h"
 #include "printf.h"
 #include <SPI.h>
 #include <SD.h>
 
-// Feather M0 or 32u4
-#if defined(__AVR__) || defined(ARDUINO_SAMD_FEATHER_M0)
 #define CARDCS          5     // Card chip select pin
 
-// Feather ESP8266
-#elif defined(ESP8266)
-#define CARDCS          2     // Card chip select pin
 
-// Feather ESP32
-#elif defined(ESP32)
-#define CARDCS         14     // Card chip select pin
-
-// Feather Teensy3
-#elif defined(TEENSYDUINO)
-#define CARDCS          8     // Card chip select pin
-
-// WICED feather
-#elif defined(ARDUINO_STM32_FEATHER)
-#define CARDCS          PC5     // Card chip select pin
-
-#elif defined(ARDUINO_FEATHER52)
-#define CARDCS          27     // Card chip select pin
-#endif
-
-
+const int PATH_BUFFER_LENGTH = 100;
+char pathBuffer[PATH_BUFFER_LENGTH];
 
 boolean isMusicFile(File f) {
   if (f.isDirectory()) return false;
@@ -50,6 +31,8 @@ boolean SoundCollection::load(const char * s) {
   count = 0;
   if (!dir.isDirectory()) {
     files = NULL;
+    Serial.print(s);
+    Serial.println(" is not a directory");
     return false;
   }
   while (true) {
@@ -62,17 +45,51 @@ boolean SoundCollection::load(const char * s) {
   dir.rewindDirectory();
   files = new SoundFile[count];
   uint16_t i = 0;
-  while (true) {
+  while (i < count) {
     File entry =  dir.openNextFile();
-    if (!entry) break;
+    if (!entry)
+      break;
     if (isMusicFile(entry)) {
       strncpy(files[i].name,  entry.name(), 13);
+      files[i].lastPlaying = 0;
+      files[i].lastStarted = 0;
+      i++;
+    }
+  }
+  if (i < count) {
+    Serial.println("Ran short of music files!");
+    myprintf(Serial, "Expected %d, found %d\n", count, i);
+    for (; i < count; i++) {
+      strncpy(files[i].name,  "", 13);
       files[i].lastPlaying = 0;
       files[i].lastStarted = 0;
     }
   }
   return true;
 }
+
+void SoundCollection::list() {
+  Serial.println((uint32_t)(void *)files, HEX);
+
+  for (int i = 0; i < count; i++) {
+    Serial.println(files[i].name);
+  }
+}
+
+void SoundCollection::playSound(uint32_t now) {
+  SoundFile *s  = chooseSound(now);
+  if (s == NULL) {
+    Serial.println("No sound found");
+    return;
+  }
+
+ 
+  if (!playFile("%s/%s",name, s->name )) {
+    Serial.println("Could not start ");
+
+  }
+}
+
 
 SoundFile * SoundCollection::chooseSound(uint32_t now) {
   if (count == 0) return NULL;
@@ -85,10 +102,11 @@ SoundFile * SoundCollection::chooseSound(uint32_t now) {
 }
 
 boolean SoundFile::eligibleToPlay(uint32_t now) {
-  if (lastStarted == 0) return true;
+  if (lastStarted == 0 || now == 0) return true;
   uint32_t minimumQuietTime = duration * 3 + 120000L;
   return lastPlaying + minimumQuietTime < now;
 }
+
 
 SoundFile * currentSoundFile = NULL;
 
@@ -100,7 +118,7 @@ void setupSD() {
   Serial.println("SD OK!");
 
   // list files
-  printDirectory(SD.open("/"), 0);
+  //  printDirectory(SD.open("/"), 0);
 }
 
 
@@ -130,5 +148,6 @@ void printDirectory(File dir, int numTabs) {
     entry.close();
   }
 }
+
 
 
