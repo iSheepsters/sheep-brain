@@ -76,7 +76,7 @@ void setup() {
     Serial.println("radio not found!");
 
   if (useSound) {
-    digitalWrite(SHDN_MAX9744, HIGH);
+    pinMode(SHDN_MAX9744, INPUT);
     delay(100);
     setupSound();
 
@@ -118,9 +118,6 @@ void setup() {
   }
 
   setupComm();
-
-
-
 
   Serial.println("Ready");
   nextPettingReport = millis() + 2000;
