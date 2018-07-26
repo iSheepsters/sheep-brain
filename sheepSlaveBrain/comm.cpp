@@ -19,9 +19,13 @@ size_t addr;
 // Memory
 uint8_t mem[MEM_LEN];
 
+void receiveEvent(size_t len);
+void requestEvent(void);
+
+
 void setupComm() {
   // Setup for Slave mode, address 0x44, pins 18/19, external pullups, 400kHz
-  Wire.begin(slaveAddress);
+  Wire.begin(I2C_SLAVE, 0x44, I2C_PINS_18_19, I2C_PULLUP_EXT, I2C_RATE_400);
   Serial.print("i2c Slave address: ");
   Serial.println(slaveAddress, HEX);
   // init vars
@@ -37,12 +41,10 @@ void setupComm() {
 //
 // handle Rx Event (incoming I2C request/data)
 //
-void receiveEvent(int len)
+void receiveEvent(size_t len)
 {
   if (!Wire.available()) return;
-  Serial.print("receive event at ");
-  Serial.println(millis());
-  // grab addr
+  // grab check byte
   uint8_t check = Wire.read();
   if (check != 42) {
     myprintf(Serial, "got bad check byte of %d, discarding rest of data\n");
@@ -54,29 +56,16 @@ void receiveEvent(int len)
   }
 
   addr = Wire.read();
-  myprintf(Serial, "Check byte of %d, addr of %d\n", check, addr);
-  if (Wire.available()) {
+  //myprintf(Serial, "addr of %d, %d bytes available\n", addr, Wire.available());
+  while (Wire.available()) {
     uint8_t value =  Wire.read();
     if (addr <= MEM_LEN) {
       mem[addr] = value; // copy data to mem
-
-      myprintf(Serial, "mem[%d] = %d\n", addr, value);
-      int count = 0;
-      while (Wire.available()) {
-        uint8_t value2 =  Wire.read();
-        count++;
-
-      }
-      if (count > 0)
-        myprintf(Serial, "discarded %d bytes\n", count);
+      addr++;
+      //myprintf(Serial, "mem[%d] = %d\n", addr, value);
     }
-    Serial.println();
-  } else {
-    Serial.println("No bytes available");
   }
 }
-
-
 
 //
 // handle Tx Event (outgoing I2C data)
@@ -93,3 +82,17 @@ void requestEvent(void)
   addr++;
 }
 
+
+void print_i2c_status(void)
+{
+  switch (Wire.status())
+  {
+    case I2C_WAITING:
+      //Serial.print("I2C waiting, no errors\n");
+      break;
+    case I2C_ADDR_NAK: Serial.print("Slave addr not acknowledged\n"); break;
+    case I2C_DATA_NAK: Serial.print("Slave data not acknowledged\n"); break;
+    case I2C_ARB_LOST: Serial.print("Bus Error: Arbitration Lost\n"); break;
+    default:           Serial.print("I2C busy\n"); break;
+  }
+}

@@ -1,10 +1,11 @@
 #include <Adafruit_SleepyDog.h>
-#include <Wire.h>
+
 
 #include<FastLED.h>
 
 #include "all.h"
 #include "comm.h"
+#include "hsv2rgb.h"
 const int led = 13;
 
 const uint16_t NUM_LEDS_PER_STRIP  = 400;
@@ -163,8 +164,7 @@ void headLights() {
 
 
 void loop() {
-  if (true)
-    Watchdog.reset();
+  Watchdog.reset();
   State currState = (State) mem[1];
   if (false) {
     //LEDS.clear();
@@ -243,8 +243,8 @@ void loop() {
             v = (x * 137 + 179 * y + now / 10);
             if (v < 128) {
               v = 128;
-            } else 
-              v = (v+190)/2;
+            } else
+              v = (v + 190) / 2;
             break;
           case Bored:
             v = 128;
@@ -291,7 +291,7 @@ void loop() {
 
 
   // Set the first n leds on each strip to show which strip it is
-  if (true)
+  if (false)
     for (int i = 0; i < NUM_STRIPS; i++) {
       for (int j = 0; j <= i; j++) {
         leds[(i * NUM_LEDS_PER_STRIP) + j] = CRGB::Red;
@@ -299,8 +299,12 @@ void loop() {
     }
 
   if (true) {
-    for (int x = tracerX; x <= tracerX + TRACER_LENGTH && x < GRID_WIDTH; x++)
-      getSheepLEDFor(x, tracerY) = CRGB::White;
+    for (int x = tracerX; x <= tracerX + TRACER_LENGTH && x < GRID_WIDTH; x++) {
+      CHSV hsv = rgb2hsv_approximate (getSheepLEDFor(x, tracerY));
+      hsv.s = 170;
+      hsv.v = (hsv.v + 255) / 2;
+      getSheepLEDFor(x, tracerY) = hsv;
+    }
     tracerX ++;
     if (tracerX >= GRID_WIDTH) {
       tracerX = 1 - TRACER_LENGTH;
