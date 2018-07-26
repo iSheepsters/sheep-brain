@@ -103,7 +103,7 @@ void dumpTouchData() {
   Serial.println();
 }
 
-void updateTouchData(unsigned long now) {
+void updateTouchData(unsigned long now, boolean debug) {
   lastTouched = currTouched;
   currTouched = 0;
   for (int i = 0; i < numTouchSensors; i++) {
@@ -114,22 +114,27 @@ void updateTouchData(unsigned long now) {
   newTouched = currTouched & ~lastTouched;
   if (nextRecentInterval < now) {
     boolean allStable = true;
+    int potentialMaxChange = 0;
+    
     for (int i = 0; i < numTouchSensors; i++) {
       int range = maxRecentValue[i] - minRecentValue[i];
-      
+
       if (range > 3 || minRecentValue[i] < 10 || cap.filteredData(i) < 10)
         allStable = false;
+      potentialMaxChange = max(potentialMaxChange,abs(stableValue[i] - (minRecentValue[i] - 1)));
     }
-    
-    if (allStable) {
-      Serial.println("All stable, resetting");
+
+    if (allStable && potentialMaxChange > 0) {
+      myprintf(Serial, "All stable, change of %d, resetting\n", potentialMaxChange);
       for (int i = 0; i < numTouchSensors; i++) {
         stableValue[i] = minRecentValue[i] - 1;
       };
+    } else if  (allStable && potentialMaxChange == 0) {
+      Serial.println("Touch sensors stable and unchanged");
     }
     for (int i = 0; i < numTouchSensors; i++) {
-        minRecentValue[i] = maxRecentValue[i] = cap.filteredData(i);
-      };
+      minRecentValue[i] = maxRecentValue[i] = cap.filteredData(i);
+    };
     nextRecentInterval = now + recentInterval;
   }
   else
@@ -149,15 +154,15 @@ void updateTouchData(unsigned long now) {
       if ((touchedThisInterval & _BV(i)) != 0) {
         timeTouched[i]++;
         timeUntouched[i] = 0;
-        Serial.print(timeTouched[i]);
+        if (debug) Serial.print(timeTouched[i]);
       } else {
         timeTouched[i] = 0;
         timeUntouched[i]++;
-        Serial.print(-timeUntouched[i]);
+        if (debug) Serial.print(-timeUntouched[i]);
       }
-      Serial.print(" ");
+      if (debug) Serial.print(" ");
     }
-    Serial.println();
+    if (debug) Serial.println();
     touchedThisInterval = currTouched;
     nextTouchInterval = now + touchInterval;
   } else {

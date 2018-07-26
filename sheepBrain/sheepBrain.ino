@@ -28,6 +28,14 @@ enum State {
   Riding
 };
 
+const char * stateName(State s) {
+  switch (s) {
+    case Bored: return "Bored";
+    case Welcoming: return "Welcoming";
+    case Riding: return "Riding";
+    default: return "Unknown";
+  }
+}
 SoundCollection boredSounds;
 SoundCollection ridingSounds;
 SoundCollection welcomingSounds;
@@ -41,7 +49,7 @@ float batteryVoltage() {
 uint8_t batteryCharge() {
   // https://www.energymatters.com.au/components/battery-voltage-discharge/
   float v = batteryVoltage();
-  v = 50 + (v-12.2)/0.2*25;
+  v = 50 + (v - 12.2) / 0.2 * 25;
   if (v > 100) v = 100;
   if (v < 0) v = 0;
   return (int) v;
@@ -142,7 +150,7 @@ unsigned long nextBaa = 10000;
 
 
 void updateState(unsigned long now) {
-  myprintf(Serial, "state %d: %6d %6d %6d %6d %6d\n", currState,
+  if (false) myprintf(Serial, "state %d: %6d %6d %6d %6d %6d\n", currState,
            combinedTouchDuration(HEAD_SENSOR),
            combinedTouchDuration(BACK_SENSOR),
            combinedTouchDuration(LEFT_SENSOR),
@@ -192,13 +200,13 @@ void loop0() {
   Watchdog.reset();
   unsigned long now = millis();
   updateSound(now);
-  updateGPS();
+  updateGPS(now);
   if (nextCalibration < now) {
     Serial.println("Calibrate");
     calibrate();
     nextCalibration = 0x7fffffff;
   }
-  updateTouchData(now);
+  updateTouchData(now, false);
   uint8_t t = 0;
   for (int i = 0; i < 6; i ++) {
     if (cap.filteredData(i) < cap.baselineData(i))
@@ -228,24 +236,14 @@ void loop() {
   //  Serial.println(millis());
   unsigned long now = millis();
   updateSound(now);
+  updateGPS(now);
   if (nextReport < now ) {
-    switch (currState) {
-      case Bored:
-        myprintf(Serial, "%d State Bored, %f volts\n", now, batteryVoltage());
-        break;
-      case Welcoming:
-        myprintf(Serial, "%d State Welcoming, %f volts\n", now, batteryVoltage());
-        break;
-      case Riding:
-        myprintf(Serial, "%d State Riding, %f volts\n", now, batteryVoltage());
-        break;
-      default:
-        myprintf(Serial, "%d State %d unknown, %f volts\n", now, currState,  batteryVoltage());
-        break;
-    }
+    myprintf(Serial, "%d State %s, %f volts, %2d:%2d:%2d\n", now, stateName(currState), batteryVoltage(),
+             GPS.hour, GPS.minute, GPS.seconds);
+
     nextReport = now + 5000;
   }
-  updateGPS();
+
 
   if (nextCalibration < now) {
     Serial.println("Calibrate");
@@ -253,14 +251,14 @@ void loop() {
     nextCalibration = 0x7fffffff;
   }
 
-  updateTouchData(now);
+  updateTouchData(now, false);
 
   uint8_t v = sendSlave(0, currTouched);
   if (v != 0) {
     Serial.print("Transmission error: " );
     Serial.println(v);
   }
-  dumpTouchData();
+  //dumpTouchData();
   if (false) {
     if (musicPlayer.playingMusic)
       Serial.print("M ");
