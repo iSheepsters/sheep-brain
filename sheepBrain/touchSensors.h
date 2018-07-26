@@ -10,7 +10,8 @@ enum TouchSensor {
   RUMP_SENSOR,
   LEFT_SENSOR,
   RIGHT_SENSOR,
-  BACK_SENSOR, HEAD_SENSOR
+  BACK_SENSOR, 
+  HEAD_SENSOR
 };
 
 extern uint16_t pettingDataPosition; 
@@ -20,7 +21,7 @@ const uint8_t numPettingSensors = numTouchSensors;
 extern Adafruit_MPR121 cap;
 
 extern void setupTouch();
-
+extern void dumpTouchData();
 extern uint16_t currTouched;
 extern uint16_t newTouched;
 
