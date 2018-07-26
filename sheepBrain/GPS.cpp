@@ -40,14 +40,19 @@ double latitudeDegreesMin;
 double longitudeDegreesMin;
 double latitudeDegreesMax;
 double longitudeDegreesMax;
+unsigned long lastGPSReading;
 
-boolean updateGPS() {
+boolean updateGPS(unsigned long now) {
 
   while (GPS.read()) {
    // already processed above
   }
   // if a sentence is received, we can check the checksum, parse it...
-  return GPS.newNMEAreceived() && GPS.parse(GPS.lastNMEA());
+  if ( GPS.newNMEAreceived() && GPS.parse(GPS.lastNMEA())) {
+    lastGPSReading = now;
+    return true;
+  }
+  return false;
 }
 
 void logGPS(unsigned long now) {
