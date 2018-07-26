@@ -37,7 +37,16 @@ SoundCollection baaSounds;
 float batteryVoltage() {
   return analogRead(A2) * 3.3 * 5.7 / 1024;
 }
-unsigned long nextCalibration = 2000;
+
+uint8_t batteryCharge() {
+  // https://www.energymatters.com.au/components/battery-voltage-discharge/
+  float v = batteryVoltage();
+  v = 50 + (v-12.2)/0.2*25;
+  if (v > 100) v = 100;
+  if (v < 0) v = 0;
+  return (int) v;
+}
+unsigned long nextCalibration = 6000;
 enum State currState = Bored;
 void setup() {
 
@@ -125,20 +134,21 @@ void setup() {
   int countdownMS = Watchdog.enable(4000);
   myprintf(Serial, "Watchdog set, %d ms timeout\n", countdownMS);
 
-  nextCalibration = millis() + 1000;
+  nextCalibration = millis() + 5000;
+  setVolume(0);
 }
 
 unsigned long nextBaa = 10000;
 
 
 void updateState(unsigned long now) {
-  myprintf(Serial,"state %d: %6d %6d %6d %6d %6d\n", currState,
-  combinedTouchDuration(HEAD_SENSOR),
-  combinedTouchDuration(BACK_SENSOR),
-  combinedTouchDuration(LEFT_SENSOR),
-  combinedTouchDuration(RIGHT_SENSOR),
-  combinedTouchDuration(RUMP_SENSOR));
-  
+  myprintf(Serial, "state %d: %6d %6d %6d %6d %6d\n", currState,
+           combinedTouchDuration(HEAD_SENSOR),
+           combinedTouchDuration(BACK_SENSOR),
+           combinedTouchDuration(LEFT_SENSOR),
+           combinedTouchDuration(RIGHT_SENSOR),
+           combinedTouchDuration(RUMP_SENSOR));
+
   if (touchDuration(BACK_SENSOR) > 1200 &&
       (touchDuration(LEFT_SENSOR) > 550 || touchDuration(RIGHT_SENSOR) > 550 ||  touchDuration(RUMP_SENSOR) > 550 )
       || touchDuration(BACK_SENSOR) > 9500)  {
@@ -161,9 +171,9 @@ void updateState(unsigned long now) {
       Serial.println("bored");
     }
   }
-  else if( touchDuration(BACK_SENSOR) > 100 ||
-      touchDuration(LEFT_SENSOR) > 100 || touchDuration(RIGHT_SENSOR) > 100 
-      ||  touchDuration(RUMP_SENSOR) > 100  ||  touchDuration(HEAD_SENSOR) > 100) {
+  else if ( touchDuration(BACK_SENSOR) > 100 ||
+            touchDuration(LEFT_SENSOR) > 100 || touchDuration(RIGHT_SENSOR) > 100
+            ||  touchDuration(RUMP_SENSOR) > 100  ||  touchDuration(HEAD_SENSOR) > 100) {
     if (currState != Welcoming) {
       if (!musicPlayer.playingMusic || currState == Bored) {
         welcomingSounds.playSound(now, false);
@@ -176,7 +186,6 @@ void updateState(unsigned long now) {
   }
 
 }
-
 
 
 void loop0() {
@@ -205,20 +214,7 @@ void loop0() {
   //  Serial.print("  ");
   //  Serial.print(currTouched, HEX);
   //  Serial.print("  ");
-  if (nextCalibration < 20000) {
-    for (int i = 0; i < 6; i++) {
-      Serial.print(cap.filteredData(i));
-      Serial.print(" ");
-      Serial.print(cap.baselineData(i));
-      Serial.print("  ");
-    }
-  } else
-    for (int i = 0; i < 6; i++) {
-      Serial.print(cap.filteredData(i) - cap.baselineData(i));
-      Serial.print("  ");
-
-    }
-  Serial.println();
+  dumpTouchData();
   checkForCommand(now);
   delay(200);
 
@@ -244,7 +240,7 @@ void loop() {
         myprintf(Serial, "%d State Riding, %f volts\n", now, batteryVoltage());
         break;
       default:
-        myprintf(Serial, "%d State %d unknown, %f volts\n", now,currState,  batteryVoltage());
+        myprintf(Serial, "%d State %d unknown, %f volts\n", now, currState,  batteryVoltage());
         break;
     }
     nextReport = now + 5000;
@@ -264,6 +260,7 @@ void loop() {
     Serial.print("Transmission error: " );
     Serial.println(v);
   }
+  dumpTouchData();
   if (false) {
     if (musicPlayer.playingMusic)
       Serial.print("M ");
