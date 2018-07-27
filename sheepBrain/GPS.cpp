@@ -45,11 +45,12 @@ unsigned long lastGPSReading;
 boolean updateGPS(unsigned long now) {
 
   while (GPS.read()) {
-   // already processed above
+    // already processed above
   }
   // if a sentence is received, we can check the checksum, parse it...
   if ( GPS.newNMEAreceived() && GPS.parse(GPS.lastNMEA())) {
     lastGPSReading = now;
+    setTime(GPS.hour, GPS.minute, GPS.seconds, GPS.day, GPS.month, GPS.year);
     return true;
   }
   return false;

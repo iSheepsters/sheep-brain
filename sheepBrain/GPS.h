@@ -3,6 +3,8 @@
 
 #include "Adafruit_GPS.h"
 
+#include <TimeLib.h>
+
 extern Adafruit_GPS GPS;
 extern unsigned long lastGPSReading;
 extern boolean setupGPS();
