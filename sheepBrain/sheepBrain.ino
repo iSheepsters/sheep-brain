@@ -18,7 +18,7 @@ const boolean useOLED = false;
 const boolean useTouch = true;
 const boolean useGPS = true;
 
-const uint8_t SHDN_MAX9744 = 10;
+//const uint8_t SHDN_MAX9744 = 10;
 
 unsigned long nextPettingReport;
 
@@ -59,12 +59,12 @@ enum State currState = Bored;
 void setup() {
 
   pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(SHDN_MAX9744, OUTPUT);
-  digitalWrite(SHDN_MAX9744, LOW);
+  //  pinMode(SHDN_MAX9744, OUTPUT);
+  //  digitalWrite(SHDN_MAX9744, LOW);
   Wire.begin();
   randomSeed(analogRead(0));
   Serial.begin(115200);
-  while (!Serial && millis() < 10000) {
+  while (!Serial && millis() < 1000) {
     digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
     delay(200);                     // wait for a second
     digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
@@ -93,8 +93,10 @@ void setup() {
     Serial.println("radio not found!");
 
   if (useSound) {
-    pinMode(SHDN_MAX9744, INPUT);
-    delay(100);
+    //    digitalWrite(SHDN_MAX9744, HIGH);
+    //    delay(10);
+    //    pinMode(SHDN_MAX9744, INPUT);
+    //    delay(100);
     setupSound();
 
     setupSD();
@@ -143,7 +145,6 @@ void setup() {
   myprintf(Serial, "Watchdog set, %d ms timeout\n", countdownMS);
 
   nextCalibration = millis() + 5000;
-  setVolume(0);
 }
 
 unsigned long nextBaa = 10000;
@@ -151,11 +152,11 @@ unsigned long nextBaa = 10000;
 
 void updateState(unsigned long now) {
   if (false) myprintf(Serial, "state %d: %6d %6d %6d %6d %6d\n", currState,
-           combinedTouchDuration(HEAD_SENSOR),
-           combinedTouchDuration(BACK_SENSOR),
-           combinedTouchDuration(LEFT_SENSOR),
-           combinedTouchDuration(RIGHT_SENSOR),
-           combinedTouchDuration(RUMP_SENSOR));
+                        combinedTouchDuration(HEAD_SENSOR),
+                        combinedTouchDuration(BACK_SENSOR),
+                        combinedTouchDuration(LEFT_SENSOR),
+                        combinedTouchDuration(RIGHT_SENSOR),
+                        combinedTouchDuration(RUMP_SENSOR));
 
   if (touchDuration(BACK_SENSOR) > 1200 &&
       (touchDuration(LEFT_SENSOR) > 550 || touchDuration(RIGHT_SENSOR) > 550 ||  touchDuration(RUMP_SENSOR) > 550 )
@@ -240,7 +241,6 @@ void loop() {
   if (nextReport < now ) {
     myprintf(Serial, "%d State %s, %f volts, %2d:%2d:%2d\n", now, stateName(currState), batteryVoltage(),
              GPS.hour, GPS.minute, GPS.seconds);
-
     nextReport = now + 5000;
   }
 
