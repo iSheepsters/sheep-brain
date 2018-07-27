@@ -18,7 +18,7 @@ const boolean useOLED = false;
 const boolean useTouch = true;
 const boolean useGPS = true;
 
-const uint8_t SHDN_MAX9744 = 11;
+const uint8_t SHDN_MAX9744 = 10;
 
 unsigned long nextPettingReport;
 
