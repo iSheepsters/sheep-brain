@@ -29,7 +29,7 @@ Adafruit_VS1053_FilePlayer musicPlayer =
 #define MAX9744_I2CADDR 0x4B
 
 // We'll track the volume level in this variable.
-int8_t thevol = 32;
+int8_t thevol = 50;
 
 unsigned long lastSoundStarted = 0;
 unsigned long lastSound = 0;
@@ -118,8 +118,6 @@ void completeMusic() {
     delay(5);           // give IRQs a chance
   }
 }
-
-
 
 void slowlyStopMusic() {
   if (musicPlayer.playingMusic) {
