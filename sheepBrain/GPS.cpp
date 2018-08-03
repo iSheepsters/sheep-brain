@@ -24,7 +24,7 @@ boolean setupGPS() {
   GPS.sendCommand(PMTK_ENABLE_WAAS);
   delay(10);
 
-  return Serial1.available() > 0;
+  return true;
 
 }
 
@@ -41,26 +41,68 @@ double longitudeDegreesMin;
 double latitudeDegreesMax;
 double longitudeDegreesMax;
 unsigned long lastGPSReading;
-
+const boolean ECHO_GPS = false;
 boolean updateGPS(unsigned long now) {
 
-  while (GPS.read()) {
-    // already processed above
+  boolean anyPrinted = false;
+  while (true) {
+    char c = GPS.read();
+    if (!c || GPS.newNMEAreceived()) break;
+    if (ECHO_GPS) {
+      if (!anyPrinted) {
+        anyPrinted = true;
+        Serial.println();
+      }
+      Serial.print(c);
+    }
   }
+  if (anyPrinted)
+    Serial.println();
+
   // if a sentence is received, we can check the checksum, parse it...
   if ( GPS.newNMEAreceived() && GPS.parse(GPS.lastNMEA())) {
     lastGPSReading = now;
     setTime(GPS.hour, GPS.minute, GPS.seconds, GPS.day, GPS.month, GPS.year);
+    if (GPS.fix) {
+      if (!haveFix) {
+        Serial.println("Acquired fix");
+        latitudeDegreesAvg = GPS.latitudeDegrees;
+        longitudeDegreesAvg = GPS.longitudeDegrees;
+        fixCount = 0;
+        haveFix = true;
+        latitudeDegreesMin = longitudeDegreesMin = 1000;
+        latitudeDegreesMax = longitudeDegreesMax = -1000;
+      } else {
+        latitudeDegreesAvg = (3 * latitudeDegreesAvg + GPS.latitudeDegrees) / 4;
+        longitudeDegreesAvg = (3 * longitudeDegreesAvg + GPS.longitudeDegrees) / 4;
+        fixCount++;
+        if (fixCount >= 30) {
+          if (latitudeDegreesMin > latitudeDegreesAvg)
+            latitudeDegreesMin = latitudeDegreesAvg;
+          if (latitudeDegreesMax < latitudeDegreesAvg)
+            latitudeDegreesMax = latitudeDegreesAvg;
+          if (longitudeDegreesMin > longitudeDegreesAvg)
+            longitudeDegreesMin = longitudeDegreesAvg;
+          if (longitudeDegreesMax < longitudeDegreesAvg)
+            longitudeDegreesMax = longitudeDegreesAvg;
+        }
+
+      }
+    } else if (haveFix) {
+      Serial.println("Lost fix");
+      haveFix = false;
+    }
     return true;
   }
+
   return false;
 }
 
 void logGPS(unsigned long now) {
-  // if millis() or timer wraps around, we'll just reset it
   if (timer > now)  timer = now;
   if (GPS.fix) {
     if (!haveFix) {
+      Serial.println("Acquired fix");
       latitudeDegreesAvg = GPS.latitudeDegrees;
       longitudeDegreesAvg = GPS.longitudeDegrees;
       fixCount = 0;
@@ -104,6 +146,7 @@ void logGPS(unsigned long now) {
 
       }
     }
-  }
+  } else if (haveFix)
+    Serial.println("Lost fix");
 }
 

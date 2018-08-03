@@ -6,6 +6,7 @@
 #include <TimeLib.h>
 
 extern Adafruit_GPS GPS;
+extern uint32_t fixCount;
 extern unsigned long lastGPSReading;
 extern boolean setupGPS();
 extern boolean updateGPS(unsigned long now);
