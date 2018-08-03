@@ -15,7 +15,7 @@
 extern  void checkForCommand(unsigned long now);
 const boolean useSound = true;
 const boolean useOLED = false;
-const boolean useTouch = true;
+const boolean useTouch = false;
 const boolean useGPS = true;
 
 //const uint8_t SHDN_MAX9744 = 10;
@@ -64,7 +64,7 @@ void setup() {
   Wire.begin();
   randomSeed(analogRead(0));
   Serial.begin(115200);
-  while (!Serial && millis() < 1000) {
+  while (!Serial && millis() < 10000) {
     digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
     delay(200);                     // wait for a second
     digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
@@ -85,7 +85,8 @@ void setup() {
     else
       Serial.println("GPS not found!");
 
-  }
+  } else
+    Serial.println("Skipping GPS");
 
   if (setupRadio())
     Serial.println("radio found");
@@ -129,13 +130,12 @@ void setup() {
 
     //baaSounds.playSound(0);
 
-  }
+  }  else  Serial.println("Skipping sound");
   if (useTouch) {
     Serial.println("Setting up touch");
     setupTouch();
-
-  }
-
+  } else
+    Serial.println("Skipping touch");
   setupComm();
 
   Serial.println("Ready");
@@ -236,45 +236,51 @@ void loop() {
 
   //  Serial.println(millis());
   unsigned long now = millis();
-  updateSound(now);
-  updateGPS(now);
+  if (useSound)
+    updateSound(now);
+  if (useGPS)
+    updateGPS(now);
   if (nextReport < now ) {
-    myprintf(Serial, "%d State %s, %f volts, %2d:%2d:%2d\n", now, stateName(currState), batteryVoltage(),
+    myprintf(Serial, "%d State %s, %f volts, %d GPS fixes, %2d:%2d:%2d\n", now, stateName(currState),
+             batteryVoltage(), fixCount,
              GPS.hour, GPS.minute, GPS.seconds);
     nextReport = now + 5000;
   }
 
-
-  if (nextCalibration < now) {
-    Serial.println("Calibrate");
-    calibrate();
-    nextCalibration = 0x7fffffff;
-  }
-
-  updateTouchData(now, false);
-
-  uint8_t v = sendSlave(0, currTouched);
-  if (v != 0) {
-    Serial.print("Transmission error: " );
-    Serial.println(v);
-  }
-  //dumpTouchData();
-  if (false) {
-    if (musicPlayer.playingMusic)
-      Serial.print("M ");
-    else
-      Serial.print("- ");
-    Serial.print(currTouched, HEX);
-    Serial.print(" ");
-    Serial.print(newTouched, HEX);
-    Serial.print(" ");
-
-    for (int i = 0; i < 6; i++) {
-      Serial.print(cap.filteredData(i) - cap.baselineData(i));
-      Serial.print("  ");
-
+  if (useTouch) {
+    if (nextCalibration < now) {
+      Serial.println("Calibrate");
+      calibrate();
+      nextCalibration = 0x7fffffff;
     }
-    Serial.println();
+
+    updateTouchData(now, false);
+
+
+    uint8_t v = sendSlave(0, currTouched);
+    if (v != 0) {
+      Serial.print("Transmission error: " );
+      Serial.println(v);
+    }
+    //dumpTouchData();
+
+    if (false) {
+      if (musicPlayer.playingMusic)
+        Serial.print("M ");
+      else
+        Serial.print("- ");
+      Serial.print(currTouched, HEX);
+      Serial.print(" ");
+      Serial.print(newTouched, HEX);
+      Serial.print(" ");
+
+      for (int i = 0; i < 6; i++) {
+        Serial.print(cap.filteredData(i) - cap.baselineData(i));
+        Serial.print("  ");
+
+      }
+      Serial.println();
+    }
   }
 
 
