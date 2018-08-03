@@ -1,9 +1,11 @@
 #include "Arduino.h"
 #include "all.h"
+#include <Adafruit_SleepyDog.h>
 
 
 
 #include "sound.h"
+#include "soundFile.h"
 
 #include <Wire.h>
 // These are the pins used
@@ -17,41 +19,7 @@
 // DREQ should be an Int pin *if possible* (not possible on 32u4)
 #define VS1053_DREQ     9     // VS1053 Data request, ideally an Interrupt pin
 
-// Feather ESP8266
-#elif defined(ESP8266)
-#define VS1053_CS      16     // VS1053 chip select pin (output)
-#define VS1053_DCS     15     // VS1053 Data/command select pin (output)
-#define CARDCS          2     // Card chip select pin
-#define VS1053_DREQ     0     // VS1053 Data request, ideally an Interrupt pin
-
-// Feather ESP32
-#elif defined(ESP32)
-#define VS1053_CS      32     // VS1053 chip select pin (output)
-#define VS1053_DCS     33     // VS1053 Data/command select pin (output)
-#define CARDCS         14     // Card chip select pin
-#define VS1053_DREQ    15     // VS1053 Data request, ideally an Interrupt pin
-
-// Feather Teensy3
-#elif defined(TEENSYDUINO)
-#define VS1053_CS       3     // VS1053 chip select pin (output)
-#define VS1053_DCS     10     // VS1053 Data/command select pin (output)
-#define CARDCS          8     // Card chip select pin
-#define VS1053_DREQ     4     // VS1053 Data request, ideally an Interrupt pin
-
-// WICED feather
-#elif defined(ARDUINO_STM32_FEATHER)
-#define VS1053_CS       PC7     // VS1053 chip select pin (output)
-#define VS1053_DCS      PB4     // VS1053 Data/command select pin (output)
-#define CARDCS          PC5     // Card chip select pin
-#define VS1053_DREQ     PA15    // VS1053 Data request, ideally an Interrupt pin
-
-#elif defined(ARDUINO_FEATHER52)
-#define VS1053_CS       30     // VS1053 chip select pin (output)
-#define VS1053_DCS      11     // VS1053 Data/command select pin (output)
-#define CARDCS          27     // Card chip select pin
-#define VS1053_DREQ     31     // VS1053 Data request, ideally an Interrupt pin
 #endif
-
 
 Adafruit_VS1053_FilePlayer musicPlayer =
   Adafruit_VS1053_FilePlayer(VS1053_RESET, VS1053_CS, VS1053_DCS, VS1053_DREQ, CARDCS);
@@ -61,23 +29,15 @@ Adafruit_VS1053_FilePlayer musicPlayer =
 #define MAX9744_I2CADDR 0x4B
 
 // We'll track the volume level in this variable.
-int8_t thevol = 48;
+int8_t thevol = 50;
 
 unsigned long lastSoundStarted = 0;
+unsigned long lastSound = 0;
 
 
-void playBored() {
-  playFile("bored/bored-%d.mp3", random(1,10));
-}
-void playRiding() {
-  playFile("riding/riding-%d.mp3", random(1,7));
-}
-void playWelcoming() {
-  playFile("w/w-%d.mp3", random(1,7));
-}
 
 void setupSound() {
-   if (! setVolume(0))
+  if (! setVolume(0))
     Serial.println("Failed to set volume, MAX9744 not found!");
   else
     Serial.println("MAX9744 found");
@@ -95,14 +55,15 @@ void setupSound() {
   else
     Serial.println("MAX9744 found");
 
- 
+
   unsigned long start = millis();
-  musicPlayer.sineTest(0x44, 1000);    // Make a tone to indicate VS1053 is working
+  musicPlayer.sineTest(0x44, 200);    // Make a tone to indicate VS1053 is working
   unsigned long end = millis();
   Serial.println(F("sineTest complete"));
   Serial.println(end - start);
   Serial.println();
-  
+
+
   // Set volume for left, right channels. lower numbers == louder volume!
   musicPlayer.setVolume(0, 0);
 
@@ -117,11 +78,18 @@ void setupSound() {
   // audio playing
   musicPlayer.useInterrupt(VS1053_FILEPLAYER_PIN_INT);  // DREQ int
 #endif
-  playFile("baa0.mp3");
+
 }
 
-void baa() {
-  playFile("baa%d.mp3", 1 + random(8));
+
+void updateSound(unsigned long now) {
+  if (musicPlayer.playingMusic) {
+    if (currentSoundFile)
+      currentSoundFile->lastPlaying = now;
+    lastSound = now;
+    musicPlayer.feedBuffer();
+  } else
+    currentSoundFile = NULL;
 }
 
 // Setting the volume is very simple! Just write the 6-bit
@@ -145,12 +113,11 @@ boolean setVolume(int8_t v) {
 void completeMusic() {
   while (musicPlayer.playingMusic) {
     // twiddle thumbs
+    Watchdog.reset();
     musicPlayer.feedBuffer();
     delay(5);           // give IRQs a chance
   }
 }
-
-
 
 void slowlyStopMusic() {
   if (musicPlayer.playingMusic) {
@@ -174,7 +141,11 @@ void stopMusic() {
 }
 
 boolean playFile(const char *fmt, ... ) {
+  if (currentSoundFile) {
+    currentSoundFile->lastPlaying = millis();
+  }
   slowlyStopMusic();
+  currentSoundFile = NULL;
   char buf[256]; // resulting string limited to 256 chars
   va_list args;
   va_start (args, fmt );
@@ -187,3 +158,4 @@ boolean playFile(const char *fmt, ... ) {
   return musicPlayer.startPlayingFile(buf);
 
 }
+

@@ -11,22 +11,25 @@ Adafruit_MPR121 cap = Adafruit_MPR121();
 
 #include "printf.h"
 
-
 const uint16_t pettingBufferSize = 512;
 uint16_t pettingData[numPettingSensors][pettingBufferSize];
 uint16_t pettingDataPosition = 0;
 
-uint16_t timeTouched[numTouchSensors];
-uint16_t timeUntouched[numTouchSensors];
+uint16_t minRecentValue[numTouchSensors];
+uint16_t maxRecentValue[numTouchSensors];
+uint16_t stableValue[numTouchSensors];
+int32_t timeTouched[numTouchSensors];
+int32_t timeUntouched[numTouchSensors];
 uint16_t touchedThisInterval;
-unsigned long nextTouchInterval = 0;
-const uint16_t touchInterval = 250;
-
+unsigned long nextTouchInterval = 2000;
+const uint16_t touchInterval = 1000;
+const uint16_t recentInterval = 15000;
+unsigned long nextRecentInterval = 2000;
 
 unsigned long lastTouch[numTouchSensors];
 
 const uint8_t  FFI = 3;
-const uint8_t  SFI = 2;
+const uint8_t  SFI = 3;
 const uint8_t  ESI = 0;
 const uint8_t  CDC = 16;
 const uint8_t  CDT = 1;
@@ -35,14 +38,12 @@ boolean  fixed = false;
 
 unsigned long nextTouchSample = 0;
 
-
 const boolean trace = false;
 
 uint16_t lastTouched = 0;
 uint16_t currTouched = 0;
 uint16_t newTouched = 0;
 int16_t touchData[pettingBufferSize];
-
 
 boolean isTouched(enum TouchSensor sensor) {
   return (currTouched & _BV(sensor)) != 0;
@@ -77,34 +78,97 @@ void setupTouch() {
   dumpConfiguration();
   delay(200);
   freeze();
+  delay(200);
+  for (int i = 0; i < 6; i++) if (cap.filteredData(i) > 10)
+      stableValue[i] = cap.filteredData(i) - 2;
+  nextRecentInterval = nextTouchInterval = millis() + 1000;
 }
 
 const uint16_t  intervalBetweenSamples = 15;
 const uint16_t sampleRate = 1000 / intervalBetweenSamples;
 
+void dumpTouchData() {
+  if (true) {
+    for (int i = 0; i < 6; i++) {
+      Serial.print(cap.filteredData(i));
+      Serial.print(" ");
+      Serial.print(stableValue[i]);
+      Serial.print("  ");
+    }
+  } else
+    for (int i = 0; i < 6; i++) {
+      Serial.print(cap.filteredData(i) - stableValue[i]);
+      Serial.print("  ");
+    }
+  Serial.println();
+}
 
-void updateTouchData(unsigned long now) {
-  currTouched = cap.touched();
-  newTouched = currTouched & ~lastTouched;
+void updateTouchData(unsigned long now, boolean debug) {
   lastTouched = currTouched;
-  if (newTouched  != 0 || nextTouchInterval < now) {
+  currTouched = 0;
+  for (int i = 0; i < numTouchSensors; i++) {
+    if (cap.filteredData(i) < stableValue[i] && cap.filteredData(i)  > 0)
+      currTouched |= 1 << i;
+  }
+
+  newTouched = currTouched & ~lastTouched;
+  if (nextRecentInterval < now) {
+    boolean allStable = true;
+    int potentialMaxChange = 0;
+    
+    for (int i = 0; i < numTouchSensors; i++) {
+      int range = maxRecentValue[i] - minRecentValue[i];
+
+      if (range > 3 || minRecentValue[i] < 10 || cap.filteredData(i) < 10)
+        allStable = false;
+      potentialMaxChange = max(potentialMaxChange,abs(stableValue[i] - (minRecentValue[i] - 1)));
+    }
+
+    if (allStable && potentialMaxChange > 0) {
+      myprintf(Serial, "All stable, change of %d, resetting\n", potentialMaxChange);
+      for (int i = 0; i < numTouchSensors; i++) {
+        stableValue[i] = minRecentValue[i] - 1;
+      };
+    } else if  (allStable && potentialMaxChange == 0) {
+      Serial.println("Touch sensors stable and unchanged");
+    }
+    for (int i = 0; i < numTouchSensors; i++) {
+      minRecentValue[i] = maxRecentValue[i] = cap.filteredData(i);
+    };
+    nextRecentInterval = now + recentInterval;
+  }
+  else
+    for (int i = 0; i < numTouchSensors; i++) {
+      if (minRecentValue[i] == 0 && cap.filteredData(i) > 10)
+        minRecentValue[i] = cap.filteredData(i);
+      if (stableValue[i] == 0 && cap.filteredData(i) > 10)
+        stableValue[i] =  cap.filteredData(i) - 3;
+      if (minRecentValue[i] > cap.filteredData(i) && cap.filteredData(i) > 10 )
+        minRecentValue[i] = cap.filteredData(i);
+      else if (maxRecentValue[i] < cap.filteredData(i))
+        maxRecentValue[i] = cap.filteredData(i);
+    }
+
+  if (nextTouchInterval < now) {
     for (int i = 0; i < numTouchSensors; i++) {
       if ((touchedThisInterval & _BV(i)) != 0) {
         timeTouched[i]++;
         timeUntouched[i] = 0;
-        Serial.print(timeTouched[i]);
+        if (debug) Serial.print(timeTouched[i]);
       } else {
         timeTouched[i] = 0;
         timeUntouched[i]++;
-        Serial.print(-timeUntouched[i]);
+        if (debug) Serial.print(-timeUntouched[i]);
       }
-      Serial.print(" ");
+      if (debug) Serial.print(" ");
     }
-    Serial.println();
+    if (debug) Serial.println();
     touchedThisInterval = currTouched;
     nextTouchInterval = now + touchInterval;
-  } else
+  } else {
     touchedThisInterval |= currTouched;
+
+  }
 
 
 
@@ -127,10 +191,16 @@ void updateTouchData(unsigned long now) {
   }
 }
 
-uint16_t touchDuration(enum TouchSensor sensor) {
+int32_t combinedTouchDuration(enum TouchSensor sensor) {
+  if (timeTouched[sensor] > 0)
+    return timeTouched[sensor] * touchInterval;
+  return -timeUntouched[sensor] * touchInterval;
+
+}
+int32_t touchDuration(enum TouchSensor sensor) {
   return timeTouched[sensor] * touchInterval;
 }
-uint16_t untouchDuration(enum TouchSensor sensor) {
+int32_t untouchDuration(enum TouchSensor sensor) {
   return timeUntouched[sensor] * touchInterval;
 }
 
@@ -214,14 +284,15 @@ void changeMode(uint8_t newMode) {
 }
 
 
+const uint8_t ELE_EN = 6;
 void setECR(bool updateBaseline) {
   // 0b10111111
   // CL = 01
   // EXPROX = ELEPROX_EN
-  // ELE_EN = 1111
+  // ELE_EN = (number of sensors to enable)
   uint8_t CL = updateBaseline ? 0x10 : 0x01;
 
-  cap.writeRegister(MPR121_ECR, (CL << 6) | (ELEPROX_EN << 4) | 0x0f);
+  cap.writeRegister(MPR121_ECR, (CL << 6) | (ELEPROX_EN << 4) | ELE_EN);
 
 }
 
@@ -264,7 +335,9 @@ void freeze() {
 }
 
 uint8_t calculateBaseline(uint16_t value) {
-  return  (value - 12) >> 2;
+  uint16_t baseline = value & 0xfffc;
+  if (value - baseline < 3) baseline = baseline - 4;
+  return  (baseline >> 2);
 }
 void calibrate() {
   uint8_t mode = cap.readRegister8(MPR121_ECR);
@@ -346,4 +419,5 @@ float detectPetting(uint8_t touchSensor, uint16_t sampleSize, float * confidence
   *confidence = max / avg;
   return answer;
 }
+
 
