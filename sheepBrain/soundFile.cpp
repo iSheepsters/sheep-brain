@@ -51,8 +51,6 @@ boolean SoundCollection::load(const char * s) {
       break;
     if (isMusicFile(entry)) {
       strncpy(files[i].name,  entry.name(), 13);
-      files[i].lastPlaying = 0;
-      files[i].lastStarted = 0;
       i++;
     }
   }
@@ -79,16 +77,19 @@ void SoundCollection::list() {
 void SoundCollection::playSound(uint32_t now, boolean quietTime) {
   SoundFile *s  = chooseSound(now, quietTime);
   if (s == NULL) {
-    Serial.println("No sound found");
+    Serial.print("No sound found for ");
+    Serial.println(name);
     return;
   };
   slowlyStopMusic();
-  s->lastStarted = s->lastPlaying = now;
 
   if (!playFile("%s/%s", name, s->name )) {
     Serial.println("Could not start ");
-
+  } else {
+    s->lastStarted = s->lastPlaying = now;
+    currentSoundFile = s;
   }
+
 }
 
 
@@ -104,10 +105,8 @@ SoundFile * SoundCollection::chooseSound(uint32_t now,  boolean quietTime) {
 
 boolean SoundFile::eligibleToPlay(uint32_t now, boolean quietTime) {
   if (lastStarted == 0 || now == 0) return true;
-  unsigned long duration = 3000;
-  if (lastPlaying > lastStarted+3000)
-    duration = lastPlaying - lastStarted;
-
+  unsigned long d = max(3000, duration);
+  
   uint32_t minimumQuietTime = duration  + 15000L;
   if (quietTime && lastSound + minimumQuietTime > now)
     return false;

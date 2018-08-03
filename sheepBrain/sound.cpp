@@ -36,6 +36,9 @@ unsigned long lastSound = 0;
 
 
 
+void musicPlayerFullVolume() {
+  musicPlayer.setVolume(0, 0);
+}
 void setupSound() {
   if (! setVolume(0))
     Serial.println("Failed to set volume, MAX9744 not found!");
@@ -65,7 +68,7 @@ void setupSound() {
 
 
   // Set volume for left, right channels. lower numbers == louder volume!
-  musicPlayer.setVolume(0, 0);
+  musicPlayerFullVolume();
 
 #if defined(__AVR_ATmega32U4__)
   // Timer interrupts are not suggested, better to use DREQ interrupt!
@@ -84,12 +87,21 @@ void setupSound() {
 
 void updateSound(unsigned long now) {
   if (musicPlayer.playingMusic) {
-    if (currentSoundFile)
+    if (currentSoundFile) {
       currentSoundFile->lastPlaying = now;
+
+    }
     lastSound = now;
     musicPlayer.feedBuffer();
-  } else
+  } else if (currentSoundFile != NULL) {
+    if (currentSoundFile->duration == 0) {
+      currentSoundFile->duration = currentSoundFile->lastPlaying - currentSoundFile->lastStarted;
+      Serial.print(currentSoundFile->duration);
+      Serial.print("ms for  ");
+      Serial.println(currentSoundFile->name);
+    }
     currentSoundFile = NULL;
+  }
 }
 
 // Setting the volume is very simple! Just write the 6-bit
@@ -127,7 +139,7 @@ void slowlyStopMusic() {
     }
     Serial.println("Music slowly stopped");
     musicPlayer.stopPlaying();
-    musicPlayer.setVolume(0, 0);
+    musicPlayerFullVolume();
   }
 }
 
@@ -145,6 +157,7 @@ boolean playFile(const char *fmt, ... ) {
     currentSoundFile->lastPlaying = millis();
   }
   slowlyStopMusic();
+  musicPlayerFullVolume();
   currentSoundFile = NULL;
   char buf[256]; // resulting string limited to 256 chars
   va_list args;
