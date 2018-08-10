@@ -15,8 +15,9 @@
 extern  void checkForCommand(unsigned long now);
 const boolean useSound = true;
 const boolean useOLED = false;
-const boolean useTouch = false;
-const boolean useGPS = true;
+const boolean useTouch = true;
+const boolean useGPS = false;
+const boolean useSlave = true;
 
 //const uint8_t SHDN_MAX9744 = 10;
 
@@ -70,6 +71,9 @@ void setup() {
     digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
     delay(200);
   }
+  int countdownMS = Watchdog.enable(14000);
+  myprintf(Serial, "Watchdog set, %d ms timeout\n", countdownMS);
+
   for (int i = 1; i < 10; i++) {
     digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
     delay(20);                     // wait for a second
@@ -99,7 +103,7 @@ void setup() {
     //    pinMode(SHDN_MAX9744, INPUT);
     //    delay(100);
     setupSound();
-
+    Serial.println("Sound set up");
     setupSD();
 
     boredSounds.load("bored");
@@ -141,8 +145,6 @@ void setup() {
   Serial.println("Ready");
   nextPettingReport = millis() + 2000;
 
-  int countdownMS = Watchdog.enable(4000);
-  myprintf(Serial, "Watchdog set, %d ms timeout\n", countdownMS);
 
   nextCalibration = millis() + 5000;
 }
@@ -214,10 +216,12 @@ void loop0() {
       t |= 1 << i;
   }
 
-  uint8_t v = sendSlave(0, t);
-  if (v != 0) {
-    Serial.print("Transmission error: " );
-    Serial.println(v);
+  if (useSlave) {
+    uint8_t v = sendSlave(0, t);
+    if (v != 0) {
+      Serial.print("Transmission error: " );
+      Serial.println(v);
+    }
   }
   //  Serial.print(t, HEX);
   //  Serial.print("  ");
@@ -257,10 +261,12 @@ void loop() {
     updateTouchData(now, false);
 
 
-    uint8_t v = sendSlave(0, currTouched);
-    if (v != 0) {
-      Serial.print("Transmission error: " );
-      Serial.println(v);
+    if (useSlave) {
+      uint8_t v = sendSlave(0, currTouched);
+      if (v != 0) {
+        Serial.print("Transmission error: " );
+        Serial.println(v);
+      }
     }
     //dumpTouchData();
 
@@ -286,7 +292,8 @@ void loop() {
 
   if (now > 10000) {
     updateState(now);
-    sendSlave(1, (uint8_t) currState);
+    if (useSlave)
+      sendSlave(1, (uint8_t) currState);
   }
 
   for (int i = 0; i < numTouchSensors; i++) {
