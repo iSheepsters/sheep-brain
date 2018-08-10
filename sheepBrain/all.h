@@ -25,6 +25,7 @@ class __attribute__ ((packed)) SheepInfo {
 enum PacketKind {
   InfoPacket,
   DistressPacket,
+  RadioInfoPacket,
 };
 
 

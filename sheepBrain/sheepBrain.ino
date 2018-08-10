@@ -246,8 +246,12 @@ const boolean TRACE = false;
 void loop() {
   Watchdog.reset();
 
-  //  Serial.println(millis());
-  unsigned long now = millis();
+  SheepInfo & me =  getSheep();
+  me.time = now();
+  me.uptimeMinutes = millis() / 1000 / 60;
+  me.batteryVoltageRaw =  batteryVoltageRaw();
+  me.errorCodes = 0;
+  unsigned long now = millis(); 
   if (useSound)
     updateSound(now);
   if (useGPS)

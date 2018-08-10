@@ -102,7 +102,6 @@ boolean setupRadio() {
   // you can set transmitter powers from 5 to 23 dBm:
   rf95.setTxPower(23, false);
   return true;
-
 }
 
 int lastWaywardSheep = 0;
@@ -140,6 +139,16 @@ void updateRadio() {
         case InfoPacket: {
             RadioInfo * received = (RadioInfo *)buf;
             myprintf(Serial, "Received info packet of length %d from sheep %d\n", len, received->sheepNumber);
+            SheepInfo & from = received->myInfo;
+            uint8_t fromNum = received->sheepNumber;
+            memcpy(&from, &getSheep(fromNum), sizeof(SheepInfo));
+            logRadioUpdate(fromNumber, from);
+            uint8_t waywardSheepNumber = received->waywardSheepNumber;
+            if (len == sizeof(radioInfo) && waywardSheepNumber != 0
+                && received->waywardSheep.time > getSheep(waywardSheepNumber).time) {
+              memcpy(&received->waywardSheep, &getSheep(waywardSheepNumber), sizeof(SheepInfo));
+              logRadioUpdate(waywardSheepNumber, received->waywardSheep);
+            }
             break;
           }
         case DistressPacket: {

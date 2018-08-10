@@ -63,6 +63,46 @@ void updateLog(unsigned long timeNow) {
 
 }
 
+
+
+void updateLog(unsigned long timeNow) {
+  noInterrupts();
+  myprintf(logFile, "%d,%d, ", sheepNumber, InfoPacket);
+
+  myprintf(logFile, "%d/%d/%d %d:%d:%d,%d, ",
+           GPS.month, GPS.day, GPS.year, GPS.hour, GPS.minute, GPS.seconds,
+           now());
+  myprintf(logFile, "%d,%d,", timeNow / 1000 / 3600, batteryVoltageRaw());
+  logFile.print(GPS.latitudeDegrees, 7);
+  logFile.print(",");
+  logFile.print(GPS.longitudeDegrees, 7);
+  logFile.print(",");
+
+  logFile.println();
+  //logFile.flush();
+  interrupts();
+}
+
+
+void logRadioUpdate(uint8_t sheepNum, SheepInfo & info) {
+  noInterrupts();
+  time_t when = info.time;
+  
+  myprintf(logFile, "%d,%d, ", sheepNum, RadioInfoPacket);
+
+  myprintf(logFile, "%d/%d/%d %d:%d:%d,%d, ",
+           month(when), day(when), year(when)%100,  hour(when), minute(when), seconds(when),
+           when);
+  myprintf(logFile, "%d,%d,", info.uptimeMinutes, info.batteryVoltageRaw);
+  logFile.print(info.latitude, 7);
+  logFile.print(",");
+  logFile.print(info.longitude, 7);
+  logFile.print(",");
+
+  logFile.println();
+  //logFile.flush();
+  interrupts();
+}
 void logDistress(const char *fmt, ... ) {
   char buf[500]; // resulting string limited to 256 chars
   va_list args;
@@ -81,6 +121,7 @@ void logDistress(const char *fmt, ... ) {
     logFile.print("\"");
     //logFile.flush();
     interrupts();
+    distressPacket(msg);
   }
 }
 
