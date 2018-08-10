@@ -7,7 +7,7 @@
 #include "printf.h"
 #include "touchSensors.h"
 #include "soundFile.h"
-#include "comm.h"
+#include "slave.h"
 #include "GPS.h"
 #include "radio.h"
 #include <RH_RF95.h>

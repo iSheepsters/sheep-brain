@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include <Wire.h>
-#include "comm.h"
+#include "slave.h"
 #include "printf.h"
 #include "Print.h"
 
