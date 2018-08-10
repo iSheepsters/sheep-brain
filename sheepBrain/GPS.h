@@ -11,6 +11,11 @@ extern unsigned long lastGPSReading;
 extern boolean setupGPS();
 extern boolean updateGPS(unsigned long now);
 extern void logGPS(unsigned long now);
+extern time_t BRC_now();
+
+extern boolean inCorral(int sheep) ;
+extern boolean isClose(int sheep);
+extern boolean isInFriendlyTerritory() ;
 
 
 #endif

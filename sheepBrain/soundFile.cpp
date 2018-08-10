@@ -20,7 +20,7 @@ boolean isMusicFile(File f) {
   return false;
 }
 
-SoundCollection::SoundCollection() {
+SoundCollection::SoundCollection(uint8_t pri) : priority (pri) {
   strncpy(name, "", 13);
   count = 0;
   files = NULL;
@@ -119,15 +119,18 @@ boolean SoundFile::eligibleToPlay(uint32_t now, boolean quietTime) {
 
 SoundFile * currentSoundFile = NULL;
 
-void setupSD() {
+boolean setupSD() {
   if (!SD.begin(5 /* CARDCS */)) {
     Serial.println(F("SD failed, or not present"));
-    while (1);  // don't do anything more
+    return false;
   }
   Serial.println("SD OK!");
 
+  
+
   // list files
   //  printDirectory(SD.open("/"), 0);
+  return true;
 }
 
 

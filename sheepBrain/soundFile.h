@@ -1,7 +1,7 @@
 
 #include <SD.h>
 
-extern void setupSD();
+extern boolean setupSD();
 extern void printDirectory(File dir, int numTabs);
 
 class SoundFile {
@@ -18,9 +18,10 @@ class SoundFile {
 
 class SoundCollection {
   public:
-    SoundCollection();
+    SoundCollection(uint8_t pri);
     char name[13];
     uint16_t count;
+    const uint8_t priority; // higher priority sounds will preempt lower priority sounds
     SoundFile *files;
 
 

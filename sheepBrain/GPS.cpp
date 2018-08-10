@@ -1,6 +1,7 @@
 #include <Arduino.h>
 
 #include "GPS.h"
+#include "all.h"
 
 #include <math.h>
 
@@ -25,10 +26,9 @@ boolean setupGPS() {
 
   GPS.sendCommand(PMTK_ENABLE_SBAS);
   GPS.sendCommand(PMTK_ENABLE_WAAS);
-  delay(10);
+  delay(100);
   lastMinute = lastSecond = -1;
-  return true;
-
+  return updateGPS(millis());
 }
 
 // The following are calculated for 41N
@@ -42,8 +42,9 @@ const float GERLACH_LONGITUDE = -119.3568;
 const float MAN_LATITUDE = 40.6516;
 const float MAN_LONGITUDE = -119.3568;
 
-const float CORAL_LATITUDE = 40.78292556690011596332941314224;
-const float CORAL_LONGITUDE = -119.2062896809198096208703440047891035;
+const float CORRAL_LATITUDE  =   40.78292556690011596332941314224;
+const float CORRAL_LONGITUDE = -119.2062896809198096208703440047891035;
+                        //        0.0000000000000000000000000000000001;
 
 // measured in meters
 float distanceFromMan;
@@ -55,6 +56,7 @@ float angleFromMan;
 
 uint32_t timer = millis();
 boolean haveFix = false;
+boolean anyFix = false;
 uint32_t fixCount = 0;
 double latitudeDegreesAvg;
 double longitudeDegreesAvg;
@@ -65,11 +67,40 @@ double longitudeDegreesMax;
 unsigned long lastGPSReading;
 const boolean ECHO_GPS = false;
 
+time_t BRC_now() {
+  return now() - 7 * 60 * 60;
+}
+
+boolean inCorral(int sheep) {
+  float corralEW = METERS_PER_DEGREE_LONGITUDE * (getSheep(sheep).longitude - CORRAL_LONGITUDE);
+  float corralNS = METERS_PER_DEGREE_LATITUDE * (getSheep(sheep).latitude  - CORRAL_LATITUDE);
+  float distanceFromCorral = sqrt(corralEW * corralEW + corralNS * corralNS);
+  return distanceFromCorral < 30;
+}
+
+boolean isClose(int sheep) {
+  float EW = METERS_PER_DEGREE_LONGITUDE * (getSheep(sheep).longitude - getSheep().longitude );
+  float NS = METERS_PER_DEGREE_LATITUDE * (getSheep(sheep).latitude  - getSheep().latitude);
+  float distance = sqrt(EW * EW + NS * NS);
+  return distance < 15;
+}
+
+boolean isInFriendlyTerritory() {
+  if (!anyFix)
+    return true;
+  if (inCorral(sheepNumber))
+    return true;
+  for (int s = 0; s < NUMBER_OF_SHEEP; s++)
+    if (s != sheepNumber && isClose(s))
+      return true;
+  return false;
+};
+
 void updateRelativePosition() {
-  float coralEW = METERS_PER_DEGREE_LONGITUDE * (GPS.longitudeDegrees - CORAL_LONGITUDE);
-  float coralNS = METERS_PER_DEGREE_LATITUDE * (GPS.latitudeDegrees - CORAL_LATITUDE);
-  distanceFromCoral = sqrt(coralEW * coralEW + coralNS * coralNS);
-  angleFromCoral = atan2(coralEW, coralNS);
+  float corralEW = METERS_PER_DEGREE_LONGITUDE * (GPS.longitudeDegrees - CORRAL_LONGITUDE);
+  float corralNS = METERS_PER_DEGREE_LATITUDE * (GPS.latitudeDegrees - CORRAL_LATITUDE);
+  distanceFromCoral = sqrt(corralEW * corralEW + corralNS * corralNS);
+  angleFromCoral = atan2(corralEW, corralNS);
 
   float manEW = METERS_PER_DEGREE_LONGITUDE * (GPS.longitudeDegrees - MAN_LONGITUDE);
   float manNS = METERS_PER_DEGREE_LATITUDE * (GPS.latitudeDegrees - MAN_LATITUDE);
@@ -84,10 +115,13 @@ boolean parseGPS(unsigned long now) {
 
   lastGPSReading = now;
 
-  if (GPS.year >= 2018 && (lastMinute != GPS.minute || GPS.seconds != lastSecond))
+  if (GPS.year > 0 && (lastMinute != GPS.minute || GPS.seconds != lastSecond))
     setTime(GPS.hour, GPS.minute, GPS.seconds, GPS.day, GPS.month, GPS.year);
 
   if (GPS.fix) {
+    anyFix = true;
+    getSheep().latitude = GPS.latitudeDegrees;
+    getSheep().longitude = GPS.longitudeDegrees;
     if (!haveFix) {
       Serial.println("Acquired fix");
       latitudeDegreesAvg = GPS.latitudeDegrees;
@@ -120,27 +154,29 @@ boolean parseGPS(unsigned long now) {
 }
 
 boolean updateGPS(unsigned long now) {
-
   boolean anyPrinted = false;
+  boolean anyReceived = false;
   while (true) {
     char c = GPS.read();
-    if (!c || GPS.newNMEAreceived()) break;
+    if (GPS.newNMEAreceived()) {
+      if (anyPrinted)
+        Serial.println();
+      anyPrinted = false;
+      parseGPS(now);
+    }
+    if (!c) break;
+    anyReceived = true;
     if (ECHO_GPS) {
       if (!anyPrinted) {
         anyPrinted = true;
         Serial.println();
+
       }
       Serial.print(c);
     }
   }
-  if (anyPrinted)
-    Serial.println();
 
-  // if a sentence is received, we can check the checksum, parse it...
-  if ( GPS.newNMEAreceived() && parseGPS(now))
-    return true;
-
-  return false;
+  return anyReceived;
 }
 
 void logGPS(unsigned long now) {
