@@ -2,7 +2,7 @@
 #include "all.h"
 #include <Adafruit_SleepyDog.h>
 
-
+const boolean USE_AMPLIFIER = false;
 
 #include "sound.h"
 #include "soundFile.h"
@@ -40,10 +40,12 @@ void musicPlayerFullVolume() {
   musicPlayer.setVolume(0, 0);
 }
 void setupSound() {
-  if (! setVolume(0))
-    Serial.println("Failed to set volume, MAX9744 not found!");
-  else
-    Serial.println("MAX9744 found");
+  if (false) {
+    if (! setVolume(0))
+      Serial.println("Failed to set volume, MAX9744 not found!");
+    else
+      Serial.println("MAX9744 found");
+  }
 
   Serial.println("\n\nAdafruit VS1053 Musicmaker Feather Test");
 
@@ -107,7 +109,10 @@ void updateSound(unsigned long now) {
 // Setting the volume is very simple! Just write the 6-bit
 // volume to the i2c bus. That's it!
 boolean setVolume(int8_t v) {
-
+  if (!USE_AMPLIFIER) {
+    Serial.println("Skipping amplifier");
+    return false;
+  }
   // cant be higher than 63 or lower than 0
   if (v > 63) v = 63;
 
