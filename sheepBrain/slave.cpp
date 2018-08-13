@@ -22,13 +22,16 @@ uint8_t sendSlave(uint8_t addr, uint8_t value) {
   lastSent[addr] = now;
   slaveMemory[addr] = value;
 
-  myprintf(Serial, "mem[%d] <- %d\n", addr, value);
+  if (slaveMemory[addr] != value)
+    myprintf(Serial, "mem[%d] <- %d\n", addr, value);
+  noInterrupts();
   Wire.beginTransmission(slaveAddress);
   Wire.write(42); // check byte
   Wire.write(addr);
   Wire.write(value);
   uint8_t result =  Wire.endTransmission();
-  delay(2);
+  interrupts();
+  delay(1);
   return result;
 }
 

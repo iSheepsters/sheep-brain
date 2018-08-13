@@ -4,6 +4,7 @@
 #include "touchSensors.h"
 
 #include "Adafruit_ZeroFFT.h"
+#include "util.h"
 
 Adafruit_MPR121 cap = Adafruit_MPR121();
 
@@ -60,7 +61,7 @@ void setupTouch() {
   // If tied to SDA its 0x5C and if SCL then 0x5D
   while  (!cap.begin(0x5A)) {
     Serial.println("MPR121 not found, check wiring?");
-    delay(1000);
+    setupDelay(1000);
   }
   Serial.println("MPR121 found!");
   for (int t = 0; t < numTouchSensors; t++) {
@@ -73,12 +74,12 @@ void setupTouch() {
   Serial.println("Applying configuration");
   mySetup();
   dumpConfiguration();
-  delay(200);
+  setupDelay(200);
   calibrate();
   dumpConfiguration();
-  delay(200);
+  setupDelay(200);
   freeze();
-  delay(200);
+  setupDelay(200);
   for (int i = 0; i < 6; i++) if (cap.filteredData(i) > 10)
       stableValue[i] = cap.filteredData(i) - 2;
   nextRecentInterval = nextTouchInterval = millis() + 1000;
@@ -90,17 +91,31 @@ const uint16_t sampleRate = 1000 / intervalBetweenSamples;
 void dumpTouchData() {
   if (true) {
     for (int i = 0; i < 6; i++) {
+      Serial.print(i);
+      Serial.print(" ");
+      Serial.print(isTouched((TouchSensor)i) ? "t " : "- ");
       Serial.print(cap.filteredData(i));
       Serial.print(" ");
       Serial.print(stableValue[i]);
       Serial.print("  ");
+      Serial.print(timeTouched[i]);
+      Serial.print("  ");
+      Serial.print(timeUntouched[i]);
+      Serial.print("  ");
+      if (i % 2 == 1)
+        Serial.println();
     }
+
   } else
     for (int i = 0; i < 6; i++) {
       Serial.print(cap.filteredData(i) - stableValue[i]);
       Serial.print("  ");
     }
   Serial.println();
+}
+
+int16_t sensorValue(enum TouchSensor sensor) {
+  return cap.filteredData(sensor) - stableValue[sensor];
 }
 
 void updateTouchData(unsigned long now, boolean debug) {
@@ -115,16 +130,16 @@ void updateTouchData(unsigned long now, boolean debug) {
   if (nextRecentInterval < now) {
     boolean allStable = true;
     int potentialMaxChange = 0;
-    
+
     for (int i = 0; i < numTouchSensors; i++) {
       int range = maxRecentValue[i] - minRecentValue[i];
 
       if (range > 3 || minRecentValue[i] < 10 || cap.filteredData(i) < 10)
         allStable = false;
-      potentialMaxChange = max(potentialMaxChange,abs(stableValue[i] - (minRecentValue[i] - 1)));
+      potentialMaxChange = max(potentialMaxChange, abs(stableValue[i] - (minRecentValue[i] - 1)));
     }
 
-    if (allStable && potentialMaxChange > 0) {
+    if (allStable && potentialMaxChange > 0 && potentialMaxChange < 10) {
       myprintf(Serial, "All stable, change of %d, resetting\n", potentialMaxChange);
       for (int i = 0; i < numTouchSensors; i++) {
         stableValue[i] = minRecentValue[i] - 1;
@@ -278,9 +293,9 @@ void dumpConfiguration() {
 }
 void changeMode(uint8_t newMode) {
   cap.writeRegister(MPR121_ECR, 0);
-  delay(10);
+  delay(2);
   cap.writeRegister(MPR121_ECR, newMode);
-  delay(10);
+  delay(2);
 }
 
 
@@ -298,7 +313,7 @@ void setECR(bool updateBaseline) {
 
 void mySetup() {
   cap.writeRegister(MPR121_ECR, 0);
-  delay(10);
+  setupDelay(10);
   cap.writeRegister(MPR121_UPLIMIT, 200);
   cap.writeRegister(MPR121_TARGETLIMIT, 181);
   cap.writeRegister(MPR121_LOWLIMIT, 131);
@@ -316,7 +331,7 @@ void mySetup() {
 
   cap.writeRegister(MPR121_AUTOCONFIG0, (FFI << 6) |  0x17);
   setECR(true);
-  delay(10);
+  setupDelay(10);
 }
 
 

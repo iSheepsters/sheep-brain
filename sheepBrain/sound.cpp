@@ -1,5 +1,5 @@
 #include "Arduino.h"
-#include "all.h"
+#include "util.h"
 #include <Adafruit_SleepyDog.h>
 
 const boolean USE_AMPLIFIER = false;
@@ -9,7 +9,8 @@ const boolean USE_AMPLIFIER = false;
 
 #include <Wire.h>
 // These are the pins used
-#define VS1053_RESET   -1     // VS1053 reset pin (not used!)
+#define VS1053_RESE
+T   -1     // VS1053 reset pin (not used!)
 
 // Feather M0 or 32u4
 #if defined(__AVR__) || defined(ARDUINO_SAMD_FEATHER_M0)
@@ -132,7 +133,7 @@ void completeMusic() {
     // twiddle thumbs
     Watchdog.reset();
     musicPlayer.feedBuffer();
-    delay(5);           // give IRQs a chance
+    yield(5);           // give IRQs a chance
   }
 }
 
@@ -140,7 +141,7 @@ void slowlyStopMusic() {
   if (musicPlayer.playingMusic) {
     for (int i = 0; i < 256; i += 8) {
       musicPlayer.setVolume(i, i);
-      delay(10);
+      yield(10);
     }
     Serial.println("Music slowly stopped");
     musicPlayer.stopPlaying();
@@ -152,7 +153,7 @@ void stopMusic() {
   if (musicPlayer.playingMusic) {
     musicPlayer.stopPlaying();
     Serial.println("Music stopped");
-    delay(50);
+    yield(50);
   }
 
 }

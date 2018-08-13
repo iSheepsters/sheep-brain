@@ -13,7 +13,7 @@ class SoundFile {
     uint32_t lastStarted;
     uint32_t lastPlaying;
     uint32_t duration;
-    boolean eligibleToPlay(uint32_t,  boolean quietTime);
+    boolean eligibleToPlay(unsigned long now,  boolean quietTime);
 };
 
 class SoundCollection {
@@ -26,10 +26,11 @@ class SoundCollection {
 
 
     void list();
+    void verboseList(unsigned long now,  boolean quietTime);
 
     boolean load(const char * s);
-    SoundFile* chooseSound(uint32_t now,  boolean quietTime);
-    void playSound(uint32_t now,  boolean quietTime);
+    SoundFile* chooseSound(unsigned long now,  boolean quietTime);
+    boolean playSound(unsigned long now,  boolean quietTime);
 };
 
 

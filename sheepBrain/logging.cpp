@@ -2,10 +2,10 @@
 #include <SD.h>
 #include <TimeLib.h>
 
-#include "all.h"
+#include "util.h"
 #include "gps.h"
 #include "printf.h"
-
+#include "radio.h"
 
 File logFile;
 
@@ -13,11 +13,10 @@ void setupLogging() {
   char fileName[100];
 
   unsigned long now = millis();
-  while (GPS.year == 0 && millis() < now + 2000) {
+  while (year() < 2018 && millis() < now + 4000) {
     updateGPS(millis());
   }
-  if (GPS.year == 0) updateGPS(millis());
-  if (GPS.year == 0) {
+  if (year() != 2018) {
     SD.mkdir("log/nodate");
     int i = 0;
     while (true) {
@@ -30,9 +29,9 @@ void setupLogging() {
       i = i + 1;
     }
   }
-  sprintf(fileName, "log/%04d%02d%02d", 2000 + GPS.year, GPS.month, GPS. day);
+  sprintf(fileName, "log/%04d%02d%02d", year(), month(), day());
   SD.mkdir(fileName);
-  sprintf(fileName, "log/%04d%02d%02d/%02d%02d%02d.csv", 2000 + GPS.year, GPS.month, GPS.day, GPS.hour, GPS.minute, GPS.seconds);
+  sprintf(fileName, "log/%04d%02d%02d/%02d%02d%02d.csv", year(), month(), day(), hour(), minute(), second());
   if (SD.exists(fileName))
     myprintf(Serial, "Overwriting %s\n", fileName);
   else
@@ -43,64 +42,75 @@ void setupLogging() {
   }
 }
 
-void updateLog(unsigned long timeNow) {
-  noInterrupts();
-  myprintf(logFile, "%d,%d, ", sheepNumber, InfoPacket);
+unsigned long nextFlush = 0;
+void optionalFlush() {
+  unsigned long now = millis();
+  if (nextFlush > millis())
+    return;
+  logFile.flush();
+  nextFlush = now + 15000;
+}
 
-  myprintf(logFile, "%d/%d/%d %d:%d:%d,%d, ",
-           GPS.month, GPS.day, GPS.year, GPS.hour, GPS.minute, GPS.seconds,
+void requiredFlush() {
+  logFile.flush();
+  nextFlush =  millis() + 15000;
+}
+
+void myLogStart(enum PacketKind kind) {
+  myprintf(logFile, "%d,%d, ", sheepNumber, kind);
+
+  myprintf(logFile, "%d/%d/%02d %d:%02d:%02d,%d, ",
+           month(), day(), year() % 100, hour(), minute(), second(),
            now());
-  myprintf(logFile, "%d,%d,", timeNow / 1000 / 3600, batteryVoltageRaw());
+            myprintf(logFile, "%d,%d, ", minutesUptime(), batteryVoltageRaw());
   logFile.print(GPS.latitudeDegrees, 7);
   logFile.print(",");
   logFile.print(GPS.longitudeDegrees, 7);
-  logFile.print(",");
+ 
+}
+
+
+void updateLog(unsigned long timeNow) {
+  noInterrupts();
+  myLogStart(InfoPacket);
 
   logFile.println();
-  //logFile.flush();
+  optionalFlush();
   interrupts();
 
 
 }
 
 
-
-void updateLog(unsigned long timeNow) {
-  noInterrupts();
-  myprintf(logFile, "%d,%d, ", sheepNumber, InfoPacket);
-
-  myprintf(logFile, "%d/%d/%d %d:%d:%d,%d, ",
-           GPS.month, GPS.day, GPS.year, GPS.hour, GPS.minute, GPS.seconds,
-           now());
-  myprintf(logFile, "%d,%d,", timeNow / 1000 / 3600, batteryVoltageRaw());
-  logFile.print(GPS.latitudeDegrees, 7);
-  logFile.print(",");
-  logFile.print(GPS.longitudeDegrees, 7);
-  logFile.print(",");
-
-  logFile.println();
-  //logFile.flush();
-  interrupts();
-}
-
-
-void logRadioUpdate(uint8_t sheepNum, SheepInfo & info) {
-  noInterrupts();
+void radioLogStart(uint8_t sheepNum, SheepInfo & info, enum PacketKind kind) {
   time_t when = info.time;
-  
-  myprintf(logFile, "%d,%d, ", sheepNum, RadioInfoPacket);
+  myprintf(logFile, "%d,%d, ", sheepNum, kind);
 
-  myprintf(logFile, "%d/%d/%d %d:%d:%d,%d, ",
-           month(when), day(when), year(when)%100,  hour(when), minute(when), seconds(when),
+  myprintf(logFile, "%d/%d/%02d %d:%02d:%02d,%d, ",
+           month(when), day(when), year(when) % 100,  hour(when), minute(when), second(when),
            when);
-  myprintf(logFile, "%d,%d,", info.uptimeMinutes, info.batteryVoltageRaw);
+  myprintf(logFile, "%d,%d, ", info.uptimeMinutes, info.batteryVoltageRaw);
   logFile.print(info.latitude, 7);
   logFile.print(",");
   logFile.print(info.longitude, 7);
-  logFile.print(",");
+
+}
+
+void logRadioUpdate(uint8_t sheepNum, SheepInfo & info) {
+  noInterrupts();
+  radioLogStart(sheepNum, info, RadioInfoPacket);
 
   logFile.println();
-  //logFile.flush();
+  optionalFlush();
+  interrupts();
+}
+
+void logRadioDistress(uint8_t sheepNum, time_t when, SheepInfo & info, char* buf) {
+  noInterrupts();
+  radioLogStart(sheepNum, info, RadioDistressPacket);
+  myprintf(logFile, ", \"%s\"\n", buf);
+
+  requiredFlush();
   interrupts();
 }
 void logDistress(const char *fmt, ... ) {
@@ -111,18 +121,15 @@ void logDistress(const char *fmt, ... ) {
   va_end (args);
   Serial.print("Distress message ");
   Serial.println(buf);
+  distressPacket(buf);
   if (logFile) {
     noInterrupts();
-    myprintf(logFile, "%d,%d, ", sheepNumber, DistressPacket);
-    myprintf(logFile, "%d/%d/%d %d:%d:%d,%d,\"",
-             GPS.month, GPS.day, GPS.year, GPS.hour, GPS.minute, GPS.seconds,
-             now());
-    logFile.print(buf);
-    logFile.print("\"");
-    //logFile.flush();
+    myLogStart(DistressPacket);
+    myprintf(logFile, "\"%s\"\n", buf);
+    requiredFlush();
     interrupts();
-    distressPacket(msg);
   }
+  
 }
 
 

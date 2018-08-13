@@ -32,6 +32,7 @@ extern void calibrate();
 extern void freeze();
 extern void adjust();
 extern void updateTouchData(unsigned long now, boolean debug);
+extern int16_t sensorValue(enum TouchSensor sensor);
 extern boolean isTouched(enum TouchSensor sensor);
 extern int32_t touchDuration(enum TouchSensor sensor);
 extern int32_t combinedTouchDuration(enum TouchSensor sensor);

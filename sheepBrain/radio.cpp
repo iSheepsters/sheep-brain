@@ -2,12 +2,13 @@
 #include <Arduino.h>
 #include <RH_RF95.h>
 
-#include "all.h"
+#include "util.h"
 #include "radio.h"
 #include "printf.h"
 #include "secret.h"
 #include "touchSensors.h"
 #include "GPS.h"
+#include "logging.h"
 #include <TimeLib.h>
 
 typedef uint16_t hash_t;
@@ -46,7 +47,7 @@ struct  __attribute__ ((packed)) RadioInfo {
 
 
 struct  __attribute__ ((packed)) DistressInfo {
-  const enum PacketKind packetKind = DistressPacket;
+  enum PacketKind packetKind = DistressPacket;
   uint8_t sheepNumber;
   hash_t hashValue;
   time_t currentTime;
@@ -64,14 +65,15 @@ RadioInfo radioInfo;
 // Singleton instance of the radio driver
 RH_RF95 rf95(RFM95_CS, RFM95_INT);
 
+boolean radioAvailable = false;
 boolean setupRadio() {
   pinMode(RFM95_RST, OUTPUT);
   digitalWrite(RFM95_RST, HIGH);
-  delay(10);
+  setupDelay(10);
   digitalWrite(RFM95_RST, LOW);
-  delay(10);
+  setupDelay(10);
   digitalWrite(RFM95_RST, HIGH);
-  delay(10);
+  setupDelay(10);
   memset(&radioInfo, 0, sizeof(radioInfo));
   memset(&distressInfo, 0, sizeof(distressInfo));
 
@@ -81,39 +83,52 @@ boolean setupRadio() {
   }
 
   Serial.println("LoRa radio init OK!");
-  myprintf(Serial, "Size of sheepInfo is %d\n", sizeof(SheepInfo));
-  myprintf(Serial, "Size of radioInfo is %d\n", sizeof(radioInfo));
-  myprintf(Serial, "Size of RadioInfo is %d\n", sizeof(RadioInfo));
+  if (false) {
+    myprintf(Serial, "Size of sheepInfo is %d\n", sizeof(SheepInfo));
+    myprintf(Serial, "Size of radioInfo is %d\n", sizeof(radioInfo));
+    myprintf(Serial, "Size of RadioInfo is %d\n", sizeof(RadioInfo));
+  }
   // Defaults after init are 434.0MHz, modulation GFSK_Rb250Fd250, +13dbM
   if (!rf95.setFrequency(RF95_FREQ)) {
     Serial.println("setFrequency failed");
     return false;
   }
-  myprintf(Serial, "Max radio buffer length%d\n", RH_RF95_MAX_MESSAGE_LEN);
   Serial.print("Set Freq to: "); Serial.println(RF95_FREQ);
 
   // Defaults after init are 434.0MHz, 13dBm, Bw = 125 kHz, Cr = 4/5, Sf = 128chips/symbol, CRC on
   // change to < Bw = 31.25 kHz, Cr = 4/8, Sf = 512chips/symbol, CRC on. Slow+long range
-  if (true)
+  if (false)
     rf95.setModemConfig(RH_RF95::Bw31_25Cr48Sf512);
   else
     rf95.setModemConfig(RH_RF95::Bw125Cr45Sf128);// The default transmitter power is 13dBm, using PA_BOOST.
   // If you are using RFM95/96/97/98 modules which uses the PA_BOOST transmitter pin, then
   // you can set transmitter powers from 5 to 23 dBm:
   rf95.setTxPower(23, false);
+  radioAvailable = true;
   return true;
 }
 
 int lastWaywardSheep = 0;
 
+int nextSheep(int s) {
+  if (s >= NUMBER_OF_SHEEP)
+    return 1;
+  if (s < 0)
+    return 1;
+  return s + 1;
+}
 
 boolean findNextWaywardSheep() {
-  int s = (lastWaywardSheep + 1) % NUMBER_OF_SHEEP;
-
-  while (true) {
-    s = (s + 1) % NUMBER_OF_SHEEP;
-    if (s == lastWaywardSheep)
+  int count = 0;
+  int s = lastWaywardSheep;
+  boolean continueLooking = true;
+  while (continueLooking) {
+    count++;
+    if (count > NUMBER_OF_SHEEP) 
       return false;
+    s = nextSheep(s);
+    if (s == lastWaywardSheep)
+      continueLooking = false;
     if (s == sheepNumber)
       continue;
     if (getSheep(s).time == 0)
@@ -128,9 +143,8 @@ boolean findNextWaywardSheep() {
 HashInfo hashInfo;
 
 void updateRadio() {
-
+  if (!radioAvailable) return;
   while (rf95.available()) {
-    Serial.println("radio data available");
     uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
     uint8_t len = sizeof(buf);
 
@@ -138,22 +152,30 @@ void updateRadio() {
       switch ((enum PacketKind) buf[0]) {
         case InfoPacket: {
             RadioInfo * received = (RadioInfo *)buf;
-            myprintf(Serial, "Received info packet of length %d from sheep %d\n", len, received->sheepNumber);
-            SheepInfo & from = received->myInfo;
             uint8_t fromNum = received->sheepNumber;
-            memcpy(&from, &getSheep(fromNum), sizeof(SheepInfo));
-            logRadioUpdate(fromNumber, from);
+            SheepInfo & from = received->myInfo;
+            myprintf(Serial, "Received info packet of length %d from sheep %d\n", len, fromNum);
+            Serial.print("sheep at ");
+            Serial.print(from.latitude, 7);
+            Serial.print(",");
+            Serial.println(from.longitude, 7);
+            memcpy(&getSheep(fromNum), &from,  sizeof(SheepInfo));
+            logRadioUpdate(fromNum, from);
             uint8_t waywardSheepNumber = received->waywardSheepNumber;
             if (len == sizeof(radioInfo) && waywardSheepNumber != 0
                 && received->waywardSheep.time > getSheep(waywardSheepNumber).time) {
-              memcpy(&received->waywardSheep, &getSheep(waywardSheepNumber), sizeof(SheepInfo));
+              memcpy(&getSheep(waywardSheepNumber), &received->waywardSheep, sizeof(SheepInfo));
               logRadioUpdate(waywardSheepNumber, received->waywardSheep);
             }
             break;
           }
         case DistressPacket: {
             DistressInfo * received = (DistressInfo *)buf;
-            myprintf(Serial, "Received distress packet of length %d from sheep %d\n", len, received->sheepNumber);
+            uint8_t fromNum = received->sheepNumber;
+
+            myprintf(Serial, "Received distress packet of length %d from sheep %d\n", len, fromNum);
+            myprintf(Serial, "msg: %s\n",  received->msg);
+            logRadioDistress(fromNum, distressInfo.currentTime, getSheep(fromNum), received->msg);
             break;
           }
         default: {
@@ -161,9 +183,8 @@ void updateRadio() {
           }
 
       }
-    }
-    else {
-      Serial.println("Receive failed");
+    } else {
+      Serial.println("Radio receive failed");
       break;
     }
   }
@@ -183,38 +204,60 @@ void updateRadio() {
     radioInfo.currTouched = currTouched;
 
     memcpy(&(radioInfo.myInfo), &getSheep(), sizeof(SheepInfo));
-    uint8_t * data = (uint8_t *)&radioInfo;
+    Serial.println("Looking for wayward sheep");
     boolean waywardSheep = findNextWaywardSheep();
 
     size_t length = sizeof(radioInfo);
     if (waywardSheep) {
+      myprintf(Serial, "Found wayward sheep %d\n", lastWaywardSheep );
+
       radioInfo.waywardSheepNumber = lastWaywardSheep;
       memcpy(&(radioInfo.waywardSheep), &getSheep(lastWaywardSheep), sizeof(SheepInfo));
     } else {
+      Serial.println("No wayward sheep found");
       radioInfo.waywardSheepNumber = 0;
       length -= sizeof(SheepInfo);
     }
-
+    uint8_t * data = (uint8_t *)&radioInfo;
+    myprintf(Serial, "Sending radio packet of size %d\n", length);
+      
     if (rf95.send(data,  length)) {
-      rf95.waitPacketSent();
-      myprintf(Serial, "Radio packet of size %d sent, first byte %d\n", length, data[0]);
-
+      // rf95.waitPacketSent();
+      myprintf(Serial, "Radio packet of size %d sent\n . ", length);
+      for (int i = 0; i < 16; i++)
+        myprintf(Serial, "%02x ",  ((uint8_t *)&radioInfo)[i]);
+      Serial.println();
     } else
       Serial.println("Radio packet send failed");
-
-
   }
 }
 
 void distressPacket(char * msg) {
+  if (!radioAvailable) return;
+  int msgLength = strlen(msg);
+  if (msgLength > 199) {
+    msg[200] = '\0';
+    msgLength = strlen(msg);
+  }
+  if (msgLength > 199) {
+    Serial.println("msg length too long");
+    return;
+  }
   hashInfo.sheepNumber = sheepNumber;
   hashInfo.currentTime = now();
+  distressInfo.packetKind = DistressPacket;
   distressInfo.sheepNumber = sheepNumber;
   distressInfo.currentTime = hashInfo.currentTime;
   distressInfo.hashValue = hashInfo.getHash();
   strncpy(distressInfo.msg, msg, 200);
-  if (rf95.send((uint8_t *)&distressInfo, sizeof(distressInfo)))
-    Serial.println("distress Radio packet sent");
+  size_t packetLength = sizeof(distressInfo) - 200 + strlen(msg) + 1;
+  if (rf95.send((uint8_t *)&distressInfo, packetLength)) {
+    myprintf(Serial, "distress Radio packet sent.  length %d\n  ",
+             packetLength);
+    for (int i = 0; i < 16; i++)
+      myprintf(Serial, "%02x ",  ((uint8_t *)&distressInfo)[i]);
+    Serial.println();
+  }
   else
     Serial.println("distress Radio packet send failed");
 

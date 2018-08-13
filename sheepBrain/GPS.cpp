@@ -1,20 +1,22 @@
 #include <Arduino.h>
 
 #include "GPS.h"
-#include "all.h"
+#include "util.h"
+#include "printf.h"
 
 #include <math.h>
 
+const boolean GPS_DEBUG = false;
+
 Adafruit_GPS GPS(&Serial1);
 
-int lastSecond, lastMinute;
 
 boolean setupGPS() {
   // 9600 NMEA is the default baud rate for Adafruit MTK GPS's- some use 4800
   GPS.begin(9600);
 
-  // uncomment this line to turn on RMC (recommended minimum) and GGA (fix data) including altitude
-  GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
+  // uncomment this line to turn on GGA (fix data) including altitude
+  GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCONLY);
 
   // Set the update rate
   GPS.sendCommand(PMTK_SET_NMEA_UPDATE_1HZ);   // 1 Hz update rate
@@ -26,9 +28,8 @@ boolean setupGPS() {
 
   GPS.sendCommand(PMTK_ENABLE_SBAS);
   GPS.sendCommand(PMTK_ENABLE_WAAS);
-  delay(100);
-  lastMinute = lastSecond = -1;
-  return updateGPS(millis());
+  setupDelay(10);
+  return discardGPS();
 }
 
 // The following are calculated for 41N
@@ -39,12 +40,11 @@ const float METERS_PER_DEGREE_LONGITUDE = 84410.58121284918;
 const float GERLACH_LATITUDE = 40.6516;
 const float GERLACH_LONGITUDE = -119.3568;
 
-const float MAN_LATITUDE = 40.6516;
-const float MAN_LONGITUDE = -119.3568;
+const float MAN_LATITUDE = 40.7864;
+const float MAN_LONGITUDE = -119.2065;
 
 const float CORRAL_LATITUDE  =   40.78292556690011596332941314224;
 const float CORRAL_LONGITUDE = -119.2062896809198096208703440047891035;
-                        //        0.0000000000000000000000000000000001;
 
 // measured in meters
 float distanceFromMan;
@@ -66,6 +66,8 @@ double latitudeDegreesMax;
 double longitudeDegreesMax;
 unsigned long lastGPSReading;
 const boolean ECHO_GPS = false;
+unsigned long firstFix = 0;
+uint16_t totalFixes = 0;
 
 time_t BRC_now() {
   return now() - 7 * 60 * 60;
@@ -108,22 +110,117 @@ void updateRelativePosition() {
   angleFromMan = atan2(manEW, manNS);
 }
 
+
+time_t getGPSTime() {
+  static tmElements_t tm;
+  //it is converted to years since 1970
+
+  tm.Year = GPS.year + 30;
+  tm.Month = GPS.month;
+  tm.Day = GPS.day;
+  tm.Hour = GPS.hour;
+  tm.Minute = GPS.minute;
+  tm.Second = GPS.seconds;
+  return makeTime(tm);
+}
+
+float lastLatitudeDegrees = -1000;
+float lastLongitudeDegrees = 0.0;
+
+time_t lastGPSTime = 0;
+
+// millis value for when lastGPSTime was recorded.
+
+unsigned long lastGPSTimeAt = 0;
+
 boolean parseGPS(unsigned long now) {
-
-  if (!GPS.parse(GPS.lastNMEA()))
+  char * txt = GPS.lastNMEA();
+  size_t len = strlen(txt);
+  char checksumStart = txt[len - 4];
+  if (checksumStart != '*') {
+    if (GPS_DEBUG) myprintf(Serial, "No GPS checksum (%d:%c %02x%02x%02x%02x): \"%s\"\n", len - 4, checksumStart, checksumStart,
+                              txt[len - 3], txt[len - 2], txt[len - 1], (txt + 1) );
     return false;
+  }
+  if (true) for (int i = 1; i < len - 1; i++) if (txt[i] < ' ' || txt[i] >= 'z') {
+        if (GPS_DEBUG) myprintf(Serial, "bad character (%d:%x): \"%s\"\n", i, txt[i], (txt + 1));
+        return false;
+      }
+  if (!GPS.parse(txt)) {
+    // myprintf(Serial, "Could not parse GPS string: \"%s\"\n", (txt + 1));
+    return false;
+  }
 
-  lastGPSReading = now;
+  if (GPS.year != 18 || GPS.month < 8 || GPS.month > 9 || GPS.day < 1 || GPS.day > 31) {
+    if (GPS_DEBUG) myprintf(Serial, "Bad date from GPS string: \"%s\"\n", (txt + 1));
+    return false;
+  }
 
-  if (GPS.year > 0 && (lastMinute != GPS.minute || GPS.seconds != lastSecond))
-    setTime(GPS.hour, GPS.minute, GPS.seconds, GPS.day, GPS.month, GPS.year);
+  time_t thisGPSTime = getGPSTime();
+  boolean timeOK = true;
+  time_t difference = thisGPSTime - lastGPSTime;
+
+  if (difference <= 0)
+    timeOK = false;
+  int fastBy = difference * 1000 - (now - lastGPSTimeAt);
+  if (fastBy > 2000)
+    timeOK = false;
+  lastGPSTime = thisGPSTime;
+  lastGPSTimeAt = now;
+  if (!timeOK) {
+    if (GPS_DEBUG) myprintf(Serial, "Inconsistent date delta %d:%d from GPS string: \"%s\"\n",
+                              difference, fastBy, (txt + 1));
+
+    return false;
+  }
+  setTime(thisGPSTime);
 
   if (GPS.fix) {
-    anyFix = true;
+    if (lastLatitudeDegrees != -1000 && (abs( GPS.latitudeDegrees  - lastLatitudeDegrees) > 0.001 ||
+                                         abs( GPS.longitudeDegrees  - lastLongitudeDegrees) > 0.001)) {
+      // too much change
+      if (GPS_DEBUG)  {
+
+        myprintf(Serial,  "Bad lat/long change from GPS string: \"%s\"\n . ", (txt + 1));
+        Serial.print(lastLatitudeDegrees, 6);
+        Serial.print(", ");
+        Serial.print(lastLongitudeDegrees, 6);
+        Serial.print(" -> ");
+        Serial.print(GPS.latitudeDegrees, 6);
+        Serial.print(" ");
+        Serial.print(GPS.longitudeDegrees, 6);
+        Serial.println();
+      }
+
+
+      lastLatitudeDegrees = GPS.latitudeDegrees;
+      lastLongitudeDegrees = GPS.longitudeDegrees;
+      return false;
+    }
+    if ( GPS.latitudeDegrees < 38 ||  GPS.latitudeDegrees > 41 || GPS.longitudeDegrees < -120
+         || GPS.longitudeDegrees > -76)  {
+      if (GPS_DEBUG)
+        myprintf(Serial, "Bad lat/long from GPS string: \"%s\"\n", (txt + 1));
+      return false;
+    }
+
+
+    lastLatitudeDegrees = GPS.latitudeDegrees;
+    lastLongitudeDegrees = GPS.longitudeDegrees;
     getSheep().latitude = GPS.latitudeDegrees;
     getSheep().longitude = GPS.longitudeDegrees;
+
+    lastGPSReading = now;
+    anyFix = true;
+    totalFixes++;
+    if (totalFixes % 1000 == 0) {
+      uint16_t minutes =  (now - firstFix) / 1000 / 60;
+      myprintf(Serial, "%d GPS fixes per minute\n", totalFixes / minutes);
+    }
     if (!haveFix) {
       Serial.println("Acquired fix");
+      if (firstFix == 0)
+        firstFix = now;
       latitudeDegreesAvg = GPS.latitudeDegrees;
       longitudeDegreesAvg = GPS.longitudeDegrees;
       fixCount = 0;
@@ -153,31 +250,56 @@ boolean parseGPS(unsigned long now) {
   return true;
 }
 
+unsigned long lastGPSUpdate = 0;
+
+// Discard characters read from GPS; called after startup, when we might have characters we
+boolean discardGPS() {
+  Serial.println("Discarding GPS data");
+  int count = 0;
+  while (true) {
+    char c = GPS.read();
+    if (!c) break;
+    Serial.print(c);
+    count++;
+  }
+
+  Serial.println();
+  return count > 0;
+}
 boolean updateGPS(unsigned long now) {
   boolean anyPrinted = false;
   boolean anyReceived = false;
+  int charactersSeen = 0;
   while (true) {
     char c = GPS.read();
+    if (!c) break;
+    charactersSeen++;
+    anyReceived = true;
     if (GPS.newNMEAreceived()) {
       if (anyPrinted)
         Serial.println();
       anyPrinted = false;
-      parseGPS(now);
+      if (!parseGPS(now)) {
+        //myprintf(Serial, "%d GPS characters seen, %d ms delay\n", charactersSeen, now - lastGPSUpdate);
+      }
     }
-    if (!c) break;
-    anyReceived = true;
+
     if (ECHO_GPS) {
       if (!anyPrinted) {
         anyPrinted = true;
         Serial.println();
-
       }
       Serial.print(c);
     }
   }
 
+  if (ECHO_GPS && anyPrinted) {
+    Serial.println();
+  }
+  lastGPSUpdate = now;
   return anyReceived;
 }
+
 
 void logGPS(unsigned long now) {
   if (timer > now)  timer = now;

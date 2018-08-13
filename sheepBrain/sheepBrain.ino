@@ -3,7 +3,7 @@
 
 #include <Wire.h>
 #include <TimeLib.h>
-#include "all.h"
+#include "util.h"
 #include "sound.h"
 #include "printf.h"
 #include "touchSensors.h"
@@ -25,9 +25,24 @@ const boolean useRadio = true;
 uint8_t sheepNumber = 14;
 SheepInfo infoOnSheep[NUMBER_OF_SHEEP];
 
+SheepInfo & getSheep(int s) {
+  if (s < 1 || s > NUMBER_OF_SHEEP) {
+    myprintf(Serial, "invalid request for sheep %d\n", s);
+    return infoOnSheep[0];
+  }
+  return infoOnSheep[s - 1];
+}
+
+
 //const uint8_t SHDN_MAX9744 = 10;
 
 unsigned long nextPettingReport;
+
+boolean debugTouch = false;
+SoundCollection boredSounds(0);
+SoundCollection ridingSounds(2);
+SoundCollection welcomingSounds(1);
+SoundCollection baaSounds(0);
 
 
 const char * stateName(State s) {
@@ -38,42 +53,15 @@ const char * stateName(State s) {
     default: return "Unknown";
   }
 }
-SoundCollection boredSounds(0);
-SoundCollection ridingSounds(2);
-SoundCollection welcomingSounds(1);
-SoundCollection baaSounds(0);
-
-/* return voltage for 12v battery */
-uint16_t batteryVoltageRaw() {
-  return analogRead(A2);
+unsigned long setupFinished = 0;
+uint16_t minutesUptime() {
+  return ( millis() - setupFinished) / 1000 / 60;
 }
 
-
-SheepInfo & getSheep() {
-  return getSheep(sheepNumber);
-}
-
-SheepInfo & getSheep(int s) {
-  if (s < 1 || s > NUMBER_OF_SHEEP) {
-    myprintf(Serial, "invalid request for sheep %d\n", s);
-    return infoOnSheep[0];
-  }
-  return infoOnSheep[s - 1];
-}
-
-float batteryVoltage() {
-  return batteryVoltageRaw() * 3.3 * 5.7 / 1024;
-}
-uint8_t batteryCharge() {
-  // https://www.energymatters.com.au/components/battery-voltage-discharge/
-  float v = batteryVoltage();
-  v = 50 + (v - 12.2) / 0.2 * 25;
-  if (v > 100) v = 100;
-  if (v < 0) v = 0;
-  return (int) v;
-}
+unsigned long nextTestDistress = 0xffffffff; // disable test distreess
 unsigned long nextCalibration = 6000;
 enum State currState = Bored;
+
 void setup() {
   sheepNumber = 1;
   memset(&infoOnSheep, 0, sizeof (infoOnSheep));
@@ -83,50 +71,62 @@ void setup() {
   Wire.begin();
   randomSeed(analogRead(0));
   Serial.begin(115200);
-  if (true) while (!Serial && millis() < 10000) {
+  if (false) while (!Serial && millis() < 10000) {
       digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
-      delay(200);                     // wait for a second
+      setupDelay(200);                     // wait for a second
       digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
-      delay(200);
+      setupDelay(200);
     }
   int countdownMS = Watchdog.enable(14000);
   myprintf(Serial, "Watchdog set, %d ms timeout\n", countdownMS);
 
   for (int i = 1; i < 10; i++) {
     digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
-    delay(20);                     // wait for a second
+    setupDelay(20);                     // wait for a second
     digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
-    delay(20);
+    setupDelay(20);
     Serial.println(i);
   }
 
+  if (setupRadio())
+    Serial.println("radio found");
+  else
+    Serial.println("radio not found!");
 
   if (useGPS) {
     if (setupGPS())
       Serial.println("GPS found");
     else
       logDistress("GPS not found!");
-
   } else
     Serial.println("Skipping GPS");
 
 
 
-  if (setupRadio())
-    Serial.println("radio found");
-  else
-    Serial.println("radio not found!");
   if (!setupSD()) {
+    Serial.println("setupSD failed");
     logDistress("SD card not found");
     while (true) {
       digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
-      delay(1000);                     // wait for a second
+      setupDelay(1000);                     // wait for a second
       digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
-      delay(1000);
+      setupDelay(1000);
 
     }
   }
+
   File configFile = SD.open("config.txt");
+  if (!configFile) {
+    while (true) {
+      logDistress("SD card not found");
+      while (true) {
+        digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
+        setupDelay(1000);                     // wait for a second
+        digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
+        setupDelay(1000);
+      }
+    }
+  }
   sheepNumber = configFile.parseInt();
   myprintf(Serial, "I am sheep %d\n", sheepNumber);
   configFile.close();
@@ -138,9 +138,9 @@ void setup() {
 
 
     //    digitalWrite(SHDN_MAX9744, HIGH);
-    //    delay(10);
+    //    setupDelay(10);
     //    pinMode(SHDN_MAX9744, INPUT);
-    //    delay(100);
+    //    setupDelay(100);
     setupSound();
     Serial.println("Sound set up");
 
@@ -164,7 +164,7 @@ void setup() {
       while (musicPlayer.playingMusic) {
         Serial.println(millis());
         musicPlayer.feedBuffer();
-        delay(100);
+        setupDelay(100);
       }
 
     } else {
@@ -180,14 +180,15 @@ void setup() {
   } else
     Serial.println("Skipping touch");
   setupComm();
-
+  discardGPS();
   Serial.println("Ready");
   myprintf(logFile, "sheep %d ready\n", sheepNumber);
-  updateLog(millis());
-  nextPettingReport = millis() + 2000;
+  setupFinished = millis();
+  updateLog(setupFinished);
+  nextPettingReport = setupFinished + 2000;
 
 
-  nextCalibration = millis() + 5000;
+  nextCalibration = setupFinished + 5000;
 }
 
 unsigned long nextBaa = 10000;
@@ -248,10 +249,17 @@ void loop() {
 
   SheepInfo & me =  getSheep();
   me.time = now();
-  me.uptimeMinutes = millis() / 1000 / 60;
+  me.uptimeMinutes = minutesUptime();
   me.batteryVoltageRaw =  batteryVoltageRaw();
   me.errorCodes = 0;
-  unsigned long now = millis(); 
+  unsigned long now = millis();
+
+
+  if (nextTestDistress < now) {
+    nextTestDistress = now + random(50000, 70000);
+    logDistress("This is a test distress message from sheep %d, next test in %d seconds",
+                sheepNumber, (nextTestDistress - now) / 1000);
+  }
   if (useSound)
     updateSound(now);
   if (useGPS)
@@ -259,12 +267,13 @@ void loop() {
   if (useRadio)
     updateRadio();
   if (nextReport < now ) {
-    myprintf(Serial, "%d State %s, %f volts, %d GPS fixes, %2d:%02d:%02d\n", now, stateName(currState),
-             batteryVoltage(), fixCount,
+    myprintf(Serial, "%d State %s, %f volts, %d minutes uptime, %d GPS fixes, %2d:%02d:%02d\n", now, stateName(currState),
+             batteryVoltage(), minutesUptime(), fixCount,
              GPS.hour, GPS.minute, GPS.seconds);
     time_t BRC_time = BRC_now();
 
-    myprintf(Serial, "BRC time: %2d:%02d:%02d\n", hour(BRC_time), minute(BRC_time), second(BRC_time));
+    if (false)
+      myprintf(Serial, "BRC time: %2d:%02d:%02d\n", hour(BRC_time), minute(BRC_time), second(BRC_time));
 
     nextReport = now + 5000;
     if (TRACE)
@@ -281,8 +290,15 @@ void loop() {
       nextCalibration = 0x7fffffff;
     }
 
-    if (TRACE) Serial.println("updateTouchData");
+    if (TRACE)
+      Serial.println("updateTouchData");
     updateTouchData(now, false);
+    if (debugTouch) {
+      Serial.print("TD ");
+      for (int i = 0; i < 6; i++)
+       myprintf(Serial, "%3d ", sensorValue((TouchSensor)i));
+      Serial.println();
+    }
 
     if (useSlave) {
       if (TRACE) Serial.println("sendSlave");
@@ -349,7 +365,7 @@ void loop() {
   }
   if (TRACE) Serial.println("checkForCommand");
   checkForCommand(now);
-  delay(100);
+  //yield(10);
 }
 
 void checkForSound() {
@@ -357,21 +373,24 @@ void checkForSound() {
   if (nextBaa < now && !musicPlayer.playingMusic) {
     if (random(3) == 0) {
       baaSounds.playSound(now, true);
-      nextBaa = now + 4000 + random(1, 10000);
+      nextBaa = now + random(5000, 14000);
     } else {
       switch (currState) {
         case Bored:
-          boredSounds.playSound(now, true);
+          if (!boredSounds.playSound(now, true))
+            baaSounds.playSound(now, true);
           break;
         case Welcoming:
-          welcomingSounds.playSound(now, true);
+          if (! welcomingSounds.playSound(now, true))
+            baaSounds.playSound(now, true);
           break;
         case Riding:
-          ridingSounds.playSound(now, true);
+          if (!ridingSounds.playSound(now, true))
+            baaSounds.playSound(now, true);
           break;
       }
+      nextBaa = now + random(12000, 30000);
     }
-    nextBaa = now + 12000 + random(1, 15000);
   }
 }
 void checkForCommand(unsigned long now) {
@@ -404,6 +423,11 @@ void checkForCommand(unsigned long now) {
         case 's':
           musicPlayer.stopPlaying();
           break;
+        case 't':
+          dumpTouchData();
+          debugTouch = true;
+          break;
+
         // if we get an 'p' on the serial console, pause/unpause!
         case 'p':
           if (! musicPlayer.paused()) {
@@ -465,7 +489,7 @@ void loop0() {
   //  Serial.print("  ");
   dumpTouchData();
   checkForCommand(now);
-  delay(200);
+  yield(200);
 
 
 }

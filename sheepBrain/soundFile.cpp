@@ -15,6 +15,8 @@ boolean isMusicFile(File f) {
   if (f.isDirectory()) return false;
   const char *name = f.name();
   const char *suffix = strrchr(name, '.');
+  if (name[0] == '_')
+    return false;
   if ( strcmp(suffix, ".MP3") == 0)
     return true;
   return false;
@@ -67,48 +69,78 @@ boolean SoundCollection::load(const char * s) {
 }
 
 void SoundCollection::list() {
-  Serial.println((uint32_t)(void *)files, HEX);
 
   for (int i = 0; i < count; i++) {
     Serial.println(files[i].name);
   }
 }
 
-void SoundCollection::playSound(uint32_t now, boolean quietTime) {
+uint16_t ago( unsigned long t,  unsigned long now) {
+  return (now - t) / 1000;
+}
+
+void SoundCollection::verboseList(unsigned long now, boolean quietTime) {
+
+
+  Serial.println( "  duration   started   playing  eligable name");
+  for (int i = 0; i < count; i++) {
+    myprintf(Serial, "%10d%10d%10d     %s %s\n", files[i].duration, ago(files[i].lastStarted, now),
+             ago(files[i].lastPlaying,  now),
+             files[i].eligibleToPlay(now, quietTime) ? " true" : "false",
+             files[i].name);
+
+  }
+}
+
+boolean SoundCollection::playSound(unsigned long now, boolean quietTime) {
+  if (quietTime && lastSound + 15000L > now && now > 15000) {
+    Serial.print("Too soon for any sound from ");
+    Serial.println(name);
+    return false;
+  }
   SoundFile *s  = chooseSound(now, quietTime);
   if (s == NULL) {
     Serial.print("No sound found for ");
     Serial.println(name);
-    return;
+    if (quietTime) Serial.println("quiet time");
+    myprintf(Serial, "Last sound %d\n", ago(lastSound, now));
+    verboseList(now, quietTime);
+    return false;
   };
   slowlyStopMusic();
 
   if (!playFile("%s/%s", name, s->name )) {
-    Serial.println("Could not start ");
+    myprintf(Serial, "Could not start %s/%s\n", name, s->name);
+    return false;
   } else {
     s->lastStarted = s->lastPlaying = now;
     currentSoundFile = s;
+    return true;
   }
 
 }
 
 
-SoundFile * SoundCollection::chooseSound(uint32_t now,  boolean quietTime) {
+SoundFile * SoundCollection::chooseSound(unsigned long now,  boolean quietTime) {
   if (count == 0) return NULL;
-  for (int i = 0; i < 3; i++) {
-    SoundFile *s = &(files[random(count)]);
+  int firstChoice = random(count);
+  int i = firstChoice;
+  while (true) {
+    SoundFile *s = &(files[i]);
     if (s->eligibleToPlay(now, quietTime))
       return s;
+    i = (i + 1) % count;
+    if (i == firstChoice)
+      return NULL;
   }
-  return NULL;
 }
 
-boolean SoundFile::eligibleToPlay(uint32_t now, boolean quietTime) {
+boolean SoundFile::eligibleToPlay(unsigned long now, boolean quietTime) {
   if (lastStarted == 0 || now == 0) return true;
   unsigned long d = max(3000, duration);
-  
+
   uint32_t minimumQuietTime = duration  + 15000L;
-  if (quietTime && lastSound + minimumQuietTime > now)
+  if (quietTime && lastSound + minimumQuietTime > now && now > 15000)
     return false;
 
   uint32_t minimumRepeatTime = duration * 3 + 120000L;
@@ -126,7 +158,7 @@ boolean setupSD() {
   }
   Serial.println("SD OK!");
 
-  
+
 
   // list files
   //  printDirectory(SD.open("/"), 0);
