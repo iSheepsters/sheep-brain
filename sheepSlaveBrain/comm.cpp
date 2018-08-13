@@ -61,8 +61,8 @@ void receiveEvent(size_t len)
     uint8_t value =  Wire.read();
     if (addr <= MEM_LEN) {
       mem[addr] = value; // copy data to mem
-      addr++;
       //myprintf(Serial, "mem[%d] = %d\n", addr, value);
+      addr++;
     }
   }
 }
