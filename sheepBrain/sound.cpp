@@ -9,8 +9,7 @@ const boolean USE_AMPLIFIER = false;
 
 #include <Wire.h>
 // These are the pins used
-#define VS1053_RESE
-T   -1     // VS1053 reset pin (not used!)
+#define VS1053_RESET   -1     // VS1053 reset pin (not used!)
 
 // Feather M0 or 32u4
 #if defined(__AVR__) || defined(ARDUINO_SAMD_FEATHER_M0)
