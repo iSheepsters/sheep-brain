@@ -105,6 +105,7 @@ void setup() {
 
   if (!setupSD()) {
     Serial.println("setupSD failed");
+    Serial.println("huh");
     logDistress("SD card not found");
     while (true) {
       digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
@@ -118,7 +119,7 @@ void setup() {
   File configFile = SD.open("config.txt");
   if (!configFile) {
     while (true) {
-      logDistress("SD card not found");
+      logDistress("no config.txt file");
       while (true) {
         digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
         setupDelay(1000);                     // wait for a second
@@ -191,7 +192,7 @@ void setup() {
   nextCalibration = setupFinished + 5000;
 }
 
-unsigned long nextBaa = 10000;
+unsigned long nextRandomSound = 10000;
 
 
 void updateState(unsigned long now) {
@@ -207,7 +208,7 @@ void updateState(unsigned long now) {
       || touchDuration(BACK_SENSOR) > 9500)  {
     if (currState != Riding) {
       ridingSounds.playSound(now, false);
-      nextBaa = now + 12000 + random(1, 15000);
+      nextRandomSound = now + 12000 + random(1, 15000);
       currState = Riding;
       Serial.println("riding");
     }
@@ -218,7 +219,7 @@ void updateState(unsigned long now) {
     if (currState != Bored) {
       if (!musicPlayer.playingMusic) {
         boredSounds.playSound(now, false);
-        nextBaa = now + 12000 + random(1, 15000);
+        nextRandomSound = now + 12000 + random(1, 15000);
       }
       currState = Bored;
       Serial.println("bored");
@@ -230,7 +231,7 @@ void updateState(unsigned long now) {
     if (currState != Welcoming) {
       if (!musicPlayer.playingMusic || currState == Bored) {
         welcomingSounds.playSound(now, false);
-        nextBaa = now + 12000 + random(1, 15000);
+        nextRandomSound = now + 12000 + random(1, 15000);
       }
       currState = Welcoming;
       Serial.println("welcoming");
@@ -256,7 +257,7 @@ void loop() {
 
 
   if (nextTestDistress < now) {
-    nextTestDistress = now + random(50000, 70000);
+    nextTestDistress = now + random(150000, 170000);
     logDistress("This is a test distress message from sheep %d, next test in %d seconds",
                 sheepNumber, (nextTestDistress - now) / 1000);
   }
@@ -275,7 +276,7 @@ void loop() {
     if (false)
       myprintf(Serial, "BRC time: %2d:%02d:%02d\n", hour(BRC_time), minute(BRC_time), second(BRC_time));
 
-    nextReport = now + 5000;
+    nextReport = now + 15000;
     if (TRACE)
       Serial.println("Updating log");
     updateLog(now);
@@ -370,10 +371,10 @@ void loop() {
 
 void checkForSound() {
   unsigned long now = millis();
-  if (nextBaa < now && !musicPlayer.playingMusic) {
+  if (nextRandomSound < now && !musicPlayer.playingMusic && !soundPlayedRecently(now)) {
     if (random(3) == 0) {
       baaSounds.playSound(now, true);
-      nextBaa = now + random(5000, 14000);
+      nextRandomSound = now + random(5000, 14000);
     } else {
       switch (currState) {
         case Bored:
@@ -389,7 +390,7 @@ void checkForSound() {
             baaSounds.playSound(now, true);
           break;
       }
-      nextBaa = now + random(12000, 30000);
+      nextRandomSound = now + random(12000, 30000);
     }
   }
 }

@@ -92,6 +92,10 @@ void SoundCollection::verboseList(unsigned long now, boolean quietTime) {
   }
 }
 
+boolean soundPlayedRecently(unsigned long now) {
+   return lastSound + 15000L > now && now > 15000;
+}
+
 boolean SoundCollection::playSound(unsigned long now, boolean quietTime) {
   if (quietTime && lastSound + 15000L > now && now > 15000) {
     Serial.print("Too soon for any sound from ");
@@ -157,7 +161,6 @@ boolean setupSD() {
     return false;
   }
   Serial.println("SD OK!");
-
 
 
   // list files

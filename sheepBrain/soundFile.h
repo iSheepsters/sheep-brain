@@ -3,6 +3,7 @@
 
 extern boolean setupSD();
 extern void printDirectory(File dir, int numTabs);
+extern boolean soundPlayedRecently(unsigned long now);
 
 class SoundFile {
   public:

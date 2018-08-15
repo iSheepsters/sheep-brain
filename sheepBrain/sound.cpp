@@ -2,7 +2,7 @@
 #include "util.h"
 #include <Adafruit_SleepyDog.h>
 
-const boolean USE_AMPLIFIER = false;
+const boolean USE_AMPLIFIER = true;
 
 #include "sound.h"
 #include "soundFile.h"
@@ -30,14 +30,19 @@ Adafruit_VS1053_FilePlayer musicPlayer =
 
 // We'll track the volume level in this variable.
 int8_t thevol = 50;
-
+uint8_t VS1053_volume = 0;
 unsigned long lastSoundStarted = 0;
 unsigned long lastSound = 0;
 
-
-
+// note: 0 is full volume
+void musicPlayerSetVolume(uint8_t v) {
+  VS1053_volume = v;
+  // right channel is always silent, we don't use it
+  musicPlayer.setVolume(v, 0xfe);
+}
 void musicPlayerFullVolume() {
-  musicPlayer.setVolume(0, 0);
+  VS1053_volume = 0;
+  musicPlayer.setVolume(0, 0xfe);
 }
 void setupSound() {
   if (false) {
@@ -138,8 +143,8 @@ void completeMusic() {
 
 void slowlyStopMusic() {
   if (musicPlayer.playingMusic) {
-    for (int i = 0; i < 256; i += 8) {
-      musicPlayer.setVolume(i, i);
+    for (int i = VS1053_volume+8; i < 256; i += 8) {
+      musicPlayerSetVolume(i);
       yield(10);
     }
     Serial.println("Music slowly stopped");

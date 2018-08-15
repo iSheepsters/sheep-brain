@@ -155,10 +155,6 @@ void updateRadio() {
             uint8_t fromNum = received->sheepNumber;
             SheepInfo & from = received->myInfo;
             myprintf(Serial, "Received info packet of length %d from sheep %d\n", len, fromNum);
-            Serial.print("sheep at ");
-            Serial.print(from.latitude, 7);
-            Serial.print(",");
-            Serial.println(from.longitude, 7);
             memcpy(&getSheep(fromNum), &from,  sizeof(SheepInfo));
             logRadioUpdate(fromNum, from);
             uint8_t waywardSheepNumber = received->waywardSheepNumber;
@@ -223,10 +219,6 @@ void updateRadio() {
       
     if (rf95.send(data,  length)) {
       // rf95.waitPacketSent();
-      myprintf(Serial, "Radio packet of size %d sent\n . ", length);
-      for (int i = 0; i < 16; i++)
-        myprintf(Serial, "%02x ",  ((uint8_t *)&radioInfo)[i]);
-      Serial.println();
     } else
       Serial.println("Radio packet send failed");
   }
