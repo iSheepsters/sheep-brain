@@ -22,6 +22,8 @@ uint8_t mem[MEM_LEN];
 void receiveEvent(size_t len);
 void requestEvent(void);
 
+boolean receivedMsg = false;
+
 
 void setupComm() {
   // Setup for Slave mode, address 0x44, pins 18/19, external pullups, 400kHz
@@ -44,6 +46,10 @@ void setupComm() {
 void receiveEvent(size_t len)
 {
   if (!Wire.available()) return;
+  if (!receivedMsg) {
+    receivedMsg = true;
+    Serial.println("Received message");
+  }
   // grab check byte
   uint8_t check = Wire.read();
   if (check != 42) {

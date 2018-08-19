@@ -16,6 +16,16 @@ const uint8_t QUARTER_GRID_WIDTH = 8;
 const uint8_t HALF_GRID_WIDTH = 16;
 const uint8_t GRID_WIDTH = 2 * HALF_GRID_WIDTH;
 
+
+const  uint8_t HEAD_STRIP = 0;
+const  uint8_t LEFT_STRIP = 1;
+const  uint8_t RIGHT_STRIP = 2;
+
+const  uint8_t HEAD_BOTTOM = 17;
+const  uint8_t HEAD_EYES = 4;
+const  uint8_t HEAD_TOP = 4;
+const  uint8_t HEAD_HALF = 25;
+
 enum State {
   Bored,
   Welcoming,
@@ -97,14 +107,6 @@ void setup() {
   }
 }
 
-const  uint8_t HEAD_STRIP = 0;
-const  uint8_t LEFT_STRIP = 1;
-const  uint8_t RIGHT_STRIP = 2;
-
-const  uint8_t HEAD_BOTTOM = 17;
-const  uint8_t HEAD_EYES = 4;
-const  uint8_t HEAD_TOP = 4;
-const  uint8_t HEAD_HALF = 25;
 
 boolean isEye(int led) {
   if (HEAD_BOTTOM <= led && led < HEAD_BOTTOM + HEAD_EYES)
@@ -142,13 +144,13 @@ void rumpLights() {
 void leftLights() {
 
   // left side
-  for (int y = 5; y < 12; y++)
-    getSheepLEDFor( QUARTER_GRID_WIDTH, y) = CRGB::White;
+  for (int y = 4; y < 12; y++)
+    getSheepLEDFor( QUARTER_GRID_WIDTH+1, y) = CRGB::White;
 }
 void rightLights() {
   // right side
-  for (int y = 5; y < 12; y++)
-    getSheepLEDFor( QUARTER_GRID_WIDTH + HALF_GRID_WIDTH, y) = CRGB::White;
+  for (int y = 4; y < 12; y++)
+    getSheepLEDFor( QUARTER_GRID_WIDTH + HALF_GRID_WIDTH-1, y) = CRGB::White;
 }
 void backLights() {
   // back side
