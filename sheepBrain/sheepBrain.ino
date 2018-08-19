@@ -12,10 +12,12 @@
 #include "GPS.h"
 #include "radio.h"
 #include "logging.h"
+#include "avdweb_SAMDtimer.h"
 
 
 extern  void checkForCommand(unsigned long now);
 const boolean useSound = true;
+const boolean playSound = true;
 const boolean useOLED = false;
 const boolean useTouch = true;
 const boolean useGPS = true;
@@ -59,8 +61,15 @@ uint16_t minutesUptime() {
 }
 
 unsigned long nextTestDistress = 0xffffffff; // disable test distreess
-unsigned long nextCalibration = 6000;
 enum State currState = Bored;
+
+void ISR_timer_1KHz(struct tc_module *const module_inst)
+{
+  while (Serial1.available())
+    GPS.read();
+}
+
+SAMDtimer IRS_timer4 = SAMDtimer(4, ISR_timer_1KHz, 1000, 0);
 
 void setup() {
   sheepNumber = 1;
@@ -71,7 +80,7 @@ void setup() {
   Wire.begin();
   randomSeed(analogRead(0));
   Serial.begin(115200);
-  if (false) while (!Serial && millis() < 10000) {
+  if (true) while (!Serial && millis() < 10000) {
       digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
       setupDelay(200);                     // wait for a second
       digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
@@ -160,36 +169,33 @@ void setup() {
 
 
     myprintf(Serial, "%d baa files\n", baaSounds.count);
-    if (musicPlayer.startPlayingFile("baa/baa0.mp3")) {
-      Serial.println("Started baa0");
-      while (musicPlayer.playingMusic) {
-        Serial.println(millis());
-        musicPlayer.feedBuffer();
-        setupDelay(100);
-      }
 
-    } else {
-      logDistress("Could not start baa0");
-    }
+  } else
+    Serial.println("Skipping sound");
 
-    //baaSounds.playSound(0);
-
-  }  else  Serial.println("Skipping sound");
   if (useTouch) {
     Serial.println("Setting up touch");
     setupTouch();
+    Serial.println("touch set up");
   } else
     Serial.println("Skipping touch");
-  setupComm();
-  discardGPS();
-  Serial.println("Ready");
-  myprintf(logFile, "sheep %d ready\n", sheepNumber);
+    
+  if (useSlave) {
+    Serial.println("Setting up comm");
+    setupComm();
+  } else
+    Serial.println("Skipping comm");
+    
+  //discardGPS();
   setupFinished = millis();
+  myprintf(Serial, "%dms set up time\n", setupFinished);
+  myprintf(logFile, "sheep %d ready\n", sheepNumber);
+  
   updateLog(setupFinished);
+  read_gps_in_interrupt = true;
+  IRS_timer4.enableInterrupt(1);
   nextPettingReport = setupFinished + 2000;
 
-
-  nextCalibration = setupFinished + 5000;
 }
 
 unsigned long nextRandomSound = 10000;
@@ -207,7 +213,8 @@ void updateState(unsigned long now) {
       (touchDuration(LEFT_SENSOR) > 550 || touchDuration(RIGHT_SENSOR) > 550 ||  touchDuration(RUMP_SENSOR) > 550 )
       || touchDuration(BACK_SENSOR) > 9500)  {
     if (currState != Riding) {
-      ridingSounds.playSound(now, false);
+      if (useSound && playSound)
+        ridingSounds.playSound(now, false);
       nextRandomSound = now + 12000 + random(1, 15000);
       currState = Riding;
       Serial.println("riding");
@@ -217,7 +224,7 @@ void updateState(unsigned long now) {
            && untouchDuration(HEAD_SENSOR) > 10000
            && untouchDuration(RUMP_SENSOR) > 10000) {
     if (currState != Bored) {
-      if (!musicPlayer.playingMusic) {
+      if (useSound && playSound && !musicPlayer.playingMusic) {
         boredSounds.playSound(now, false);
         nextRandomSound = now + 12000 + random(1, 15000);
       }
@@ -229,7 +236,7 @@ void updateState(unsigned long now) {
             touchDuration(LEFT_SENSOR) > 100 || touchDuration(RIGHT_SENSOR) > 100
             ||  touchDuration(RUMP_SENSOR) > 100  ||  touchDuration(HEAD_SENSOR) > 100) {
     if (currState != Welcoming) {
-      if (!musicPlayer.playingMusic || currState == Bored) {
+      if (useSound && playSound && (!musicPlayer.playingMusic || currState == Bored)) {
         welcomingSounds.playSound(now, false);
         nextRandomSound = now + 12000 + random(1, 15000);
       }
@@ -243,17 +250,34 @@ void updateState(unsigned long now) {
 
 
 unsigned long nextReport = 0;
+unsigned long phase1 = 0;
 
+unsigned long phase2 = 0;
+unsigned long phase3 = 0;
+unsigned long phase4 = 0;
 const boolean TRACE = false;
+
+unsigned long lastLoop = 0;
 void loop() {
   Watchdog.reset();
 
+
+
   SheepInfo & me =  getSheep();
   me.time = now();
+  if (totalYield > 0) {
+    myprintf(Serial, "total yield %dms\n", totalYield);
+    totalYield = 0;
+  }
+
   me.uptimeMinutes = minutesUptime();
   me.batteryVoltageRaw =  batteryVoltageRaw();
   me.errorCodes = 0;
   unsigned long now = millis();
+  if ((now / 500) % 2 == 1)
+    digitalWrite(LED_BUILTIN, HIGH);
+  else
+    digitalWrite(LED_BUILTIN, LOW);
 
 
   if (nextTestDistress < now) {
@@ -261,43 +285,48 @@ void loop() {
     logDistress("This is a test distress message from sheep %d, next test in %d seconds",
                 sheepNumber, (nextTestDistress - now) / 1000);
   }
-  if (useSound)
-    updateSound(now);
-  if (useGPS)
+  if (useGPS) {
+    quickGPSUpdate();
     updateGPS(now);
+  }
+  if (useSound && playSound)
+    updateSound(now);
   if (useRadio)
     updateRadio();
   if (nextReport < now ) {
-    myprintf(Serial, "%d State %s, %f volts, %d minutes uptime, %d GPS fixes, %2d:%02d:%02d\n", now, stateName(currState),
+    myprintf(Serial, "%d State %s, %f volts, %d minutes uptime, %d GPS fixes, %2d:%02d:%02d\n",
+             now, stateName(currState),
              batteryVoltage(), minutesUptime(), fixCount,
-             GPS.hour, GPS.minute, GPS.seconds);
+             hour(), minute(), second());
+    myprintf(Serial, "phase %d %d %d %d\n", phase1, phase2, phase3, phase4);
     time_t BRC_time = BRC_now();
 
     if (false)
       myprintf(Serial, "BRC time: %2d:%02d:%02d\n", hour(BRC_time), minute(BRC_time), second(BRC_time));
 
-    nextReport = now + 15000;
-    if (TRACE)
-      Serial.println("Updating log");
-    updateLog(now);
-    if (TRACE)
-      Serial.println("Log updated");
+    nextReport = now + 5000;
+    if (false) {
+      if (TRACE)
+        Serial.println("Updating log");
+      updateLog(now);
+      if (TRACE)
+        Serial.println("Log updated");
+    }
   }
+  phase1 = millis() - now;
 
   if (useTouch) {
-    if (nextCalibration < now) {
-      Serial.println("Calibrate");
-      calibrate();
-      nextCalibration = 0x7fffffff;
-    }
+    
 
     if (TRACE)
       Serial.println("updateTouchData");
+    unsigned long startTouch = micros();
     updateTouchData(now, false);
+    //Serial.println(micros()-startTouch);
     if (debugTouch) {
       Serial.print("TD ");
-      for (int i = 0; i < 6; i++)
-       myprintf(Serial, "%3d ", sensorValue((TouchSensor)i));
+      for (int i = 0; i < numTouchSensors; i++)
+        myprintf(Serial, " %3d %3d ", stableValue[i], sensorValue((TouchSensor)i));
       Serial.println();
     }
 
@@ -311,66 +340,54 @@ void loop() {
     }
     //dumpTouchData();
 
-    if (false) {
-      if (musicPlayer.playingMusic)
-        Serial.print("M ");
-      else
-        Serial.print("- ");
-      Serial.print(currTouched, HEX);
-      Serial.print(" ");
-      Serial.print(newTouched, HEX);
-      Serial.print(" ");
+  }
+  phase2 = millis() - now - phase1;
 
-      for (int i = 0; i < 6; i++) {
-        Serial.print(cap.filteredData(i) - cap.baselineData(i));
-        Serial.print("  ");
 
+  if (now > 10000 && useTouch) {
+    if (TRACE) Serial.println("updateState");
+    updateState(now);
+    if (useSlave)
+      sendSlave(1, (uint8_t) currState);
+
+
+    for (int i = 0; i < numTouchSensors; i++) {
+      if (((newTouched >> i) & 1 ) != 0) {
+        myprintf(Serial, "touched %d - %d\n", i, sensorValue((enum TouchSensor)i));
+        //playFile("%d.mp3", i);
+      }
+    }
+    if (false && nextPettingReport < now) {
+      nextPettingReport = now + 250;
+      for (int i = 0; i < numPettingSensors; i++) {
+
+        float confidence = 0.0;
+        /// int i = 7;
+        float hz = detectPetting(i, 64, &confidence);
+        digitalWrite(LED_BUILTIN, hz > 0.0);
+        Serial.print(hz);
+        Serial.print(" ");
+        //       Serial.print(confidence);
+        //      Serial.print(" ");
       }
       Serial.println();
     }
   }
+  phase3 = millis() - now - phase1 - phase2;
 
-
-  if (now > 10000) {
-    if (TRACE) Serial.println("updateSlave");
-    updateState(now);
-    if (useSlave)
-      sendSlave(1, (uint8_t) currState);
-  }
-
-  for (int i = 0; i < numTouchSensors; i++) {
-    if (((newTouched >> i) & 1 ) != 0) {
-      myprintf(Serial, "touched %d\n", i);
-      //playFile("%d.mp3", i);
-    }
-  }
-  if (false && nextPettingReport < now) {
-    nextPettingReport = now + 250;
-    for (int i = 0; i < numPettingSensors; i++) {
-
-      float confidence = 0.0;
-      /// int i = 7;
-      float hz = detectPetting(i, 64, &confidence);
-      digitalWrite(LED_BUILTIN, hz > 0.0);
-      Serial.print(hz);
-      Serial.print(" ");
-      //       Serial.print(confidence);
-      //      Serial.print(" ");
-    }
-    Serial.println();
-  }
-
-  if (useSound) {
+  if (useSound && playSound) {
     if (TRACE) Serial.println("checkForSound");
-    checkForSound();
+    checkForSound(now);
   }
   if (TRACE) Serial.println("checkForCommand");
   checkForCommand(now);
+  phase4 = millis() - now - phase1 - phase2 - phase3;
   //yield(10);
 }
 
-void checkForSound() {
-  unsigned long now = millis();
+void checkForSound(unsigned long now) {
+  if (!useSound || !playSound)
+    return;
   if (nextRandomSound < now && !musicPlayer.playingMusic && !soundPlayedRecently(now)) {
     if (random(3) == 0) {
       baaSounds.playSound(now, true);
@@ -394,7 +411,11 @@ void checkForSound() {
     }
   }
 }
+unsigned long nextCommandCheck = 0;
 void checkForCommand(unsigned long now) {
+  if (nextCommandCheck > now)
+    return;
+  nextCommandCheck = now + 200;
   if (Serial && Serial.available()) {
     char c = Serial.read();
     if (c != '\n') {
@@ -402,10 +423,7 @@ void checkForCommand(unsigned long now) {
       Serial.print("Got " );
       Serial.println(c);
       switch (c) {
-        case 'c':
-          Serial.println("Calibrate");
-          calibrate();
-          break;
+        
         case 'a':
           playFile("baa%d.mp3", 1 + random(8));
           break;
@@ -426,7 +444,7 @@ void checkForCommand(unsigned long now) {
           break;
         case 't':
           dumpTouchData();
-          debugTouch = true;
+          debugTouch = !debugTouch;
           break;
 
         // if we get an 'p' on the serial console, pause/unpause!
@@ -454,45 +472,5 @@ void checkForCommand(unsigned long now) {
       }
     }
   }
-
 }
-
-
-
-
-void loop0() {
-  Watchdog.reset();
-  unsigned long now = millis();
-  updateSound(now);
-  updateGPS(now);
-  if (nextCalibration < now) {
-    Serial.println("Calibrate");
-    calibrate();
-    nextCalibration = 0x7fffffff;
-  }
-  updateTouchData(now, false);
-  uint8_t t = 0;
-  for (int i = 0; i < 6; i ++) {
-    if (cap.filteredData(i) < cap.baselineData(i))
-      t |= 1 << i;
-  }
-
-  if (useSlave) {
-    uint8_t v = sendSlave(0, t);
-    if (v != 0) {
-      Serial.print("Transmission error: " );
-      Serial.println(v);
-    }
-  }
-  //  Serial.print(t, HEX);
-  //  Serial.print("  ");
-  //  Serial.print(currTouched, HEX);
-  //  Serial.print("  ");
-  dumpTouchData();
-  checkForCommand(now);
-  yield(200);
-
-
-}
-
 

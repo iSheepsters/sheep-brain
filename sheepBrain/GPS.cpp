@@ -7,6 +7,12 @@
 #include <math.h>
 
 const boolean GPS_DEBUG = false;
+boolean GPS_ready = false;
+uint16_t badGPS = 0;
+uint16_t total_good_GPS = 0;
+uint16_t total_bad_GPS = 0;
+
+volatile boolean read_gps_in_interrupt = false;
 
 Adafruit_GPS GPS(&Serial1);
 
@@ -28,8 +34,14 @@ boolean setupGPS() {
 
   GPS.sendCommand(PMTK_ENABLE_SBAS);
   GPS.sendCommand(PMTK_ENABLE_WAAS);
-  setupDelay(10);
-  return discardGPS();
+  unsigned long now = millis();
+  while (year() < 2018 && millis() < now + 4000) {
+    delay(1);
+    updateGPS(millis());
+  }
+  total_good_GPS = total_bad_GPS = 0;
+  GPS_ready = true;
+  return year() >= 2018;
 }
 
 // The following are calculated for 41N
@@ -135,6 +147,8 @@ unsigned long lastGPSTimeAt = 0;
 
 boolean parseGPS(unsigned long now) {
   char * txt = GPS.lastNMEA();
+  if (strstr(txt, "$PMTK"))
+    return true;
   size_t len = strlen(txt);
   char checksumStart = txt[len - 4];
   if (checksumStart != '*') {
@@ -147,7 +161,9 @@ boolean parseGPS(unsigned long now) {
         return false;
       }
   if (!GPS.parse(txt)) {
-    // myprintf(Serial, "Could not parse GPS string: \"%s\"\n", (txt + 1));
+    if (GPS_DEBUG) {
+      myprintf(Serial, "Could not parse GPS string: \"%s\"\n", (txt + 1));
+    }
     return false;
   }
 
@@ -266,43 +282,55 @@ boolean discardGPS() {
   Serial.println();
   return count > 0;
 }
+
+
+void quickGPSUpdate() {
+  if (!read_gps_in_interrupt) return;
+  noInterrupts();
+  read_gps_in_interrupt = false;
+  interrupts();
+  while (Serial1.available()) {
+    GPS.read();
+    //    if (!c) return;
+    //    c = GPS.read();
+    //    if (!c) return;
+    //    c = GPS.read();
+    //    if (!c) return;
+  }
+  noInterrupts();
+  read_gps_in_interrupt = true;
+  interrupts();
+}
+
+
+unsigned long nextGPSReport = 10000;
 boolean updateGPS(unsigned long now) {
-  boolean anyPrinted = false;
-  boolean anyReceived = false;
-  int charactersSeen = 0;
-  while (true) {
-    char c = GPS.read();
-    if (!c) break;
-    charactersSeen++;
-    anyReceived = true;
-    if (GPS.newNMEAreceived()) {
-      if (anyPrinted)
-        Serial.println();
-      anyPrinted = false;
-      if (!parseGPS(now)) {
-        //myprintf(Serial, "%d GPS characters seen, %d ms delay\n", charactersSeen, now - lastGPSUpdate);
-      }
-    }
-
-    if (ECHO_GPS) {
-      if (!anyPrinted) {
-        anyPrinted = true;
-        Serial.println();
-      }
-      Serial.print(c);
+  if (nextGPSReport < now) {
+    myprintf(Serial, "GPS readings %d good, %d bad\n", total_good_GPS, total_bad_GPS);
+    nextGPSReport = now + 10000;
+  }
+  if (!read_gps_in_interrupt) {
+    while (true) {
+      char c = GPS.read();
+      if (c == 0) break;
     }
   }
+  if (!GPS.newNMEAreceived())
+    return false;
 
-  if (ECHO_GPS && anyPrinted) {
-    Serial.println();
+  if (!parseGPS(now)) {
+    total_bad_GPS++;
+    badGPS++;
+    if (badGPS > 2)
+      fixCount = 0;
+  } else {
+    badGPS = 0;
+    total_good_GPS++;
   }
-  lastGPSUpdate = now;
-  return anyReceived;
 }
 
 
 void logGPS(unsigned long now) {
-  if (timer > now)  timer = now;
   if (GPS.fix) {
     if (!haveFix) {
       Serial.println("Acquired fix");
@@ -349,7 +377,9 @@ void logGPS(unsigned long now) {
 
       }
     }
-  } else if (haveFix)
+  } else if (haveFix) {
     Serial.println("Lost fix");
+    fixCount = 0;
+  }
 }
 

@@ -2,7 +2,7 @@
 #include "util.h"
 #include <Adafruit_SleepyDog.h>
 
-const boolean USE_AMPLIFIER = true;
+const boolean USE_AMPLIFIER = false;
 
 #include "sound.h"
 #include "soundFile.h"
@@ -99,7 +99,7 @@ void updateSound(unsigned long now) {
 
     }
     lastSound = now;
-    musicPlayer.feedBuffer();
+    //musicPlayer.feedBuffer();
   } else if (currentSoundFile != NULL) {
     if (currentSoundFile->duration == 0) {
       currentSoundFile->duration = currentSoundFile->lastPlaying - currentSoundFile->lastStarted;
@@ -136,7 +136,7 @@ void completeMusic() {
   while (musicPlayer.playingMusic) {
     // twiddle thumbs
     Watchdog.reset();
-    musicPlayer.feedBuffer();
+    // musicPlayer.feedBuffer();
     yield(5);           // give IRQs a chance
   }
 }

@@ -1,6 +1,7 @@
 
 #include "util.h"
 #include "printf.h"
+  uint16_t totalYield;
 /* return voltage for 12v battery */
 uint16_t batteryVoltageRaw() {
   return analogRead(A2);
@@ -18,6 +19,8 @@ void setupDelay(uint16_t ms) {
 }
 
 void yield(uint16_t ms) {
+  totalYield += ms;
+  
   delay(ms);
 }
 

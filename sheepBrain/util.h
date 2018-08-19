@@ -6,6 +6,7 @@ extern uint16_t batteryVoltageRaw();
 extern float batteryVoltage();
 extern uint8_t batteryCharge();
 extern uint16_t minutesUptime();
+extern uint16_t totalYield;
 
 extern void setupDelay(uint16_t ms);
 extern void yield(uint16_t ms);

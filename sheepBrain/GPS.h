@@ -10,6 +10,7 @@ extern uint32_t fixCount;
 extern unsigned long lastGPSReading;
 extern boolean setupGPS();
 extern boolean discardGPS();
+extern void quickGPSUpdate();
 extern boolean updateGPS(unsigned long now);
 extern void logGPS(unsigned long now);
 extern time_t BRC_now();
@@ -18,6 +19,7 @@ extern boolean inCorral(int sheep) ;
 extern boolean isClose(int sheep);
 extern boolean isInFriendlyTerritory() ;
 
+extern volatile boolean read_gps_in_interrupt;
 
 #endif
 

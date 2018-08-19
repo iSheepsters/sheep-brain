@@ -13,9 +13,7 @@ void setupLogging() {
   char fileName[100];
 
   unsigned long now = millis();
-  while (year() < 2018 && millis() < now + 4000) {
-    updateGPS(millis());
-  }
+
   if (year() != 2018) {
     SD.mkdir("log/nodate");
     int i = 0;
