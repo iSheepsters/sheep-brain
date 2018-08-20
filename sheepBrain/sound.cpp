@@ -92,11 +92,11 @@ void setupSound() {
 }
 
 
+
 void updateSound(unsigned long now) {
   if (musicPlayer.playingMusic) {
     if (currentSoundFile) {
       currentSoundFile->lastPlaying = now;
-
     }
     lastSound = now;
     //musicPlayer.feedBuffer();

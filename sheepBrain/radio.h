@@ -1,6 +1,4 @@
 
-
-
 extern boolean setupRadio();
 
 extern void updateRadio();

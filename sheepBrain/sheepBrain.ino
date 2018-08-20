@@ -9,6 +9,7 @@
 #include "touchSensors.h"
 #include "soundFile.h"
 #include "slave.h"
+#include "state.h"
 #include "GPS.h"
 #include "radio.h"
 #include "logging.h"
@@ -16,13 +17,7 @@
 
 
 extern  void checkForCommand(unsigned long now);
-const boolean useSound = true;
-const boolean playSound = true;
-const boolean useOLED = false;
-const boolean useTouch = true;
-const boolean useGPS = true;
-const boolean useSlave = true;
-const boolean useRadio = true;
+
 
 uint8_t sheepNumber = 14;
 SheepInfo infoOnSheep[NUMBER_OF_SHEEP];
@@ -61,15 +56,15 @@ uint16_t minutesUptime() {
 }
 
 unsigned long nextTestDistress = 0xffffffff; // disable test distreess
-enum State currState = Bored;
 
 void ISR_timer_1KHz(struct tc_module *const module_inst)
 {
-  while (Serial1.available())
-    GPS.read();
+  if (read_gps_in_interrupt)
+    while (Serial1.available())
+      GPS.read();
 }
 
-SAMDtimer IRS_timer4 = SAMDtimer(4, ISR_timer_1KHz, 1000, 0);
+SAMDtimer IRS_timer5 = SAMDtimer(5, ISR_timer_1KHz, 1000, 0);
 
 void setup() {
   sheepNumber = 1;
@@ -154,20 +149,16 @@ void setup() {
     setupSound();
     Serial.println("Sound set up");
 
-
     boredSounds.load("bored");
-    boredSounds.list();
-    myprintf(Serial, "%d bored files\n", boredSounds.count);
-    // boredSounds.playSound(0);
+    myprintf(Serial, "%x %d %s files\n", (void*) & boredSounds,  boredSounds.count, boredSounds.name);
 
     ridingSounds.load("riding");
-    myprintf(Serial, "%d riding files\n", ridingSounds.count);
+    myprintf(Serial, "%x %d %s files\n",(void*) & ridingSounds, ridingSounds.count, ridingSounds.name);
 
     welcomingSounds.load("w");
-    myprintf(Serial, "%d welcoming files\n", welcomingSounds.count);
+    myprintf(Serial, "%x %d %s files\n", (void*) & welcomingSounds, welcomingSounds.count, welcomingSounds.name);
+
     baaSounds.load("baa");
-
-
     myprintf(Serial, "%d baa files\n", baaSounds.count);
 
   } else
@@ -179,91 +170,38 @@ void setup() {
     Serial.println("touch set up");
   } else
     Serial.println("Skipping touch");
-    
+
   if (useSlave) {
     Serial.println("Setting up comm");
     setupComm();
   } else
     Serial.println("Skipping comm");
-    
+
   //discardGPS();
   setupFinished = millis();
   myprintf(Serial, "%dms set up time\n", setupFinished);
   myprintf(logFile, "sheep %d ready\n", sheepNumber);
-  
+
   updateLog(setupFinished);
-  read_gps_in_interrupt = true;
-  IRS_timer4.enableInterrupt(1);
+  if (useGPSinterrupts) {
+    read_gps_in_interrupt = true;
+    IRS_timer5.enableInterrupt(1);
+  }
   nextPettingReport = setupFinished + 2000;
-
-}
-
-unsigned long nextRandomSound = 10000;
-
-
-void updateState(unsigned long now) {
-  if (false) myprintf(Serial, "state %d: %6d %6d %6d %6d %6d\n", currState,
-                        combinedTouchDuration(HEAD_SENSOR),
-                        combinedTouchDuration(BACK_SENSOR),
-                        combinedTouchDuration(LEFT_SENSOR),
-                        combinedTouchDuration(RIGHT_SENSOR),
-                        combinedTouchDuration(RUMP_SENSOR));
-
-  if (touchDuration(BACK_SENSOR) > 1200 &&
-      (touchDuration(LEFT_SENSOR) > 550 || touchDuration(RIGHT_SENSOR) > 550 ||  touchDuration(RUMP_SENSOR) > 550 )
-      || touchDuration(BACK_SENSOR) > 9500)  {
-    if (currState != Riding) {
-      if (useSound && playSound)
-        ridingSounds.playSound(now, false);
-      nextRandomSound = now + 12000 + random(1, 15000);
-      currState = Riding;
-      Serial.println("riding");
-    }
-  }
-  else if (untouchDuration(BACK_SENSOR) > 10000
-           && untouchDuration(HEAD_SENSOR) > 10000
-           && untouchDuration(RUMP_SENSOR) > 10000) {
-    if (currState != Bored) {
-      if (useSound && playSound && !musicPlayer.playingMusic) {
-        boredSounds.playSound(now, false);
-        nextRandomSound = now + 12000 + random(1, 15000);
-      }
-      currState = Bored;
-      Serial.println("bored");
-    }
-  }
-  else if ( touchDuration(BACK_SENSOR) > 100 ||
-            touchDuration(LEFT_SENSOR) > 100 || touchDuration(RIGHT_SENSOR) > 100
-            ||  touchDuration(RUMP_SENSOR) > 100  ||  touchDuration(HEAD_SENSOR) > 100) {
-    if (currState != Welcoming) {
-      if (useSound && playSound && (!musicPlayer.playingMusic || currState == Bored)) {
-        welcomingSounds.playSound(now, false);
-        nextRandomSound = now + 12000 + random(1, 15000);
-      }
-      currState = Welcoming;
-      Serial.println("welcoming");
-    }
-
-  }
 
 }
 
 
 unsigned long nextReport = 0;
-unsigned long phase1 = 0;
 
-unsigned long phase2 = 0;
-unsigned long phase3 = 0;
-unsigned long phase4 = 0;
+
 const boolean TRACE = false;
 
 unsigned long lastLoop = 0;
 void loop() {
   Watchdog.reset();
 
-
-
-  SheepInfo & me =  getSheep();
+  SheepInfo & me = getSheep();
   me.time = now();
   if (totalYield > 0) {
     myprintf(Serial, "total yield %dms\n", totalYield);
@@ -289,23 +227,32 @@ void loop() {
     quickGPSUpdate();
     updateGPS(now);
   }
+
   if (useSound && playSound)
     updateSound(now);
+
+  if (useGPS && !useGPSinterrupts) {
+    quickGPSUpdate();
+  }
   if (useRadio)
     updateRadio();
+
+  if (useGPS && !useGPSinterrupts) {
+    quickGPSUpdate();
+  }
   if (nextReport < now ) {
     myprintf(Serial, "%d State %s, %f volts, %d minutes uptime, %d GPS fixes, %2d:%02d:%02d\n",
-             now, stateName(currState),
+             now, currentSheepState->name,
              batteryVoltage(), minutesUptime(), fixCount,
              hour(), minute(), second());
-    myprintf(Serial, "phase %d %d %d %d\n", phase1, phase2, phase3, phase4);
+
     time_t BRC_time = BRC_now();
 
     if (false)
       myprintf(Serial, "BRC time: %2d:%02d:%02d\n", hour(BRC_time), minute(BRC_time), second(BRC_time));
 
-    nextReport = now + 5000;
-    if (false) {
+    nextReport = now + 3000;
+    if (useLog) {
       if (TRACE)
         Serial.println("Updating log");
       updateLog(now);
@@ -313,10 +260,12 @@ void loop() {
         Serial.println("Log updated");
     }
   }
-  phase1 = millis() - now;
 
+
+  if (useGPS && !useGPSinterrupts) {
+    quickGPSUpdate();
+  }
   if (useTouch) {
-    
 
     if (TRACE)
       Serial.println("updateTouchData");
@@ -341,14 +290,17 @@ void loop() {
     //dumpTouchData();
 
   }
-  phase2 = millis() - now - phase1;
 
 
-  if (now > 10000 && useTouch) {
+  if (useGPS && !useGPSinterrupts) {
+    quickGPSUpdate();
+  }
+
+  if (doUpdateState && now > 10000 && useTouch) {
     if (TRACE) Serial.println("updateState");
     updateState(now);
     if (useSlave)
-      sendSlave(1, (uint8_t) currState);
+      sendSlave(1, (uint8_t) currentSheepState->state);
 
 
     for (int i = 0; i < numTouchSensors; i++) {
@@ -373,15 +325,22 @@ void loop() {
       Serial.println();
     }
   }
-  phase3 = millis() - now - phase1 - phase2;
+
+  if (useGPS && !useGPSinterrupts) {
+    quickGPSUpdate();
+  }
 
   if (useSound && playSound) {
     if (TRACE) Serial.println("checkForSound");
     checkForSound(now);
   }
+
+  if (useGPS && !useGPSinterrupts) {
+    quickGPSUpdate();
+  }
   if (TRACE) Serial.println("checkForCommand");
   checkForCommand(now);
-  phase4 = millis() - now - phase1 - phase2 - phase3;
+
   //yield(10);
 }
 
@@ -390,24 +349,15 @@ void checkForSound(unsigned long now) {
     return;
   if (nextRandomSound < now && !musicPlayer.playingMusic && !soundPlayedRecently(now)) {
     if (random(3) == 0) {
-      baaSounds.playSound(now, true);
-      nextRandomSound = now + random(5000, 14000);
+      if (baaSounds.playSound(now, true))
+        nextRandomSound = now + random(5000, 14000);
+      else
+        nextRandomSound = now + 3000;
     } else {
-      switch (currState) {
-        case Bored:
-          if (!boredSounds.playSound(now, true))
-            baaSounds.playSound(now, true);
-          break;
-        case Welcoming:
-          if (! welcomingSounds.playSound(now, true))
-            baaSounds.playSound(now, true);
-          break;
-        case Riding:
-          if (!ridingSounds.playSound(now, true))
-            baaSounds.playSound(now, true);
-          break;
-      }
-      nextRandomSound = now + random(12000, 30000);
+      if (currentSheepState -> playSound(now, true))
+        nextRandomSound = now + random(12000, 30000);
+      else
+        nextRandomSound = now + 3000;
     }
   }
 }
@@ -423,7 +373,7 @@ void checkForCommand(unsigned long now) {
       Serial.print("Got " );
       Serial.println(c);
       switch (c) {
-        
+
         case 'a':
           playFile("baa%d.mp3", 1 + random(8));
           break;

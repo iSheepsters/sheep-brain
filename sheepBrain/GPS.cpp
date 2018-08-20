@@ -285,8 +285,8 @@ boolean discardGPS() {
 
 
 void quickGPSUpdate() {
-  if (!read_gps_in_interrupt) return;
   noInterrupts();
+  boolean oldValue = read_gps_in_interrupt;
   read_gps_in_interrupt = false;
   interrupts();
   while (Serial1.available()) {
@@ -298,7 +298,7 @@ void quickGPSUpdate() {
     //    if (!c) return;
   }
   noInterrupts();
-  read_gps_in_interrupt = true;
+  read_gps_in_interrupt = oldValue;
   interrupts();
 }
 

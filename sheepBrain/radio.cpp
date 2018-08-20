@@ -7,6 +7,7 @@
 #include "printf.h"
 #include "secret.h"
 #include "touchSensors.h"
+#include "state.h"
 #include "GPS.h"
 #include "logging.h"
 #include <TimeLib.h>
@@ -196,7 +197,7 @@ void updateRadio() {
     radioInfo.sheepNumber = sheepNumber;
     radioInfo.currentTime = hashInfo.currentTime;
     radioInfo.hashValue = hashInfo.getHash();
-    radioInfo.currState = currState;
+    radioInfo.currState = currentSheepState->state;
     radioInfo.currTouched = currTouched;
 
     memcpy(&(radioInfo.myInfo), &getSheep(), sizeof(SheepInfo));

@@ -1,4 +1,5 @@
-
+#ifndef _SOUNDFILE_H
+#define _SOUNDFILE_H
 #include <SD.h>
 
 extern boolean setupSD();
@@ -14,7 +15,7 @@ class SoundFile {
     uint32_t lastStarted;
     uint32_t lastPlaying;
     uint32_t duration;
-    boolean eligibleToPlay(unsigned long now,  boolean quietTime);
+    boolean eligibleToPlay(unsigned long now,  boolean ambientSound);
 };
 
 class SoundCollection {
@@ -27,13 +28,18 @@ class SoundCollection {
 
 
     void list();
-    void verboseList(unsigned long now,  boolean quietTime);
+    void verboseList(unsigned long now,  boolean ambientSound);
 
     boolean load(const char * s);
-    SoundFile* chooseSound(unsigned long now,  boolean quietTime);
-    boolean playSound(unsigned long now,  boolean quietTime);
+    SoundFile* chooseSound(unsigned long now,  boolean ambientSound);
+    boolean playSound(unsigned long now,  boolean ambientSound);
 };
 
 
 extern SoundFile * currentSoundFile;
 
+extern unsigned long nextRandomSound;
+
+extern SoundCollection boredSounds, ridingSounds, welcomingSounds, baaSounds;
+
+#endif

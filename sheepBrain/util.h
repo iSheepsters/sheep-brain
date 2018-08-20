@@ -1,3 +1,5 @@
+#ifndef _UTIL_H
+#define _UTIL_H
 #include <SD.h>
 extern uint8_t sheepNumber;
 const uint8_t NUMBER_OF_SHEEP = 13;
@@ -11,13 +13,21 @@ extern uint16_t totalYield;
 extern void setupDelay(uint16_t ms);
 extern void yield(uint16_t ms);
 
-enum State {
-  Bored,
-  Welcoming,
-  Riding
-};
 
-extern enum State currState;
+const boolean useSound = true;
+const boolean playSound = true;
+// const boolean useOLED = false;
+const boolean useTouch = true;
+const boolean useGPS = true;
+const boolean useGPSinterrupts = true;
+const boolean useSlave = true;
+const boolean useRadio = true;
+const boolean useLog = true;
+const boolean doUpdateState = true;
+
+
+
+
 
 class __attribute__ ((packed)) SheepInfo {
   public:
@@ -40,3 +50,5 @@ enum PacketKind {
 extern SheepInfo & getSheep(int s);
 
 extern SheepInfo & getSheep();
+
+#endif

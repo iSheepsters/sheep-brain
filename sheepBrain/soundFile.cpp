@@ -79,14 +79,14 @@ uint16_t ago( unsigned long t,  unsigned long now) {
   return (now - t) / 1000;
 }
 
-void SoundCollection::verboseList(unsigned long now, boolean quietTime) {
+void SoundCollection::verboseList(unsigned long now, boolean ambientSound) {
 
 
   Serial.println( "  duration   started   playing  eligable name");
   for (int i = 0; i < count; i++) {
     myprintf(Serial, "%10d%10d%10d     %s %s\n", files[i].duration, ago(files[i].lastStarted, now),
              ago(files[i].lastPlaying,  now),
-             files[i].eligibleToPlay(now, quietTime) ? " true" : "false",
+             files[i].eligibleToPlay(now, ambientSound) ? " true" : "false",
              files[i].name);
 
   }
@@ -96,19 +96,20 @@ boolean soundPlayedRecently(unsigned long now) {
    return lastSound + 15000L > now && now > 15000;
 }
 
-boolean SoundCollection::playSound(unsigned long now, boolean quietTime) {
-  if (quietTime && lastSound + 15000L > now && now > 15000) {
+boolean SoundCollection::playSound(unsigned long now, boolean ambientSound) {
+  if (ambientSound && lastSound + 15000L > now && now > 15000) {
     Serial.print("Too soon for any sound from ");
     Serial.println(name);
     return false;
   }
-  SoundFile *s  = chooseSound(now, quietTime);
+  SoundFile *s  = chooseSound(now, ambientSound);
   if (s == NULL) {
     Serial.print("No sound found for ");
     Serial.println(name);
-    if (quietTime) Serial.println("quiet time");
+    Serial.println((int) (void*) this, HEX);
+    if (ambientSound) Serial.println("ambient sound");
     myprintf(Serial, "Last sound %d\n", ago(lastSound, now));
-    verboseList(now, quietTime);
+    verboseList(now, ambientSound);
     return false;
   };
   slowlyStopMusic();
@@ -125,13 +126,13 @@ boolean SoundCollection::playSound(unsigned long now, boolean quietTime) {
 }
 
 
-SoundFile * SoundCollection::chooseSound(unsigned long now,  boolean quietTime) {
+SoundFile * SoundCollection::chooseSound(unsigned long now,  boolean ambientSound) {
   if (count == 0) return NULL;
   int firstChoice = random(count);
   int i = firstChoice;
   while (true) {
     SoundFile *s = &(files[i]);
-    if (s->eligibleToPlay(now, quietTime))
+    if (s->eligibleToPlay(now, ambientSound))
       return s;
     i = (i + 1) % count;
     if (i == firstChoice)
@@ -139,12 +140,12 @@ SoundFile * SoundCollection::chooseSound(unsigned long now,  boolean quietTime) 
   }
 }
 
-boolean SoundFile::eligibleToPlay(unsigned long now, boolean quietTime) {
+boolean SoundFile::eligibleToPlay(unsigned long now, boolean ambientSound) {
   if (lastStarted == 0 || now == 0) return true;
   unsigned long d = max(3000, duration);
 
   uint32_t minimumQuietTime = duration  + 15000L;
-  if (quietTime && lastSound + minimumQuietTime > now && now > 15000)
+  if (ambientSound && lastSound + minimumQuietTime > now && now > 15000)
     return false;
 
   uint32_t minimumRepeatTime = duration * 3 + 120000L;
