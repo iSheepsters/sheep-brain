@@ -46,3 +46,4 @@ extern uint8_t CDCx_value(enum TouchSensor sensor);
 
 extern float detectPetting(uint8_t touchSensor, uint16_t sampleSize, float * confidence);
 
+
