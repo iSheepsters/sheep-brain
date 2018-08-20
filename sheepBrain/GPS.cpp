@@ -12,6 +12,9 @@ uint16_t badGPS = 0;
 uint16_t total_good_GPS = 0;
 uint16_t total_bad_GPS = 0;
 
+int32_t lastLatitudeDegreesFixed = -1000;
+int32_t lastLongitudeDegreesFixed = 0.0;
+
 volatile boolean read_gps_in_interrupt = false;
 
 Adafruit_GPS GPS(&Serial1);
@@ -21,8 +24,8 @@ boolean setupGPS() {
   // 9600 NMEA is the default baud rate for Adafruit MTK GPS's- some use 4800
   GPS.begin(9600);
 
-  // uncomment this line to turn on GGA (fix data) including altitude
-  GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCONLY);
+  // GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCONLY);
+  GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
 
   // Set the update rate
   GPS.sendCommand(PMTK_SET_NMEA_UPDATE_1HZ);   // 1 Hz update rate
@@ -45,26 +48,35 @@ boolean setupGPS() {
 }
 
 // The following are calculated for 41N
-const float METERS_PER_DEGREE_LATITUDE = 111049.68627269473;
-const float METERS_PER_DEGREE_LONGITUDE = 84410.58121284918;
+const float FEET_PER_DEGREE_LATITUDE = 364349.27;
+
+const float FEET_PER_DEGREE_LONGITUDE = 276033.42;
+
+float FIXED_TO_FLOAT = 10000000.0;
+const float FEET_PER_DEGREE_LATITUDE_FIXED = FEET_PER_DEGREE_LATITUDE / FIXED_TO_FLOAT;
+
+const float FEET_PER_DEGREE_LONGITUDE_FIXED =  FEET_PER_DEGREE_LONGITUDE / FIXED_TO_FLOAT;
 
 
-const float GERLACH_LATITUDE = 40.6516;
-const float GERLACH_LONGITUDE = -119.3568;
+const int32_t MAN_LATITUDE_FIXED      =  389870116; // 407864000;
+const int32_t MAN_LONGITUDE_FIXED     = -771295066; // -1192065000;
 
-const float MAN_LATITUDE = 40.7864;
-const float MAN_LONGITUDE = -119.2065;
+const int32_t CORRAL_LATITUDE_FIXED  =   407829257;
+const int32_t CORRAL_LONGITUDE_FIXED = -1192062897;
 
-const float CORRAL_LATITUDE  =   40.78292556690011596332941314224;
-const float CORRAL_LONGITUDE = -119.2062896809198096208703440047891035;
+const float CORRAL_LATITUDE  =   CORRAL_LATITUDE_FIXED / FIXED_TO_FLOAT;
+const float CORRAL_LONGITUDE = CORRAL_LONGITUDE_FIXED / FIXED_TO_FLOAT;
 
-// measured in meters
-float distanceFromMan;
-float distanceFromCoral;
+
+
+// measured in feet
+float distanceFromMan = -1;
+float distanceFromCoral = -1;
 
 // measured in radians; 0 = north, pi/2 = east
-float angleFromCoral;
-float angleFromMan;
+float angleFromCoral = 0;
+float angleFromMan = 0;
+
 
 uint32_t timer = millis();
 boolean haveFix = false;
@@ -86,17 +98,17 @@ time_t BRC_now() {
 }
 
 boolean inCorral(int sheep) {
-  float corralEW = METERS_PER_DEGREE_LONGITUDE * (getSheep(sheep).longitude - CORRAL_LONGITUDE);
-  float corralNS = METERS_PER_DEGREE_LATITUDE * (getSheep(sheep).latitude  - CORRAL_LATITUDE);
+  float corralEW = FEET_PER_DEGREE_LONGITUDE * (getSheep(sheep).longitude - CORRAL_LONGITUDE);
+  float corralNS = FEET_PER_DEGREE_LATITUDE * (getSheep(sheep).latitude  - CORRAL_LATITUDE);
   float distanceFromCorral = sqrt(corralEW * corralEW + corralNS * corralNS);
-  return distanceFromCorral < 30;
+  return distanceFromCorral < 80;
 }
 
 boolean isClose(int sheep) {
-  float EW = METERS_PER_DEGREE_LONGITUDE * (getSheep(sheep).longitude - getSheep().longitude );
-  float NS = METERS_PER_DEGREE_LATITUDE * (getSheep(sheep).latitude  - getSheep().latitude);
+  float EW = FEET_PER_DEGREE_LONGITUDE * (getSheep(sheep).longitude - getSheep().longitude );
+  float NS = FEET_PER_DEGREE_LATITUDE * (getSheep(sheep).latitude  - getSheep().latitude);
   float distance = sqrt(EW * EW + NS * NS);
-  return distance < 15;
+  return distance < 45;
 }
 
 boolean isInFriendlyTerritory() {
@@ -111,13 +123,13 @@ boolean isInFriendlyTerritory() {
 };
 
 void updateRelativePosition() {
-  float corralEW = METERS_PER_DEGREE_LONGITUDE * (GPS.longitudeDegrees - CORRAL_LONGITUDE);
-  float corralNS = METERS_PER_DEGREE_LATITUDE * (GPS.latitudeDegrees - CORRAL_LATITUDE);
+  float corralEW = FEET_PER_DEGREE_LONGITUDE_FIXED * (lastLongitudeDegreesFixed - CORRAL_LONGITUDE_FIXED);
+  float corralNS = FEET_PER_DEGREE_LATITUDE_FIXED * (lastLatitudeDegreesFixed - CORRAL_LATITUDE_FIXED);
   distanceFromCoral = sqrt(corralEW * corralEW + corralNS * corralNS);
   angleFromCoral = atan2(corralEW, corralNS);
 
-  float manEW = METERS_PER_DEGREE_LONGITUDE * (GPS.longitudeDegrees - MAN_LONGITUDE);
-  float manNS = METERS_PER_DEGREE_LATITUDE * (GPS.latitudeDegrees - MAN_LATITUDE);
+  float manEW = FEET_PER_DEGREE_LONGITUDE_FIXED * (lastLongitudeDegreesFixed  - MAN_LONGITUDE_FIXED);
+  float manNS = FEET_PER_DEGREE_LATITUDE_FIXED * (lastLatitudeDegreesFixed - MAN_LATITUDE_FIXED);
   distanceFromMan = sqrt(manEW * manEW + manNS * manNS);
   angleFromMan = atan2(manEW, manNS);
 }
@@ -136,9 +148,6 @@ time_t getGPSTime() {
   return makeTime(tm);
 }
 
-float lastLatitudeDegrees = -1000;
-float lastLongitudeDegrees = 0.0;
-
 time_t lastGPSTime = 0;
 
 // millis value for when lastGPSTime was recorded.
@@ -147,8 +156,11 @@ unsigned long lastGPSTimeAt = 0;
 
 boolean parseGPS(unsigned long now) {
   char * txt = GPS.lastNMEA();
-  if (strstr(txt, "$PMTK"))
+  if (strstr(txt, "$PMTK") || false && strstr(txt, "GPGGA")) {
+    if (GPS_DEBUG)
+      Serial.println(txt);
     return true;
+  }
   size_t len = strlen(txt);
   char checksumStart = txt[len - 4];
   if (checksumStart != '*') {
@@ -176,7 +188,7 @@ boolean parseGPS(unsigned long now) {
   boolean timeOK = true;
   time_t difference = thisGPSTime - lastGPSTime;
 
-  if (difference <= 0)
+  if (difference < 0)
     timeOK = false;
   int fastBy = difference * 1000 - (now - lastGPSTimeAt);
   if (fastBy > 2000)
@@ -185,32 +197,33 @@ boolean parseGPS(unsigned long now) {
   lastGPSTimeAt = now;
   if (!timeOK) {
     if (GPS_DEBUG) myprintf(Serial, "Inconsistent date delta %d:%d from GPS string: \"%s\"\n",
-                              difference, fastBy, (txt + 1));
+                                      difference, fastBy, (txt + 1));
 
     return false;
   }
-  setTime(thisGPSTime);
+  if (difference > 0)
+    setTime(thisGPSTime);
 
   if (GPS.fix) {
-    if (lastLatitudeDegrees != -1000 && (abs( GPS.latitudeDegrees  - lastLatitudeDegrees) > 0.001 ||
-                                         abs( GPS.longitudeDegrees  - lastLongitudeDegrees) > 0.001)) {
+    if (lastLatitudeDegreesFixed != -1000 && (abs( GPS.latitude_fixed  - lastLatitudeDegreesFixed) > 1000 ||
+        abs( GPS.longitude_fixed  - lastLongitudeDegreesFixed) > 1000)) {
       // too much change
       if (GPS_DEBUG)  {
 
         myprintf(Serial,  "Bad lat/long change from GPS string: \"%s\"\n . ", (txt + 1));
-        Serial.print(lastLatitudeDegrees, 6);
+        Serial.print(lastLatitudeDegreesFixed);
         Serial.print(", ");
-        Serial.print(lastLongitudeDegrees, 6);
+        Serial.print(lastLongitudeDegreesFixed);
         Serial.print(" -> ");
-        Serial.print(GPS.latitudeDegrees, 6);
+        Serial.print(GPS.latitude_fixed);
         Serial.print(" ");
-        Serial.print(GPS.longitudeDegrees, 6);
+        Serial.print(GPS.latitude_fixed);
         Serial.println();
       }
 
 
-      lastLatitudeDegrees = GPS.latitudeDegrees;
-      lastLongitudeDegrees = GPS.longitudeDegrees;
+      lastLatitudeDegreesFixed = GPS.latitude_fixed;
+      lastLongitudeDegreesFixed = GPS.longitude_fixed;
       return false;
     }
     if ( GPS.latitudeDegrees < 38 ||  GPS.latitudeDegrees > 41 || GPS.longitudeDegrees < -120
@@ -221,10 +234,11 @@ boolean parseGPS(unsigned long now) {
     }
 
 
-    lastLatitudeDegrees = GPS.latitudeDegrees;
-    lastLongitudeDegrees = GPS.longitudeDegrees;
+    lastLatitudeDegreesFixed = GPS.latitude_fixed;
+    lastLongitudeDegreesFixed = GPS.longitude_fixed;
     getSheep().latitude = GPS.latitudeDegrees;
     getSheep().longitude = GPS.longitudeDegrees;
+    updateRelativePosition();
 
     lastGPSReading = now;
     anyFix = true;
@@ -289,13 +303,14 @@ void quickGPSUpdate() {
   boolean oldValue = read_gps_in_interrupt;
   read_gps_in_interrupt = false;
   interrupts();
-  while (Serial1.available()) {
-    GPS.read();
-    //    if (!c) return;
-    //    c = GPS.read();
-    //    if (!c) return;
-    //    c = GPS.read();
-    //    if (!c) return;
+  updateGPSLatency();
+  while (true) {
+    char c = GPS.read();
+    if (!c) break;
+    c = GPS.read();
+    if (!c) break;
+    c = GPS.read();
+    if (!c) break;
   }
   noInterrupts();
   read_gps_in_interrupt = oldValue;
@@ -309,12 +324,7 @@ boolean updateGPS(unsigned long now) {
     myprintf(Serial, "GPS readings %d good, %d bad\n", total_good_GPS, total_bad_GPS);
     nextGPSReport = now + 10000;
   }
-  if (!read_gps_in_interrupt) {
-    while (true) {
-      char c = GPS.read();
-      if (c == 0) break;
-    }
-  }
+  quickGPSUpdate();
   if (!GPS.newNMEAreceived())
     return false;
 
@@ -382,4 +392,5 @@ void logGPS(unsigned long now) {
     fixCount = 0;
   }
 }
+
 
