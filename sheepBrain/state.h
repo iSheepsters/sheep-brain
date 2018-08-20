@@ -69,3 +69,4 @@ class ViolatedState : public SheepState {
 };
 
 #endif
+
