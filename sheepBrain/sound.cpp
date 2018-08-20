@@ -44,6 +44,8 @@ void musicPlayerFullVolume() {
   VS1053_volume = 0;
   musicPlayer.setVolume(0, 0xfe);
 }
+
+volatile boolean musicPlayerReady = false;
 void setupSound() {
   if (false) {
     if (! setVolume(0))
@@ -77,17 +79,10 @@ void setupSound() {
   // Set volume for left, right channels. lower numbers == louder volume!
   musicPlayerFullVolume();
 
-#if defined(__AVR_ATmega32U4__)
-  // Timer interrupts are not suggested, better to use DREQ interrupt!
-  // but we don't have them on the 32u4 feather...
-  musicPlayer.useInterrupt(VS1053_FILEPLAYER_TIMER0_INT); // timer int
-#elif defined(ESP32)
-  // no IRQ! doesn't work yet :/
-#else
-  // If DREQ is on an interrupt pin we can do background
-  // audio playing
-  musicPlayer.useInterrupt(VS1053_FILEPLAYER_PIN_INT);  // DREQ int
-#endif
+
+  // musicPlayer.useInterrupt(VS1053_FILEPLAYER_PIN_INT);  // DREQ int
+
+  musicPlayerReady = true;
 
 }
 
@@ -143,7 +138,7 @@ void completeMusic() {
 
 void slowlyStopMusic() {
   if (musicPlayer.playingMusic) {
-    for (int i = VS1053_volume+8; i < 256; i += 8) {
+    for (int i = VS1053_volume + 8; i < 256; i += 8) {
       musicPlayerSetVolume(i);
       yield(10);
     }
@@ -181,4 +176,5 @@ boolean playFile(const char *fmt, ... ) {
   return musicPlayer.startPlayingFile(buf);
 
 }
+
 

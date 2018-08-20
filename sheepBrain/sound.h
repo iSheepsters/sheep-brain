@@ -16,7 +16,9 @@ extern unsigned long lastSound;
 extern void updateSound(unsigned long now);
 extern void slowlyStopMusic();
 extern unsigned long lastSoundStarted;
+extern volatile boolean musicPlayerReady;
 
 extern boolean playFile(const char *fmt, ... );
+
 
 
