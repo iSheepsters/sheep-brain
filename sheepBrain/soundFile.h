@@ -43,3 +43,4 @@ extern unsigned long nextRandomSound;
 extern SoundCollection boredSounds, ridingSounds, welcomingSounds, baaSounds;
 
 #endif
+
