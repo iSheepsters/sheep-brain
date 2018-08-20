@@ -13,10 +13,11 @@ extern uint16_t totalYield;
 extern void setupDelay(uint16_t ms);
 extern void yield(uint16_t ms);
 
+extern void updateGPSLatency();
+
 
 const boolean useSound = true;
 const boolean playSound = true;
-// const boolean useOLED = false;
 const boolean useTouch = true;
 const boolean useGPS = true;
 const boolean useGPSinterrupts = true;
@@ -52,3 +53,4 @@ extern SheepInfo & getSheep(int s);
 extern SheepInfo & getSheep();
 
 #endif
+
