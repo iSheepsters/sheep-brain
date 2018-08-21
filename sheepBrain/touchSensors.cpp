@@ -190,7 +190,7 @@ void updateTouchData(unsigned long now, boolean debug) {
       };
     } else if  (allStable && potentialMaxChange == 0) {
       Serial.println("Touch sensors stable and unchanged");
-    }
+    } 
     for (int i = 0; i < numTouchSensors; i++) {
       minRecentValue[i] = maxRecentValue[i] = currentValue[i];
     };

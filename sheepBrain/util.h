@@ -13,7 +13,7 @@ extern uint16_t totalYield;
 extern void setupDelay(uint16_t ms);
 extern void yield(uint16_t ms);
 
-extern void updateGPSLatency();
+extern unsigned long updateGPSLatency();
 
 
 const boolean useSound = true;
@@ -25,6 +25,7 @@ const boolean useSlave = true;
 const boolean useRadio = true;
 const boolean useLog = true;
 const boolean doUpdateState = true;
+const boolean getGPSFixQuality = false;
 
 
 

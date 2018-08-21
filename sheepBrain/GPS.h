@@ -21,9 +21,13 @@ extern boolean isInFriendlyTerritory() ;
 extern float distanceFromMan;
 extern float distanceFromCoral;
 
+extern float distance_between_fixed_in_feet(int32_t lat1, int32_t long1, int32_t lat2, int32_t long2) ;
 extern volatile boolean read_gps_in_interrupt;
-
-extern int32_t lastLatitudeDegreesFixed, lastLongitudeDegreesFixed;
+extern int32_t latitudeDegreesAvg;
+extern int32_t longitudeDegreesAvg;
+extern long longestGPSvoid;
+extern uint16_t total_good_GPS;
+extern uint16_t total_bad_GPS;
 #endif
 
 

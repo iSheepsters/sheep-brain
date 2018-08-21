@@ -3,32 +3,41 @@
 #include "slave.h"
 #include "printf.h"
 #include "Print.h"
+#include "util.h"
+#include "GPS.h"
+#include "touchSensors.h"
 
 const uint8_t slaveAddress =  0x44;
-#define MEM_LEN 10
-uint8_t slaveMemory[MEM_LEN];
 
-unsigned long lastSent[MEM_LEN];
+CommData commData;
+unsigned long nextComm = 0;
+
 void setupComm() {
-  for (int i = 0; i < MEM_LEN; i++) {
-    slaveMemory[i] = 0;
-    lastSent[i] = 0;
-  }
+   commData.sheepNum = sheepNumber; 
 }
-uint8_t sendSlave(uint8_t addr, uint8_t value) {
-  unsigned long now = millis();
-  if (slaveMemory[addr] == value && lastSent[addr] > 0 && lastSent[addr] + 10000 > now)
-    return 0;
-  lastSent[addr] = now;
-  slaveMemory[addr] = value;
 
-  if (slaveMemory[addr] != value)
-    myprintf(Serial, "mem[%d] <- %d\n", addr, value);
+uint8_t sendComm() {
+  commData. BRC_time = BRC_now();
+  commData.feetFromMan = distanceFromMan;
+  commData.state = currentSheepState->state;
+
+  commData.currTouched = currTouched;
+  commData.when = Night;
+  uint8_t * p = (uint8_t *)&commData;
+  Serial.print("Sending ");
+  for(int i = 0; i < sizeof(CommData); i++) {
+    myprintf(Serial, "%02x ", p[i]);
+  }
+  Serial.println();
+
+  return true;
+  
   noInterrupts();
   Wire.beginTransmission(slaveAddress);
   Wire.write(42); // check byte
-  Wire.write(addr);
-  Wire.write(value);
+  for(int i = 0; i < sizeof(CommData); i++) {
+    Wire.write(p[i]);
+  }
   uint8_t result =  Wire.endTransmission();
   interrupts();
   delay(1);

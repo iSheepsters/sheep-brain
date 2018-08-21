@@ -11,9 +11,13 @@ boolean GPS_ready = false;
 uint16_t badGPS = 0;
 uint16_t total_good_GPS = 0;
 uint16_t total_bad_GPS = 0;
+long longestGPSvoid = 0;
+
 
 int32_t lastLatitudeDegreesFixed = -1000;
 int32_t lastLongitudeDegreesFixed = 0.0;
+int32_t latitudeDegreesAvg;
+int32_t longitudeDegreesAvg;
 
 volatile boolean read_gps_in_interrupt = false;
 
@@ -22,19 +26,17 @@ Adafruit_GPS GPS(&Serial1);
 
 boolean setupGPS() {
   // 9600 NMEA is the default baud rate for Adafruit MTK GPS's- some use 4800
-  GPS.begin(9600);
+  GPS.begin(115200);
 
-  // GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCONLY);
-  GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
+  if (getGPSFixQuality)
+    GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
+  else
+    GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCONLY);
+
 
   // Set the update rate
-  GPS.sendCommand(PMTK_SET_NMEA_UPDATE_1HZ);   // 1 Hz update rate
-  // For the parsing code to work nicely and have time to sort thru the data, and
-  // print it out we don't suggest using anything higher than 1 Hz
-
-  // Request updates on antenna status, comment out to keep quiet
-  //GPS.sendCommand(PGCMD_ANTENNA);
-
+  GPS.sendCommand(PMTK_SET_NMEA_UPDATE_2HZ);   
+  
   GPS.sendCommand(PMTK_ENABLE_SBAS);
   GPS.sendCommand(PMTK_ENABLE_WAAS);
   unsigned long now = millis();
@@ -77,17 +79,10 @@ float distanceFromCoral = -1;
 float angleFromCoral = 0;
 float angleFromMan = 0;
 
-
 uint32_t timer = millis();
 boolean haveFix = false;
 boolean anyFix = false;
 uint32_t fixCount = 0;
-double latitudeDegreesAvg;
-double longitudeDegreesAvg;
-double latitudeDegreesMin;
-double longitudeDegreesMin;
-double latitudeDegreesMax;
-double longitudeDegreesMax;
 unsigned long lastGPSReading;
 const boolean ECHO_GPS = false;
 unsigned long firstFix = 0;
@@ -96,6 +91,7 @@ uint16_t totalFixes = 0;
 time_t BRC_now() {
   return now() - 7 * 60 * 60;
 }
+
 
 boolean inCorral(int sheep) {
   float corralEW = FEET_PER_DEGREE_LONGITUDE * (getSheep(sheep).longitude - CORRAL_LONGITUDE);
@@ -122,14 +118,20 @@ boolean isInFriendlyTerritory() {
   return false;
 };
 
+float distance_between_fixed_in_feet(int32_t lat1, int32_t long1, int32_t lat2, int32_t long2) {
+  float EW = FEET_PER_DEGREE_LONGITUDE_FIXED * (long1 - long2);
+  float NS = FEET_PER_DEGREE_LATITUDE_FIXED * (lat1 - lat1);
+  return sqrt(EW * EW + NS * NS);
+}
+
 void updateRelativePosition() {
-  float corralEW = FEET_PER_DEGREE_LONGITUDE_FIXED * (lastLongitudeDegreesFixed - CORRAL_LONGITUDE_FIXED);
-  float corralNS = FEET_PER_DEGREE_LATITUDE_FIXED * (lastLatitudeDegreesFixed - CORRAL_LATITUDE_FIXED);
+  float corralEW = FEET_PER_DEGREE_LONGITUDE_FIXED * (longitudeDegreesAvg - CORRAL_LONGITUDE_FIXED);
+  float corralNS = FEET_PER_DEGREE_LATITUDE_FIXED * (latitudeDegreesAvg - CORRAL_LATITUDE_FIXED);
   distanceFromCoral = sqrt(corralEW * corralEW + corralNS * corralNS);
   angleFromCoral = atan2(corralEW, corralNS);
 
-  float manEW = FEET_PER_DEGREE_LONGITUDE_FIXED * (lastLongitudeDegreesFixed  - MAN_LONGITUDE_FIXED);
-  float manNS = FEET_PER_DEGREE_LATITUDE_FIXED * (lastLatitudeDegreesFixed - MAN_LATITUDE_FIXED);
+  float manEW = FEET_PER_DEGREE_LONGITUDE_FIXED * (longitudeDegreesAvg  - MAN_LONGITUDE_FIXED);
+  float manNS = FEET_PER_DEGREE_LATITUDE_FIXED * (latitudeDegreesAvg - MAN_LATITUDE_FIXED);
   distanceFromMan = sqrt(manEW * manEW + manNS * manNS);
   angleFromMan = atan2(manEW, manNS);
 }
@@ -197,7 +199,7 @@ boolean parseGPS(unsigned long now) {
   lastGPSTimeAt = now;
   if (!timeOK) {
     if (GPS_DEBUG) myprintf(Serial, "Inconsistent date delta %d:%d from GPS string: \"%s\"\n",
-                                      difference, fastBy, (txt + 1));
+                              difference, fastBy, (txt + 1));
 
     return false;
   }
@@ -236,10 +238,27 @@ boolean parseGPS(unsigned long now) {
 
     lastLatitudeDegreesFixed = GPS.latitude_fixed;
     lastLongitudeDegreesFixed = GPS.longitude_fixed;
-    getSheep().latitude = GPS.latitudeDegrees;
-    getSheep().longitude = GPS.longitudeDegrees;
+    if (haveFix) {
+      fixCount++;
+      int32_t latDiff = (lastLatitudeDegreesFixed - latitudeDegreesAvg);
+      int32_t longDiff = (lastLongitudeDegreesFixed - longitudeDegreesAvg);
+      latitudeDegreesAvg += latDiff / 4;
+      longitudeDegreesAvg += longDiff / 4;
+    } else {
+      Serial.println("Acquired fix");
+      if (firstFix == 0)
+        firstFix = now;
+      fixCount = 0;
+      haveFix = true;
+      latitudeDegreesAvg = lastLatitudeDegreesFixed;
+      longitudeDegreesAvg =  lastLongitudeDegreesFixed;
+    }
+    getSheep().latitude = latitudeDegreesAvg / FIXED_TO_FLOAT;
+    getSheep().longitude = longitudeDegreesAvg / FIXED_TO_FLOAT;
     updateRelativePosition();
-
+    long diff = now -  lastGPSReading;
+    if (lastGPSReading != 0 && longestGPSvoid < diff)
+      longestGPSvoid = diff;
     lastGPSReading = now;
     anyFix = true;
     totalFixes++;
@@ -247,32 +266,7 @@ boolean parseGPS(unsigned long now) {
       uint16_t minutes =  (now - firstFix) / 1000 / 60;
       myprintf(Serial, "%d GPS fixes per minute\n", totalFixes / minutes);
     }
-    if (!haveFix) {
-      Serial.println("Acquired fix");
-      if (firstFix == 0)
-        firstFix = now;
-      latitudeDegreesAvg = GPS.latitudeDegrees;
-      longitudeDegreesAvg = GPS.longitudeDegrees;
-      fixCount = 0;
-      haveFix = true;
-      latitudeDegreesMin = longitudeDegreesMin = 1000;
-      latitudeDegreesMax = longitudeDegreesMax = -1000;
-    } else {
-      latitudeDegreesAvg = (3 * latitudeDegreesAvg + GPS.latitudeDegrees) / 4;
-      longitudeDegreesAvg = (3 * longitudeDegreesAvg + GPS.longitudeDegrees) / 4;
-      fixCount++;
-      if (fixCount >= 30) {
-        if (latitudeDegreesMin > latitudeDegreesAvg)
-          latitudeDegreesMin = latitudeDegreesAvg;
-        if (latitudeDegreesMax < latitudeDegreesAvg)
-          latitudeDegreesMax = latitudeDegreesAvg;
-        if (longitudeDegreesMin > longitudeDegreesAvg)
-          longitudeDegreesMin = longitudeDegreesAvg;
-        if (longitudeDegreesMax < longitudeDegreesAvg)
-          longitudeDegreesMax = longitudeDegreesAvg;
-      }
-      updateRelativePosition();
-    }
+
   } else if (haveFix) {
     Serial.println("Lost fix");
     haveFix = false;
@@ -312,18 +306,13 @@ void quickGPSUpdate() {
     c = GPS.read();
     if (!c) break;
   }
-  noInterrupts();
   read_gps_in_interrupt = oldValue;
-  interrupts();
 }
 
 
-unsigned long nextGPSReport = 10000;
+
 boolean updateGPS(unsigned long now) {
-  if (nextGPSReport < now) {
-    myprintf(Serial, "GPS readings %d good, %d bad\n", total_good_GPS, total_bad_GPS);
-    nextGPSReport = now + 10000;
-  }
+
   quickGPSUpdate();
   if (!GPS.newNMEAreceived())
     return false;
@@ -348,22 +337,12 @@ void logGPS(unsigned long now) {
       longitudeDegreesAvg = GPS.longitudeDegrees;
       fixCount = 0;
       haveFix = true;
-      latitudeDegreesMin = longitudeDegreesMin = 1000;
-      latitudeDegreesMax = longitudeDegreesMax = -1000;
+
     } else {
-      latitudeDegreesAvg = (3 * latitudeDegreesAvg + GPS.latitudeDegrees) / 4;
-      longitudeDegreesAvg = (3 * longitudeDegreesAvg + GPS.longitudeDegrees) / 4;
+      latitudeDegreesAvg = (3 * latitudeDegreesAvg + GPS.latitude_fixed) / 4;
+      longitudeDegreesAvg = (3 * longitudeDegreesAvg + GPS.longitude_fixed) / 4;
       fixCount++;
-      if (fixCount >= 30) {
-        if (latitudeDegreesMin > latitudeDegreesAvg)
-          latitudeDegreesMin = latitudeDegreesAvg;
-        if (latitudeDegreesMax < latitudeDegreesAvg)
-          latitudeDegreesMax = latitudeDegreesAvg;
-        if (longitudeDegreesMin > longitudeDegreesAvg)
-          longitudeDegreesMin = longitudeDegreesAvg;
-        if (longitudeDegreesMax < longitudeDegreesAvg)
-          longitudeDegreesMax = longitudeDegreesAvg;
-      }
+
       if (now - timer > 1000) {
         timer = now; // reset the timer
         Serial.print(latitudeDegreesAvg, 6);
@@ -377,12 +356,7 @@ void logGPS(unsigned long now) {
         Serial.print((int)GPS.fixquality);
         Serial.print(", ");
         Serial.print((int)fixCount);
-        if (fixCount >= 30) {
-          Serial.print(", ");
-          Serial.print(latitudeDegreesMax - latitudeDegreesMin, 6);
-          Serial.print(", ");
-          Serial.print(longitudeDegreesMax - longitudeDegreesMin, 6);
-        }
+
         Serial.println();
 
       }

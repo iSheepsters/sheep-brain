@@ -7,6 +7,7 @@
 
 #define CARDCS          5     // Card chip select pin
 
+int currentSoundPriority = 0;
 
 const int PATH_BUFFER_LENGTH = 100;
 char pathBuffer[PATH_BUFFER_LENGTH];
@@ -64,6 +65,8 @@ boolean SoundCollection::load(const char * s) {
       files[i].lastPlaying = 0;
       files[i].lastStarted = 0;
     }
+  } else {
+    myprintf(Serial, "Found %d files for %s\n", count, name);
   }
   return true;
 }
@@ -93,21 +96,23 @@ void SoundCollection::verboseList(unsigned long now, boolean ambientSound) {
 }
 
 boolean soundPlayedRecently(unsigned long now) {
-   return lastSound + 15000L > now && now > 15000;
+  return lastSound + 18000L > now && now > 18000;
 }
 
 boolean SoundCollection::playSound(unsigned long now, boolean ambientSound) {
-  if (ambientSound && lastSound + 15000L > now && now > 15000) {
+  if (ambientSound && soundPlayedRecently(now)) {
     Serial.print("Too soon for any sound from ");
     Serial.println(name);
     return false;
   }
   SoundFile *s  = chooseSound(now, ambientSound);
   if (s == NULL) {
-    Serial.print("No sound found for ");
+    if (ambientSound)
+      Serial.print("No ambient sound found for ");
+    else Serial.print("No sound found for ");
     Serial.println(name);
-    Serial.println((int) (void*) this, HEX);
-    if (ambientSound) Serial.println("ambient sound");
+
+
     myprintf(Serial, "Last sound %d\n", ago(lastSound, now));
     verboseList(now, ambientSound);
     return false;
@@ -120,6 +125,7 @@ boolean SoundCollection::playSound(unsigned long now, boolean ambientSound) {
   } else {
     s->lastStarted = s->lastPlaying = now;
     currentSoundFile = s;
+    currentSoundPriority = priority;
     return true;
   }
 
@@ -135,22 +141,45 @@ SoundFile * SoundCollection::chooseSound(unsigned long now,  boolean ambientSoun
     if (s->eligibleToPlay(now, ambientSound))
       return s;
     i = (i + 1) % count;
-    if (i == firstChoice)
-      return NULL;
+    if (i == firstChoice) {
+      if (ambientSound)
+        return NULL;
+      return s;
+    }
   }
 }
 
 boolean SoundFile::eligibleToPlay(unsigned long now, boolean ambientSound) {
-  if (lastStarted == 0 || now == 0) return true;
+  if (now == 0) {
+    myprintf(Serial, "%s eligable, not played before\n", name);
+    return true;
+  }
   unsigned long d = max(3000, duration);
 
-  uint32_t minimumQuietTime = duration  + 15000L;
+  uint32_t minimumQuietTime = d  + 15000L;
   if (ambientSound && lastSound + minimumQuietTime > now && now > 15000)
     return false;
 
-  uint32_t minimumRepeatTime = duration * 3 + 120000L;
+  uint32_t minimumRepeatTime = d * 3 + 120000L;
 
-  return lastPlaying + minimumQuietTime < now;
+  boolean result = lastPlaying == 0 || lastPlaying + minimumRepeatTime < now;
+  if (result) {
+    if (lastPlaying == 0)
+      myprintf(Serial, "%s eligable: not played before\n",  name);
+    else
+      myprintf(Serial, "%s eligable: Last playing %d seconds ago; %d minimum\n",
+               name, (now - lastPlaying) / 1000, minimumRepeatTime / 1000);
+    if (ambientSound) myprintf(Serial, "  last sound %d seconds ago, minimum quiet %d seconds\n",
+                                 (now - lastSound) / 1000, minimumQuietTime / 1000);
+
+  } else if (false) {
+    myprintf(Serial, "%s not eligable: Last playing %d seconds ago; %d minimum\n",
+             name, (now - lastPlaying) / 1000, minimumRepeatTime / 1000);
+    if (ambientSound) myprintf(Serial, "  last sound %d seconds ago, minimum quiet %d seconds\n",
+                                 (now - lastSound) / 1000, minimumQuietTime / 1000);
+
+  }
+  return result;
 }
 
 

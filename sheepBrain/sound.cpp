@@ -1,8 +1,9 @@
 #include "Arduino.h"
 #include "util.h"
+#include "gps.h"
 #include <Adafruit_SleepyDog.h>
 
-const boolean USE_AMPLIFIER = false;
+const boolean USE_AMPLIFIER = true;
 
 #include "sound.h"
 #include "soundFile.h"
@@ -29,7 +30,7 @@ Adafruit_VS1053_FilePlayer musicPlayer =
 #define MAX9744_I2CADDR 0x4B
 
 // We'll track the volume level in this variable.
-int8_t thevol = 50;
+int8_t thevol = 30;
 uint8_t VS1053_volume = 0;
 unsigned long lastSoundStarted = 0;
 unsigned long lastSound = 0;
@@ -47,7 +48,7 @@ void musicPlayerFullVolume() {
 
 volatile boolean musicPlayerReady = false;
 void setupSound() {
-  if (false) {
+  if (true) {
     if (! setVolume(0))
       Serial.println("Failed to set volume, MAX9744 not found!");
     else
@@ -94,7 +95,6 @@ void updateSound(unsigned long now) {
       currentSoundFile->lastPlaying = now;
     }
     lastSound = now;
-    //musicPlayer.feedBuffer();
   } else if (currentSoundFile != NULL) {
     if (currentSoundFile->duration == 0) {
       currentSoundFile->duration = currentSoundFile->lastPlaying - currentSoundFile->lastStarted;
@@ -127,15 +127,6 @@ boolean setVolume(int8_t v) {
 }
 
 
-void completeMusic() {
-  while (musicPlayer.playingMusic) {
-    // twiddle thumbs
-    Watchdog.reset();
-    // musicPlayer.feedBuffer();
-    yield(5);           // give IRQs a chance
-  }
-}
-
 void slowlyStopMusic() {
   if (musicPlayer.playingMusic) {
     for (int i = VS1053_volume + 8; i < 256; i += 8) {
@@ -157,6 +148,7 @@ void stopMusic() {
 
 }
 
+long maxSoundStartTime = 0;
 boolean playFile(const char *fmt, ... ) {
   if (currentSoundFile) {
     currentSoundFile->lastPlaying = millis();
@@ -172,8 +164,18 @@ boolean playFile(const char *fmt, ... ) {
   Serial.print("Playing ");
   Serial.println(buf);
 
+  quickGPSUpdate();
+  unsigned long start = micros();
   lastSoundStarted = millis();
-  return musicPlayer.startPlayingFile(buf);
+  boolean result =  musicPlayer.startPlayingFile(buf);
+  if (result)
+    currentSoundPriority = 0;
+  unsigned long end = micros();
+  long diff = end - start;
+  if (maxSoundStartTime < diff )
+    maxSoundStartTime = diff;
+  quickGPSUpdate();
+  return result;
 
 }
 

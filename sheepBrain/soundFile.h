@@ -37,10 +37,20 @@ class SoundCollection {
 
 
 extern SoundFile * currentSoundFile;
+extern int currentSoundPriority;
 
 extern unsigned long nextRandomSound;
 
-extern SoundCollection boredSounds, ridingSounds, welcomingSounds, baaSounds;
+extern SoundCollection boredSounds;
+extern SoundCollection ridingSounds;
+extern SoundCollection readyToRideSounds;
+extern SoundCollection endOfRideSounds;
+extern SoundCollection attentiveSounds;
+extern SoundCollection notInTheMoodSounds;
+extern SoundCollection violatedSounds;
+extern SoundCollection inappropriateTouchSounds;
+extern SoundCollection seperatedSounds;
+extern SoundCollection baaSounds;
 
 #endif
 

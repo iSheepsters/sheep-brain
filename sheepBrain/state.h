@@ -38,13 +38,13 @@ class BoredState : public SheepState {
 
 class AttentiveState : public SheepState {
    public:
-    AttentiveState() : SheepState(Welcoming, "Attentive", welcomingSounds) {};
+    AttentiveState() : SheepState(Welcoming, "Attentive", attentiveSounds) {};
     SheepState * update();
 };
 
-class ReadyToRideState : SheepState {
+class ReadyToRideState : public SheepState {
    public:
-    ReadyToRideState() : SheepState(ReadyToRide, "Ready to ride", ridingSounds) {};
+    ReadyToRideState() : SheepState(ReadyToRide, "Ready to ride", readyToRideSounds) {};
     SheepState * update();
 };
 
@@ -57,14 +57,14 @@ class RidingState : public SheepState {
 
 class NotInTheMoodState : public SheepState {
    public:
-    NotInTheMoodState() : SheepState(NotInTheMood, "Not in the mood", boredSounds) {};
+    NotInTheMoodState() : SheepState(NotInTheMood, "Not in the mood", notInTheMoodSounds) {};
     SheepState * update();
 };
 
 
 class ViolatedState : public SheepState {
    public:
-    ViolatedState() : SheepState(Violated, "Violated", boredSounds) {};
+    ViolatedState() : SheepState(Violated, "Violated", violatedSounds) {};
     SheepState * update();
 };
 

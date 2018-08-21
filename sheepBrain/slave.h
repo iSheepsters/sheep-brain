@@ -1,4 +1,5 @@
 #include <inttypes.h>
+#include "state.h"
 
 
 enum DayState {
@@ -6,15 +7,15 @@ enum DayState {
 
 
 struct __attribute__ ((packed)) CommData {
-  time_t time;
-  uint16_t feetFromMan;
+  time_t BRC_time;
+  float feetFromMan;
   uint8_t sheepNum;
-  uint8_t state;
+  enum State state;
   uint8_t currTouched;
   enum DayState when;
 };
 
-extern uint8_t sendSlave(uint8_t addr, uint8_t value);
+extern uint8_t sendComm();
 
 extern void setupComm();
 

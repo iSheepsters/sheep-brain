@@ -38,18 +38,21 @@ unsigned long nextPettingReport;
 boolean debugTouch = false;
 SoundCollection boredSounds(0);
 SoundCollection ridingSounds(2);
-SoundCollection welcomingSounds(1);
+SoundCollection readyToRideSounds(2);
+
+SoundCollection attentiveSounds(1);
+SoundCollection notInTheMoodSounds(1);
+SoundCollection violatedSounds(1);
 SoundCollection baaSounds(0);
 
+// not a state
+SoundCollection endOfRideSounds(3);
+SoundCollection inappropriateTouchSounds(4);
+SoundCollection seperatedSounds(1);
 
-const char * stateName(State s) {
-  switch (s) {
-    case Bored: return "Bored";
-    case Welcoming: return "Welcoming";
-    case Riding: return "Riding";
-    default: return "Unknown";
-  }
-}
+
+
+
 unsigned long setupFinished = 0;
 uint16_t minutesUptime() {
   return ( millis() - setupFinished) / 1000 / 60;
@@ -57,14 +60,50 @@ uint16_t minutesUptime() {
 
 unsigned long nextTestDistress = 0xffffffff; // disable test distreess
 
-void ISR_timer_1KHz(struct tc_module *const module_inst)
+volatile unsigned long lastInterrupt = 0;
+volatile  long longestInterval = 0;
+volatile unsigned int maxAvail = 0;
+volatile int maxInterruptTime = 0;
+
+unsigned long updateGPSLatency() {
+  unsigned long now_us = millis();
+  if (lastInterrupt != 0) {
+    long diff = now_us - lastInterrupt;
+    if (longestInterval < diff) {
+      longestInterval = diff;
+    }
+  }
+  lastInterrupt = now_us;
+  int a = Serial1.available();
+  if (maxAvail < a)
+    maxAvail = a;
+  return now_us;
+}
+void ISR_GPS(struct tc_module *const module_inst)
 {
-  if (read_gps_in_interrupt)
-    while (Serial1.available())
-      GPS.read();
+  unsigned long start = micros();
+  if (read_gps_in_interrupt) {
+
+    updateGPSLatency();
+    while (true) {
+      char c = GPS.read();
+      if (!c) break;
+      c = GPS.read();
+      if (!c) break;
+      c = GPS.read();
+      if (!c) break;
+    }
+  }
+  if (musicPlayerReady)
+    musicPlayer.feedBuffer();
+  unsigned long end = micros();
+  long diff = end - start;
+  if (maxInterruptTime < diff)
+    maxInterruptTime = diff;
+
 }
 
-SAMDtimer IRS_timer5 = SAMDtimer(5, ISR_timer_1KHz, 1000, 0);
+SAMDtimer IRS_timer5 = SAMDtimer(5, ISR_GPS, 55000, 0);
 
 void setup() {
   sheepNumber = 1;
@@ -75,7 +114,7 @@ void setup() {
   Wire.begin();
   randomSeed(analogRead(0));
   Serial.begin(115200);
-  if (true) while (!Serial && millis() < 10000) {
+  if (true) while (!Serial && millis() < 5000) {
       digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
       setupDelay(200);                     // wait for a second
       digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
@@ -147,19 +186,20 @@ void setup() {
     //    pinMode(SHDN_MAX9744, INPUT);
     //    setupDelay(100);
     setupSound();
-    Serial.println("Sound set up");
+    Serial.println("Sound set up, examining sound files");
 
-    boredSounds.load("bored");
-    myprintf(Serial, "%x %d %s files\n", (void*) & boredSounds,  boredSounds.count, boredSounds.name);
-
-    ridingSounds.load("riding");
-    myprintf(Serial, "%x %d %s files\n",(void*) & ridingSounds, ridingSounds.count, ridingSounds.name);
-
-    welcomingSounds.load("w");
-    myprintf(Serial, "%x %d %s files\n", (void*) & welcomingSounds, welcomingSounds.count, welcomingSounds.name);
+    boredSounds.load("BORED");
+    ridingSounds.load("RIDNG");
+    readyToRideSounds.load("RDRID");
+    endOfRideSounds.load("EORID");
+    attentiveSounds.load("ATTNT");
+    notInTheMoodSounds.load("NMOOD");
+    violatedSounds.load("VIOLT");
+    inappropriateTouchSounds.load("INAPP");
+    seperatedSounds.load("SEPRT");
 
     baaSounds.load("baa");
-    myprintf(Serial, "%d baa files\n", baaSounds.count);
+    baaSounds.playSound(millis(), false);
 
   } else
     Serial.println("Skipping sound");
@@ -183,7 +223,9 @@ void setup() {
   myprintf(logFile, "sheep %d ready\n", sheepNumber);
 
   updateLog(setupFinished);
+  quickGPSUpdate();
   if (useGPSinterrupts) {
+    lastInterrupt = setupFinished;
     read_gps_in_interrupt = true;
     IRS_timer5.enableInterrupt(1);
   }
@@ -192,15 +234,19 @@ void setup() {
 }
 
 
-unsigned long nextReport = 0;
+unsigned long lastReport = 0;
 
 
 const boolean TRACE = false;
 
 unsigned long lastLoop = 0;
+
+int32_t prevLat = -1;
+int32_t prevLong = -1;
+const uint16_t REPORT_INTERVAL = 15000;
 void loop() {
   Watchdog.reset();
-
+  interrupts();
   SheepInfo & me = getSheep();
   me.time = now();
   if (totalYield > 0) {
@@ -240,18 +286,52 @@ void loop() {
   if (useGPS && !useGPSinterrupts) {
     quickGPSUpdate();
   }
-  if (nextReport < now ) {
-    myprintf(Serial, "%d State %s, %f volts, %d minutes uptime, %d GPS fixes, %2d:%02d:%02d\n",
+  if (lastReport + REPORT_INTERVAL < now ) {
+    myprintf(Serial, "%d State %s, %f volts,  %d minutes uptime, %d GPS fixes, %2d:%02d:%02d\n",
              now, currentSheepState->name,
-             batteryVoltage(), minutesUptime(), fixCount,
+             batteryVoltage(),  minutesUptime(), fixCount,
              hour(), minute(), second());
+    myprintf(Serial, "  %dms interrupt interval, %dus max interrupt time, %d max avail\n",
+             longestInterval, maxInterruptTime, maxAvail);
 
+    if (maxSoundStartTime > 0)
+      myprintf(Serial, "  max sound start time %dus\n", maxSoundStartTime);
+
+    if (currentSoundFile != NULL)
+      myprintf(Serial, "  playing %s\n", currentSoundFile -> name);
+    else if (musicPlayer.playingMusic)
+      Serial.println("  Playing unknown sound");
+
+    myprintf(Serial, "  GPS readings %d good, %d bad\n", total_good_GPS, total_bad_GPS);
+    if (getGPSFixQuality)
+      myprintf(Serial, "  Fix quality = %d, Satellites = %d\n", GPS.fixquality, GPS.satellites);
+    myprintf(Serial, "  Location = %d, %d; longest gps void = %dms,  Feet from man = ",
+             latitudeDegreesAvg, longitudeDegreesAvg, longestGPSvoid);
+    Serial.println(distanceFromMan);
+    if (now < 10000)
+      longestGPSvoid = 0;
+
+
+    if (prevLat != -1) {
+      float speed = 1000 * distance_between_fixed_in_feet(latitudeDegreesAvg, longitudeDegreesAvg, prevLat, prevLong)
+                    / (now - lastReport);
+      Serial.print("  Speed: ");
+      Serial.print(speed, 2);
+      Serial.println(" ft/sec");
+    }
+    prevLat = latitudeDegreesAvg;
+    prevLong = longitudeDegreesAvg;
+
+    maxSoundStartTime = 0;
+    longestInterval = 0;
+    maxAvail = 0;
+    maxInterruptTime = 0;
     time_t BRC_time = BRC_now();
 
     if (false)
-      myprintf(Serial, "BRC time: %2d:%02d:%02d\n", hour(BRC_time), minute(BRC_time), second(BRC_time));
+      myprintf(Serial, "BRC time: %2d: %02d: %02d\n", hour(BRC_time), minute(BRC_time), second(BRC_time));
 
-    nextReport = now + 3000;
+    lastReport = now;
     if (useLog) {
       if (TRACE)
         Serial.println("Updating log");
@@ -279,16 +359,6 @@ void loop() {
       Serial.println();
     }
 
-    if (useSlave) {
-      if (TRACE) Serial.println("sendSlave");
-      uint8_t v = sendSlave(0, currTouched);
-      if (v != 0) {
-        Serial.print("Transmission error: " );
-        Serial.println(v);
-      }
-    }
-    //dumpTouchData();
-
   }
 
 
@@ -300,13 +370,13 @@ void loop() {
     if (TRACE) Serial.println("updateState");
     updateState(now);
     if (useSlave)
-      sendSlave(1, (uint8_t) currentSheepState->state);
+      sendComm();
 
 
     for (int i = 0; i < numTouchSensors; i++) {
       if (((newTouched >> i) & 1 ) != 0) {
         myprintf(Serial, "touched %d - %d\n", i, sensorValue((enum TouchSensor)i));
-        //playFile("%d.mp3", i);
+        //playFile(" %d.mp3", i);
       }
     }
     if (false && nextPettingReport < now) {
@@ -338,8 +408,8 @@ void loop() {
   if (useGPS && !useGPSinterrupts) {
     quickGPSUpdate();
   }
-  if (TRACE) Serial.println("checkForCommand");
-  checkForCommand(now);
+  //  if (TRACE) Serial.println("checkForCommand");
+  //  checkForCommand(now);
 
   //yield(10);
 }
@@ -347,19 +417,29 @@ void loop() {
 void checkForSound(unsigned long now) {
   if (!useSound || !playSound)
     return;
-  if (nextRandomSound < now && !musicPlayer.playingMusic && !soundPlayedRecently(now)) {
-    if (random(3) == 0) {
-      if (baaSounds.playSound(now, true))
-        nextRandomSound = now + random(5000, 14000);
-      else
-        nextRandomSound = now + 3000;
-    } else {
-      if (currentSheepState -> playSound(now, true))
-        nextRandomSound = now + random(12000, 30000);
-      else
-        nextRandomSound = now + 3000;
-    }
+  if (now < nextRandomSound)
+    return;
+  if (musicPlayer.playingMusic || soundPlayedRecently(now)) {
+    nextRandomSound = now + 3000;
+    return;
   }
+  if (false) {
+    playFile("bored/BORED-10.MP3");
+    nextRandomSound = now + 3000;
+    return;
+  }
+  if (random(3) == 0) {
+    if (baaSounds.playSound(now, true))
+      nextRandomSound = now + random(5000, 14000);
+    else
+      nextRandomSound = now + 3000;
+  } else {
+    if (currentSheepState -> playSound(now, true))
+      nextRandomSound = now + random(12000, 30000);
+    else
+      nextRandomSound = now + 3000;
+  }
+
 }
 unsigned long nextCommandCheck = 0;
 void checkForCommand(unsigned long now) {
@@ -378,7 +458,7 @@ void checkForCommand(unsigned long now) {
           playFile("baa%d.mp3", 1 + random(8));
           break;
         case 'w':
-          welcomingSounds.playSound(now, false);
+          attentiveSounds.playSound(now, false);
           break;
         case 'r':
           ridingSounds.playSound(now, false);
@@ -423,4 +503,5 @@ void checkForCommand(unsigned long now) {
     }
   }
 }
+
 

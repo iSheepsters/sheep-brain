@@ -9,6 +9,8 @@
 
 File logFile;
 
+const boolean disableInterrupts = true;
+
 void setupLogging() {
   char fileName[100];
 
@@ -60,21 +62,24 @@ void myLogStart(enum PacketKind kind) {
   myprintf(logFile, "%d/%d/%02d %d:%02d:%02d,%d, ",
            month(), day(), year() % 100, hour(), minute(), second(),
            now());
-            myprintf(logFile, "%d,%d, ", minutesUptime(), batteryVoltageRaw());
+  myprintf(logFile, "%d,%d, ", minutesUptime(), batteryVoltageRaw());
   logFile.print(GPS.latitudeDegrees, 7);
   logFile.print(",");
   logFile.print(GPS.longitudeDegrees, 7);
- 
+
 }
 
 
 void updateLog(unsigned long timeNow) {
-  noInterrupts();
+  quickGPSUpdate();
+  if (disableInterrupts)
+    noInterrupts();
   myLogStart(InfoPacket);
 
   logFile.println();
   optionalFlush();
-  interrupts();
+  if (disableInterrupts)
+    interrupts();
 
 
 }
@@ -95,21 +100,21 @@ void radioLogStart(uint8_t sheepNum, SheepInfo & info, enum PacketKind kind) {
 }
 
 void logRadioUpdate(uint8_t sheepNum, SheepInfo & info) {
-  noInterrupts();
+  if (disableInterrupts) noInterrupts();
   radioLogStart(sheepNum, info, RadioInfoPacket);
 
   logFile.println();
   optionalFlush();
-  interrupts();
+  if (disableInterrupts)  interrupts();
 }
 
 void logRadioDistress(uint8_t sheepNum, time_t when, SheepInfo & info, char* buf) {
-  noInterrupts();
+  if (disableInterrupts) noInterrupts();
   radioLogStart(sheepNum, info, RadioDistressPacket);
   myprintf(logFile, ", \"%s\"\n", buf);
 
   requiredFlush();
-  interrupts();
+  if (disableInterrupts) interrupts();
 }
 void logDistress(const char *fmt, ... ) {
   char buf[500]; // resulting string limited to 256 chars
@@ -121,13 +126,13 @@ void logDistress(const char *fmt, ... ) {
   Serial.println(buf);
   distressPacket(buf);
   if (logFile) {
-    noInterrupts();
+    if (disableInterrupts) noInterrupts();
     myLogStart(DistressPacket);
     myprintf(logFile, "\"%s\"\n", buf);
     requiredFlush();
-    interrupts();
+    if (disableInterrupts) interrupts();
   }
-  
+
 }
 
 
