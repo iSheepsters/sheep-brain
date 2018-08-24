@@ -123,14 +123,6 @@ void setup() {
   int countdownMS = Watchdog.enable(14000);
   myprintf(Serial, "Watchdog set, %d ms timeout\n", countdownMS);
 
-  for (int i = 1; i < 10; i++) {
-    digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
-    setupDelay(20);                     // wait for a second
-    digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
-    setupDelay(20);
-    Serial.println(i);
-  }
-
   if (setupRadio())
     Serial.println("radio found");
   else
@@ -406,8 +398,8 @@ void loop() {
   if (useGPS && !useGPSinterrupts) {
     quickGPSUpdate();
   }
-  //  if (TRACE) Serial.println("checkForCommand");
-  //  checkForCommand(now);
+    if (TRACE) Serial.println("checkForCommand");
+    checkForCommand(now);
 
   //yield(10);
 }

@@ -151,6 +151,8 @@ int16_t sensorValue(enum TouchSensor sensor) {
 boolean touchThreshold(uint8_t i) {
   if (i == (uint8_t) LEFT_SENSOR || i == (uint8_t) RIGHT_SENSOR)
     return 7;
+  if (i == (uint8_t) PRIVATES_SENSOR)
+    return 35;
   return 15;
 }
 

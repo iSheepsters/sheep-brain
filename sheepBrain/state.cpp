@@ -66,7 +66,7 @@ void becomeViolated() {
 boolean wouldInterrupt() {
   if (!musicPlayer.playingMusic)
     return false;
-  if (now() - lastSoundStarted < 30000)
+  if (millis() - lastSoundStarted < 30000)
     return false;
   return true;
 }
@@ -150,7 +150,7 @@ SheepState * AttentiveState::update() {
   if (secondsSinceEnteredCurrentState() > 40 && !wouldInterrupt()
       && millis() < notInTheMoodUntil)
     return &notInTheMoodState;
-  if (qualityTouch() && secondsSinceEnteredCurrentState() > 15 && !!wouldInterrupt()) {
+  if (qualityTouch() && secondsSinceEnteredCurrentState() > 15 && !wouldInterrupt()) {
     if (millis() < notInTheMoodUntil)
       return &notInTheMoodState;
     return &readyToRideState;
