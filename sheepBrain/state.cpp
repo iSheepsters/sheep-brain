@@ -63,6 +63,14 @@ void becomeViolated() {
   notInTheMoodUntil = max(notInTheMoodUntil, millis() + 1000 * (30 + random(30, 60) + random(20, 100)));
 }
 
+boolean wouldInterrupt() {
+  if (!musicPlayer.playingMusic)
+    return false;
+  if (now() - lastSoundStarted < 30000)
+    return false;
+  return true;
+}
+
 void updateState(unsigned long now) {
   if (touchDuration(PRIVATES_SENSOR) > 2000 && now > lastPrivateTouch + 4000
       && !(currentSoundPriority == 4 && currentSoundFile != NULL)) {
@@ -139,10 +147,10 @@ SheepState * AttentiveState::update() {
     becomeViolated();
     return &violatedState;
   }
-  if (secondsSinceEnteredCurrentState() > 40 && !musicPlayer.playingMusic
+  if (secondsSinceEnteredCurrentState() > 40 && !wouldInterrupt()
       && millis() < notInTheMoodUntil)
     return &notInTheMoodState;
-  if (qualityTouch() && secondsSinceEnteredCurrentState() > 15 && !musicPlayer.playingMusic) {
+  if (qualityTouch() && secondsSinceEnteredCurrentState() > 15 && !!wouldInterrupt()) {
     if (millis() < notInTheMoodUntil)
       return &notInTheMoodState;
     return &readyToRideState;
@@ -151,7 +159,7 @@ SheepState * AttentiveState::update() {
 }
 
 SheepState * ReadyToRideState::update() {
-  if (musicPlayer.playingMusic)
+  if (wouldInterrupt())
     return this;
   if (maybeRiding() && secondsSinceEnteredCurrentState() > 20 )
     return &ridingState;
@@ -166,7 +174,7 @@ SheepState * ReadyToRideState::update() {
 }
 
 SheepState * RidingState::update() {
-  if (!maybeRiding() && secondsSinceEnteredCurrentState() > 20 && !musicPlayer.playingMusic) {
+  if (!maybeRiding() && secondsSinceEnteredCurrentState() > 20 && !wouldInterrupt()) {
 
     endOfRideSounds.playSound(millis(), false);
 
@@ -187,9 +195,9 @@ SheepState * NotInTheMoodState::update() {
     becomeViolated();
     return &violatedState;
   }
-  if (musicPlayer.playingMusic)
+  if (wouldInterrupt())
     return this;
-    
+
   if (millis() > notInTheMoodUntil || secondsSinceEnteredCurrentState() > 30) {
     if (qualityTouch()) {
       if (notInTheMoodUntil > 20000)
@@ -205,7 +213,7 @@ SheepState * NotInTheMoodState::update() {
 
 
 SheepState * ViolatedState::update() {
-  if (secondsSinceEnteredCurrentState() > 60 && !isTouched() && !musicPlayer.playingMusic)  {
+  if (secondsSinceEnteredCurrentState() > 60 && !isTouched() && !wouldInterrupt())  {
     return &boredState;
   }
   return this;
