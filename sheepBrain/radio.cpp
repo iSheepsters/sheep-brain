@@ -19,7 +19,7 @@ typedef uint16_t hash_t;
 #define RFM95_RST 4
 #define RFM95_INT 3
 
-const uint16_t RADIO_EPOC = 67;
+
 const uint16_t RADIO_WINDOW = 4;
 
 time_t lastEpoc = 0;

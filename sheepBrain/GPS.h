@@ -20,6 +20,7 @@ extern boolean isClose(int sheep);
 extern boolean isInFriendlyTerritory() ;
 extern float distanceFromMan;
 extern float distanceFromCoral;
+extern float howCrowded();
 
 extern float distance_between_fixed_in_feet(int32_t lat1, int32_t long1, int32_t lat2, int32_t long2) ;
 extern volatile boolean read_gps_in_interrupt;

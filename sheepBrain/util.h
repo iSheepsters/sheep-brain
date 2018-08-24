@@ -28,11 +28,9 @@ const boolean doUpdateState = true;
 const boolean getGPSFixQuality = false;
 
 
-
-
-
 class __attribute__ ((packed)) SheepInfo {
   public:
+    SheepInfo() : time(0) {};
     float latitude, longitude;
     time_t time;
     uint16_t uptimeMinutes;

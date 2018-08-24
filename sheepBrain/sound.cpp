@@ -1,6 +1,7 @@
 #include "Arduino.h"
 #include "util.h"
 #include "gps.h"
+#include "printf.h"
 #include <Adafruit_SleepyDog.h>
 
 const boolean USE_AMPLIFIER = true;
@@ -30,10 +31,12 @@ Adafruit_VS1053_FilePlayer musicPlayer =
 #define MAX9744_I2CADDR 0x4B
 
 // We'll track the volume level in this variable.
-int8_t thevol = 30;
+int8_t thevol = 35;
 uint8_t VS1053_volume = 0;
 unsigned long lastSoundStarted = 0;
-unsigned long lastSound = 0;
+unsigned long lastSoundPlaying = 0;
+
+boolean wasPlayingMusic;
 
 // note: 0 is full volume
 void musicPlayerSetVolume(uint8_t v) {
@@ -70,7 +73,7 @@ void setupSound() {
 
 
   unsigned long start = millis();
-  musicPlayer.sineTest(0x44, 200);    // Make a tone to indicate VS1053 is working
+  musicPlayer.sineTest(0x44, 100);    // Make a tone to indicate VS1053 is working
   unsigned long end = millis();
   Serial.println(F("sineTest complete"));
   Serial.println(end - start);
@@ -80,29 +83,22 @@ void setupSound() {
   // Set volume for left, right channels. lower numbers == louder volume!
   musicPlayerFullVolume();
 
-
   // musicPlayer.useInterrupt(VS1053_FILEPLAYER_PIN_INT);  // DREQ int
-
+  wasPlayingMusic = false;
   musicPlayerReady = true;
-
 }
 
 
 
 void updateSound(unsigned long now) {
   if (musicPlayer.playingMusic) {
+    wasPlayingMusic = true;
     if (currentSoundFile) {
       currentSoundFile->lastPlaying = now;
     }
-    lastSound = now;
-  } else if (currentSoundFile != NULL) {
-    if (currentSoundFile->duration == 0) {
-      currentSoundFile->duration = currentSoundFile->lastPlaying - currentSoundFile->lastStarted;
-      Serial.print(currentSoundFile->duration);
-      Serial.print("ms for  ");
-      Serial.println(currentSoundFile->name);
-    }
-    currentSoundFile = NULL;
+    lastSoundPlaying = now;
+  } else  if (wasPlayingMusic) {
+    noteEndOfMusic();
   }
 }
 
@@ -137,25 +133,48 @@ void slowlyStopMusic() {
     musicPlayer.stopPlaying();
     musicPlayerFullVolume();
   }
+  noteEndOfMusic();
 }
 
-void stopMusic() {
+
+
+void setNextAmbientSound(unsigned long durationOfLastSound) {
+  if (durationOfLastSound < 6000) durationOfLastSound = 6000;
+  float crowded = howCrowded();
+  Serial.print("Crowding: ");
+  Serial.println(crowded);
+  unsigned long result = durationOfLastSound / 2 + (unsigned long)(random(30000, 90000) * crowded);
+  myprintf(Serial, "next ambient sound in %d ms\n", result);
+  nextAmbientSound = millis() + result;
+}
+
+void noteEndOfMusic() {
   if (musicPlayer.playingMusic) {
-    musicPlayer.stopPlaying();
-    Serial.println("Music stopped");
-    yield(50);
+    Serial.println("Music still playing");
+    return;
   }
-
-}
-
-long maxSoundStartTime = 0;
-boolean playFile(const char *fmt, ... ) {
+  if (!wasPlayingMusic)
+    return;
+  wasPlayingMusic = false;
   if (currentSoundFile) {
     currentSoundFile->lastPlaying = millis();
+    if (currentSoundFile->duration == 0) {
+      currentSoundFile->duration = currentSoundFile->lastPlaying - currentSoundFile->lastStarted;
+      Serial.print(currentSoundFile->duration);
+      Serial.print("ms for  ");
+      Serial.println(currentSoundFile->name);
+    }
+    currentSoundFile = NULL;
+
   }
+  setNextAmbientSound(lastSoundPlaying - lastSoundStarted);
+}
+
+
+
+boolean playFile(const char *fmt, ... ) {
   slowlyStopMusic();
-  musicPlayerFullVolume();
-  currentSoundFile = NULL;
+
   char buf[256]; // resulting string limited to 256 chars
   va_list args;
   va_start (args, fmt );
@@ -164,17 +183,11 @@ boolean playFile(const char *fmt, ... ) {
   Serial.print("Playing ");
   Serial.println(buf);
 
-  quickGPSUpdate();
-  unsigned long start = micros();
   lastSoundStarted = millis();
   boolean result =  musicPlayer.startPlayingFile(buf);
   if (result)
     currentSoundPriority = 0;
-  unsigned long end = micros();
-  long diff = end - start;
-  if (maxSoundStartTime < diff )
-    maxSoundStartTime = diff;
-  quickGPSUpdate();
+  
   return result;
 
 }

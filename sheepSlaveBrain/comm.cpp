@@ -5,35 +5,20 @@
 
 #define slaveAddress  0x44
 
-//struct CommData {
-//  time_t time;
-//  uint8_t state;
-//  uint8_t ledMode;
-//
-//  //6 x Touch values (negative = touched)
-//  // Touched time
-//  //Untouched time
-//};
-
-size_t addr;
-// Memory
-uint8_t mem[MEM_LEN];
-
 void receiveEvent(size_t len);
 void requestEvent(void);
 
 boolean receivedMsg = false;
 
 
+CommData commData;
+
 void setupComm() {
   // Setup for Slave mode, address 0x44, pins 18/19, external pullups, 400kHz
   Wire.begin(I2C_SLAVE, 0x44, I2C_PINS_18_19, I2C_PULLUP_EXT, I2C_RATE_400);
-  Serial.print("i2c Slave address: ");
-  Serial.println(slaveAddress, HEX);
+  myprintf("i2c Slave address: 0x%02x\n", slaveAddress);
   // init vars
-  addr = 0;
-  for (int i = 0; i < MEM_LEN; i++)
-    mem[i] = 0;
+
   // register events
   Wire.onReceive(receiveEvent);
   Wire.onRequest(requestEvent);
@@ -45,32 +30,26 @@ void setupComm() {
 //
 void receiveEvent(size_t len)
 {
-  if (!Wire.available()) return;
-  if (!receivedMsg) {
-    receivedMsg = true;
-    Serial.println("Received message");
-  }
-  // grab check byte
-  uint8_t check = Wire.read();
-  if (check != 42) {
-    myprintf(Serial, "got bad check byte of %d, discarding rest of data\n");
-    while (Wire.available()) {
-      myprintf(Serial, "discarding %d\n", Wire.read());
-    }
-    Serial.println();
-    return;
-  }
+  int bytes = Wire.available();
+  if (!bytes) return;
+  State oldState = commData.state;
 
-  addr = Wire.read();
-  //myprintf(Serial, "addr of %d, %d bytes available\n", addr, Wire.available());
-  while (Wire.available()) {
-    uint8_t value =  Wire.read();
-    if (addr <= MEM_LEN) {
-      mem[addr] = value; // copy data to mem
-      //myprintf(Serial, "mem[%d] = %d\n", addr, value);
-      addr++;
-    }
+  uint8_t * p = (uint8_t *)&commData;
+  for (unsigned int i = 0; i < sizeof(CommData); i++) {
+    p[i] =  Wire.read();
   }
+  if (oldState != commData.state)
+    myprintf("commData.state = %d\n", commData.state);
+  setTime(commData.BRC_time);
+  if (!receivedMsg && year() == 2018) {
+    receivedMsg = true;
+    myprintf("Received message, %d bytes available\n");
+    setupSchedule();
+  }
+  Serial.print("Received: ");
+  for (unsigned int i = 0; i < sizeof(CommData); i++)
+    myprintf("%02x ", p[i]);
+  Serial.println();
 }
 
 //
@@ -79,13 +58,9 @@ void receiveEvent(size_t len)
 void requestEvent(void)
 {
   Serial.println("requestEvent...");
-  uint8_t v = 0;
-  if (addr < MEM_LEN)
-    v = mem[addr];
 
-  Wire.write(v);
-  myprintf(Serial, "Sent mem[%d] which is %d\n", addr, v);
-  addr++;
+  Wire.write(42);
+
 }
 
 
@@ -102,3 +77,4 @@ void print_i2c_status(void)
     default:           Serial.print("I2C busy\n"); break;
   }
 }
+

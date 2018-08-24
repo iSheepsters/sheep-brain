@@ -5,7 +5,7 @@
 
 enum State {
   Bored,
-  Welcoming,
+  Attentive,
   Riding,
   ReadyToRide,
   NotInTheMood,
@@ -38,7 +38,7 @@ class BoredState : public SheepState {
 
 class AttentiveState : public SheepState {
    public:
-    AttentiveState() : SheepState(Welcoming, "Attentive", attentiveSounds) {};
+    AttentiveState() : SheepState(Attentive, "Attentive", attentiveSounds) {};
     SheepState * update();
 };
 

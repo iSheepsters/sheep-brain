@@ -98,7 +98,7 @@ void setupTouch() {
   Serial.println("Applying configuration");
   mySetup();
   dumpConfiguration();
-  
+
   setupDelay(100);
   checkValid();
   for (int i = 0; i < numTouchSensors; i++) {
@@ -174,14 +174,15 @@ void updateTouchData(unsigned long now, boolean debug) {
 
     int maxRange = 0;
     for (int i = 0; i < numTouchSensors; i++) if (i != LEFT_SENSOR && i != RIGHT_SENSOR) {
-      int range = maxRecentValue[i] - minRecentValue[i];
+        int range = maxRecentValue[i] - minRecentValue[i];
 
-      if (range > 5 || minRecentValue[i] < 680)
-        allStable = false;
-      myprintf(Serial, "Range of %d: %d\n", i, range);
-      maxRange = max(maxRange, range);
-      potentialMaxChange = max(potentialMaxChange, abs(stableValue[i] - (minRecentValue[i] - 1)));
-    }
+        if (range > 5 || minRecentValue[i] < 680)
+          allStable = false;
+        if (false)
+          myprintf(Serial, "Range of %d: %d\n", i, range);
+        maxRange = max(maxRange, range);
+        potentialMaxChange = max(potentialMaxChange, abs(stableValue[i] - (minRecentValue[i] - 1)));
+      }
     myprintf(Serial, "Max range = %d\n", maxRange);
     if (allStable && potentialMaxChange > 0) {
       myprintf(Serial, "All stable, change of %d, resetting\n", potentialMaxChange);
@@ -190,7 +191,7 @@ void updateTouchData(unsigned long now, boolean debug) {
       };
     } else if  (allStable && potentialMaxChange == 0) {
       Serial.println("Touch sensors stable and unchanged");
-    } 
+    }
     for (int i = 0; i < numTouchSensors; i++) {
       minRecentValue[i] = maxRecentValue[i] = currentValue[i];
     };

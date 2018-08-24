@@ -96,7 +96,7 @@ void SoundCollection::verboseList(unsigned long now, boolean ambientSound) {
 }
 
 boolean soundPlayedRecently(unsigned long now) {
-  return lastSound + 18000L > now && now > 18000;
+  return lastSoundPlaying + 18000L > now && now > 18000;
 }
 
 boolean SoundCollection::playSound(unsigned long now, boolean ambientSound) {
@@ -113,7 +113,7 @@ boolean SoundCollection::playSound(unsigned long now, boolean ambientSound) {
     Serial.println(name);
 
 
-    myprintf(Serial, "Last sound %d\n", ago(lastSound, now));
+    myprintf(Serial, "Last sound %d\n", ago(lastSoundPlaying, now));
     verboseList(now, ambientSound);
     return false;
   };
@@ -135,11 +135,17 @@ boolean SoundCollection::playSound(unsigned long now, boolean ambientSound) {
 SoundFile * SoundCollection::chooseSound(unsigned long now,  boolean ambientSound) {
   if (count == 0) return NULL;
   int firstChoice = random(count);
+  if (count > 1)
+    while (firstChoice == lastChoice)
+      firstChoice = random(count);
+
   int i = firstChoice;
   while (true) {
     SoundFile *s = &(files[i]);
-    if (s->eligibleToPlay(now, ambientSound))
+    lastChoice = i;
+    if (s->eligibleToPlay(now, ambientSound)) 
       return s;
+      
     i = (i + 1) % count;
     if (i == firstChoice) {
       if (ambientSound)
@@ -157,7 +163,7 @@ boolean SoundFile::eligibleToPlay(unsigned long now, boolean ambientSound) {
   unsigned long d = max(3000, duration);
 
   uint32_t minimumQuietTime = d  + 15000L;
-  if (ambientSound && lastSound + minimumQuietTime > now && now > 15000)
+  if (ambientSound && lastSoundPlaying + minimumQuietTime > now && now > 15000)
     return false;
 
   uint32_t minimumRepeatTime = d * 3 + 120000L;
@@ -170,13 +176,13 @@ boolean SoundFile::eligibleToPlay(unsigned long now, boolean ambientSound) {
       myprintf(Serial, "%s eligable: Last playing %d seconds ago; %d minimum\n",
                name, (now - lastPlaying) / 1000, minimumRepeatTime / 1000);
     if (ambientSound) myprintf(Serial, "  last sound %d seconds ago, minimum quiet %d seconds\n",
-                                 (now - lastSound) / 1000, minimumQuietTime / 1000);
+                                 (now - lastSoundPlaying) / 1000, minimumQuietTime / 1000);
 
   } else if (false) {
     myprintf(Serial, "%s not eligable: Last playing %d seconds ago; %d minimum\n",
              name, (now - lastPlaying) / 1000, minimumRepeatTime / 1000);
     if (ambientSound) myprintf(Serial, "  last sound %d seconds ago, minimum quiet %d seconds\n",
-                                 (now - lastSound) / 1000, minimumQuietTime / 1000);
+                                 (now - lastSoundPlaying) / 1000, minimumQuietTime / 1000);
 
   }
   return result;

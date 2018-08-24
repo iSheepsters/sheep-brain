@@ -23,6 +23,7 @@ class SoundCollection {
     SoundCollection(uint8_t pri);
     char name[13];
     uint16_t count;
+    uint16_t lastChoice;
     const uint8_t priority; // higher priority sounds will preempt lower priority sounds
     SoundFile *files;
 
@@ -39,7 +40,7 @@ class SoundCollection {
 extern SoundFile * currentSoundFile;
 extern int currentSoundPriority;
 
-extern unsigned long nextRandomSound;
+extern unsigned long nextAmbientSound;
 
 extern SoundCollection boredSounds;
 extern SoundCollection ridingSounds;

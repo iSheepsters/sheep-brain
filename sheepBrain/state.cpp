@@ -5,8 +5,7 @@
 #include "state.h"
 #include "printf.h"
 
-
-unsigned long nextRandomSound = 10000;
+unsigned long nextAmbientSound = 10000;
 unsigned long timeEnteredCurrentState = 0;
 
 unsigned long notInTheMoodUntil = 0;
@@ -24,28 +23,37 @@ SheepState * currentSheepState = &boredState;
 uint16_t secondsSinceEnteredCurrentState() {
   return (millis() - timeEnteredCurrentState) / 1000;
 }
-boolean areRiding() {
+boolean maybeRiding() {
 
-  return touchDuration(BACK_SENSOR) > 4200
-         && (touchDuration(LEFT_SENSOR) > 550 || touchDuration(RIGHT_SENSOR) > 550 ||  touchDuration(RUMP_SENSOR) > 550 )
+  return touchDuration(BACK_SENSOR) > 8200
+         && (touchDuration(LEFT_SENSOR) > 2550 || touchDuration(RIGHT_SENSOR) > 2550 ||  touchDuration(RUMP_SENSOR) > 2550 )
+         || touchDuration(RUMP_SENSOR) > 9500;
+}
+
+boolean definitivelyRiding() {
+
+  return touchDuration(BACK_SENSOR) > 12200
+         && (touchDuration(LEFT_SENSOR) > 3550 && touchDuration(RIGHT_SENSOR) > 3550 ||  touchDuration(RUMP_SENSOR) > 3550 )
          || touchDuration(RUMP_SENSOR) > 9500;
 }
 
 boolean isIgnored() {
-  return untouchDuration(BACK_SENSOR) > 10000
-         && untouchDuration(HEAD_SENSOR) > 10000
-         && untouchDuration(RUMP_SENSOR) > 10000;
+  return untouchDuration(BACK_SENSOR) > 15000
+         && untouchDuration(HEAD_SENSOR) > 15000
+         && untouchDuration(RUMP_SENSOR) > 10000
+         && untouchDuration(LEFT_SENSOR) > 10000
+         && untouchDuration(RIGHT_SENSOR) > 10000;
 }
 
 boolean isTouched() {
-  return  touchDuration(BACK_SENSOR) > 100
-          ||  touchDuration(RUMP_SENSOR) > 100  ||  touchDuration(HEAD_SENSOR) > 100;
+  return  touchDuration(BACK_SENSOR) > 400
+          ||  touchDuration(RUMP_SENSOR) > 400  ||  touchDuration(HEAD_SENSOR) > 500;
 }
 
 boolean qualityTouch() {
-  return  touchDuration(BACK_SENSOR) > 7000
-          ||  touchDuration(RUMP_SENSOR) > 7000  ||  touchDuration(HEAD_SENSOR) > 7000
-          ||  touchDuration(BACK_SENSOR) + touchDuration(RUMP_SENSOR) +  touchDuration(HEAD_SENSOR) > 4000;
+  return  touchDuration(BACK_SENSOR) > 17000
+          ||  touchDuration(RUMP_SENSOR) > 25000  ||  touchDuration(HEAD_SENSOR) > 17000
+          ||  touchDuration(BACK_SENSOR) + touchDuration(RUMP_SENSOR) +  touchDuration(HEAD_SENSOR) > 30000;
 }
 
 int privateTouches = 0;
@@ -59,8 +67,13 @@ void updateState(unsigned long now) {
   if (touchDuration(PRIVATES_SENSOR) > 2000 && now > lastPrivateTouch + 4000
       && !(currentSoundPriority == 4 && currentSoundFile != NULL)) {
     lastPrivateTouch = now;
-    inappropriateTouchSounds.playSound(now, false);
     privateTouches++;
+    myprintf(Serial, "inappropriate touch duration %d, num inappropriate touches = %d\n",
+             touchDuration(PRIVATES_SENSOR), privateTouches);
+    myprintf(Serial, "current value = %d, stable value = %d\n",
+             cap.filteredData((uint8_t) PRIVATES_SENSOR), stableValue[PRIVATES_SENSOR]);
+    inappropriateTouchSounds.playSound(now, false);
+
     if (privateTouches >= 2 && currentSheepState != &violatedState) {
       becomeViolated();
       currentSheepState = &violatedState;
@@ -87,7 +100,7 @@ void updateState(unsigned long now) {
     if (!musicPlayer.playingMusic ||
         newState->sounds.priority >= currentSoundPriority) {
       newState->sounds.playSound(now, false);
-      nextRandomSound = now + 12000 + random(1, 15000);
+      nextAmbientSound = now + 12000 + random(1, 15000);
     }
     currentSheepState = newState;
     timeEnteredCurrentState = now;
@@ -104,12 +117,15 @@ boolean SheepState::playSound(unsigned long now, boolean ambientNoise) {
 }
 
 SheepState * BoredState::update() {
-  if (secondsSinceEnteredCurrentState() > 10)
+  if (secondsSinceEnteredCurrentState() > 15)
     privateTouches = 0;
   if (isTouched()) {
-    if (random(100) < 20 || true)
-      notInTheMoodUntil = millis() + 1000 * (random(30, 60) + random(20, 100));
+    if (random(100) < 20) {
+      int notInTheMood =  (random(30, 60) + random(20, 100));
+      myprintf(Serial, "not in the mood for %d seconds\n", notInTheMood);
+      notInTheMoodUntil = millis() + 1000 * notInTheMood;
 
+    }
     return &attentiveState;
   }
   return this;
@@ -119,11 +135,14 @@ SheepState * BoredState::update() {
 SheepState * AttentiveState::update() {
   if (isIgnored())
     return &boredState;
-  if (areRiding()) {
+  if (definitivelyRiding()) {
     becomeViolated();
     return &violatedState;
   }
-  if (qualityTouch()) {
+  if (secondsSinceEnteredCurrentState() > 40 && !musicPlayer.playingMusic
+      && millis() < notInTheMoodUntil)
+    return &notInTheMoodState;
+  if (qualityTouch() && secondsSinceEnteredCurrentState() > 15 && !musicPlayer.playingMusic) {
     if (millis() < notInTheMoodUntil)
       return &notInTheMoodState;
     return &readyToRideState;
@@ -132,9 +151,12 @@ SheepState * AttentiveState::update() {
 }
 
 SheepState * ReadyToRideState::update() {
-  if (areRiding())
+  if (musicPlayer.playingMusic)
+    return this;
+  if (maybeRiding() && secondsSinceEnteredCurrentState() > 20 )
     return &ridingState;
-  if (!qualityTouch() && secondsSinceEnteredCurrentState() > 10) {
+
+  if (!qualityTouch() && secondsSinceEnteredCurrentState() > 20) {
     if (isTouched())
       return &attentiveState;
     return &boredState;
@@ -144,12 +166,16 @@ SheepState * ReadyToRideState::update() {
 }
 
 SheepState * RidingState::update() {
-  if (!areRiding()) {
+  if (!maybeRiding() && secondsSinceEnteredCurrentState() > 20 && !musicPlayer.playingMusic) {
+
     endOfRideSounds.playSound(millis(), false);
+
     if (qualityTouch())
       return &readyToRideState;
+
     if (isTouched())
       return &attentiveState;
+
     return &boredState;
   }
   return this;
@@ -157,14 +183,18 @@ SheepState * RidingState::update() {
 
 
 SheepState * NotInTheMoodState::update() {
-  if (areRiding()) {
+  if (definitivelyRiding()) {
     becomeViolated();
     return &violatedState;
   }
-  if (secondsSinceEnteredCurrentState() > 30) {
+  if (musicPlayer.playingMusic)
+    return this;
+    
+  if (millis() > notInTheMoodUntil || secondsSinceEnteredCurrentState() > 30) {
     if (qualityTouch()) {
-      if (notInTheMoodUntil > 10000)
-        notInTheMoodUntil -= 10000;
+      if (notInTheMoodUntil > 20000)
+        notInTheMoodUntil -= 20000;
+      return &attentiveState;
     }
     if (isTouched())
       return &attentiveState;
@@ -175,7 +205,7 @@ SheepState * NotInTheMoodState::update() {
 
 
 SheepState * ViolatedState::update() {
-  if (secondsSinceEnteredCurrentState() > 60 && !isTouched())  {
+  if (secondsSinceEnteredCurrentState() > 60 && !isTouched() && !musicPlayer.playingMusic)  {
     return &boredState;
   }
   return this;

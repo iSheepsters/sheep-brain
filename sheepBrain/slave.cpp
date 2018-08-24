@@ -13,35 +13,43 @@ CommData commData;
 unsigned long nextComm = 0;
 
 void setupComm() {
-   commData.sheepNum = sheepNumber; 
+  commData.sheepNum = sheepNumber;
 }
 
-uint8_t sendComm() {
-  commData. BRC_time = BRC_now();
-  commData.feetFromMan = distanceFromMan;
-  commData.state = currentSheepState->state;
+uint8_t sendComm(unsigned long now) {
+  if (  commData.state != currentSheepState->state
+        || commData.currTouched != currTouched
+        || nextComm < now) {
+    nextComm = now + 5000;
+    commData. BRC_time = BRC_now();
+    if (distanceFromMan < 0)
+      commData.feetFromMan  = 0;
+    else
+      commData.feetFromMan = (uint16_t) distanceFromMan;
+    commData.state = currentSheepState->state;
 
-  commData.currTouched = currTouched;
-  commData.when = Night;
-  uint8_t * p = (uint8_t *)&commData;
-  Serial.print("Sending ");
-  for(int i = 0; i < sizeof(CommData); i++) {
-    myprintf(Serial, "%02x ", p[i]);
-  }
-  Serial.println();
+    commData.currTouched = currTouched;
+    commData.when = Night;
+    uint8_t * p = (uint8_t *)&commData;
+    if (false) {
+      Serial.print("Sending ");
+      for (int i = 0; i < sizeof(CommData); i++) {
+        myprintf(Serial, "%02x ", p[i]);
+      }
+      Serial.println();
+    }
 
-  return true;
-  
-  noInterrupts();
-  Wire.beginTransmission(slaveAddress);
-  Wire.write(42); // check byte
-  for(int i = 0; i < sizeof(CommData); i++) {
-    Wire.write(p[i]);
+    noInterrupts();
+    Wire.beginTransmission(slaveAddress);
+    //Wire.write(42); // check byte
+    Wire.write(p, sizeof(CommData));
+
+    Wire.flush();
+    uint8_t result =  Wire.endTransmission();
+    interrupts();
+    delay(1);
+    return result;
   }
-  uint8_t result =  Wire.endTransmission();
-  interrupts();
-  delay(1);
-  return result;
 }
 
 

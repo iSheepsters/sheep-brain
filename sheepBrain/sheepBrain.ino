@@ -294,13 +294,13 @@ void loop() {
     myprintf(Serial, "  %dms interrupt interval, %dus max interrupt time, %d max avail\n",
              longestInterval, maxInterruptTime, maxAvail);
 
-    if (maxSoundStartTime > 0)
-      myprintf(Serial, "  max sound start time %dus\n", maxSoundStartTime);
 
     if (currentSoundFile != NULL)
       myprintf(Serial, "  playing %s\n", currentSoundFile -> name);
     else if (musicPlayer.playingMusic)
       Serial.println("  Playing unknown sound");
+    else
+      myprintf(Serial, "next ambient sound in %d ms\n", nextAmbientSound - now);
 
     myprintf(Serial, "  GPS readings %d good, %d bad\n", total_good_GPS, total_bad_GPS);
     if (getGPSFixQuality)
@@ -322,7 +322,7 @@ void loop() {
     prevLat = latitudeDegreesAvg;
     prevLong = longitudeDegreesAvg;
 
-    maxSoundStartTime = 0;
+
     longestInterval = 0;
     maxAvail = 0;
     maxInterruptTime = 0;
@@ -358,9 +358,7 @@ void loop() {
         myprintf(Serial, " %3d %3d ", stableValue[i], sensorValue((TouchSensor)i));
       Serial.println();
     }
-
   }
-
 
   if (useGPS && !useGPSinterrupts) {
     quickGPSUpdate();
@@ -370,7 +368,7 @@ void loop() {
     if (TRACE) Serial.println("updateState");
     updateState(now);
     if (useSlave)
-      sendComm();
+      sendComm(now);
 
 
     for (int i = 0; i < numTouchSensors; i++) {
@@ -401,8 +399,8 @@ void loop() {
   }
 
   if (useSound && playSound) {
-    if (TRACE) Serial.println("checkForSound");
-    checkForSound(now);
+    if (TRACE) Serial.println("checkForNextAmbientSound");
+    checkForNextAmbientSound(now);
   }
 
   if (useGPS && !useGPSinterrupts) {
@@ -414,30 +412,26 @@ void loop() {
   //yield(10);
 }
 
-void checkForSound(unsigned long now) {
+void checkForNextAmbientSound(unsigned long now) {
   if (!useSound || !playSound)
     return;
-  if (now < nextRandomSound)
+  if (now < nextAmbientSound)
     return;
   if (musicPlayer.playingMusic || soundPlayedRecently(now)) {
-    nextRandomSound = now + 3000;
+    nextAmbientSound = now + 3000;
     return;
   }
-  if (false) {
-    playFile("bored/BORED-10.MP3");
-    nextRandomSound = now + 3000;
-    return;
-  }
+
   if (random(3) == 0) {
     if (baaSounds.playSound(now, true))
-      nextRandomSound = now + random(5000, 14000);
+      nextAmbientSound = now + 3000; //random(5000, 14000);
     else
-      nextRandomSound = now + 3000;
+      nextAmbientSound = now + 3000;
   } else {
     if (currentSheepState -> playSound(now, true))
-      nextRandomSound = now + random(12000, 30000);
+      nextAmbientSound = now + 3000; // random(12000, 30000);
     else
-      nextRandomSound = now + 3000;
+      nextAmbientSound = now + 3000;
   }
 
 }

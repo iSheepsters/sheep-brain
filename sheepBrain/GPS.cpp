@@ -1,6 +1,7 @@
 #include <Arduino.h>
 
 #include "GPS.h"
+#include "radio.h"
 #include "util.h"
 #include "printf.h"
 
@@ -35,8 +36,8 @@ boolean setupGPS() {
 
 
   // Set the update rate
-  GPS.sendCommand(PMTK_SET_NMEA_UPDATE_2HZ);   
-  
+  GPS.sendCommand(PMTK_SET_NMEA_UPDATE_2HZ);
+
   GPS.sendCommand(PMTK_ENABLE_SBAS);
   GPS.sendCommand(PMTK_ENABLE_WAAS);
   unsigned long now = millis();
@@ -100,23 +101,50 @@ boolean inCorral(int sheep) {
   return distanceFromCorral < 80;
 }
 
-boolean isClose(int sheep) {
+float distanceToSheep(int sheep) {
   float EW = FEET_PER_DEGREE_LONGITUDE * (getSheep(sheep).longitude - getSheep().longitude );
   float NS = FEET_PER_DEGREE_LATITUDE * (getSheep(sheep).latitude  - getSheep().latitude);
   float distance = sqrt(EW * EW + NS * NS);
-  return distance < 45;
+  return distance;
+
+}
+boolean isClose(int sheep) {
+  return distanceToSheep(sheep) < 45;
 }
 
+boolean isRecent(int sheep) {
+  if (sheep == sheepNumber) return true;
+  if (getSheep(sheep).time == 0) return false;
+  if (getSheep(sheep).time + 5*RADIO_EPOC > now()) return true;
+  return false;
+}
 boolean isInFriendlyTerritory() {
   if (!anyFix)
     return true;
   if (inCorral(sheepNumber))
     return true;
-  for (int s = 0; s < NUMBER_OF_SHEEP; s++)
-    if (s != sheepNumber && isClose(s))
+  for (int s = 1; s <= NUMBER_OF_SHEEP; s++)
+    if (s != sheepNumber && isRecent(s) && isClose(s))
       return true;
   return false;
 };
+
+// If there are x sheep immediately around me, returns x.
+// If the rest of the sheep are 20 feet away, returns 1+(x-1)/3;
+float howCrowded() {
+  if (!anyFix)
+    return 2.0;
+  float answer = 1.0;
+  for (int s = 1; s <= NUMBER_OF_SHEEP; s++)
+    if (s != sheepNumber && isRecent(s)) { 
+      float distance = distanceToSheep(s);
+      myprintf(Serial, "Sheep %d at distance", s);
+      Serial.println(distance);
+      answer += 10.0 / (10.0 + distance);
+    }
+  return answer;
+}
+
 
 float distance_between_fixed_in_feet(int32_t lat1, int32_t long1, int32_t lat2, int32_t long2) {
   float EW = FEET_PER_DEGREE_LONGITUDE_FIXED * (long1 - long2);
