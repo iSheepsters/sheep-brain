@@ -52,6 +52,9 @@ void copyLEDs() {
   }
 }
 
+const uint8_t BRIGHTNESS_NORMAL = 210;
+const uint8_t BRIGHTNESS_BORED = 100;
+
 
 void setup() {
   pinMode(led, OUTPUT);
@@ -60,7 +63,7 @@ void setup() {
   .setCorrection(TypicalLEDStrip);
   LEDS.show();
   Serial.begin(115200);
- 
+
   if (true) {
     int countdownMS = Watchdog.enable(4000);
     Serial.print("Enabled the watchdog with max countdown of ");
@@ -82,18 +85,9 @@ void setup() {
   setupAnimations();
   Serial.println("animations set up");
 
-
-
-  LEDS.setBrightness(210);
-  for (int i = 0; i < 10; i++) {
-    digitalWrite(led, HIGH);   // turn the LED on (HIGH is the voltage level)
-    delay(20);               // wait for a second
-    digitalWrite(led, LOW);    // turn the LED off by making the voltage LOW
-    delay(100);
-  }
+  LEDS.setBrightness(BRIGHTNESS_BORED);
 
 }
-
 
 unsigned long nextUpdate = 0;
 
@@ -101,29 +95,43 @@ int counter = 0;
 
 void loop() {
   Watchdog.reset();
-  State currState = commData.state;
-
   unsigned long now = millis();
+
+  State currState = commData.state;
+  digitalWrite(led, (now / 1000) % 2 == 1);
+  switch (currState) {
+    case   Bored:
+    case Violated:
+      LEDS.setBrightness(BRIGHTNESS_BORED);
+      break;
+    default :
+      LEDS.setBrightness(BRIGHTNESS_NORMAL);
+      break;
+  }
+
   if (nextUpdate < now) {
     unsigned long millisToChange =  updateAnimation(now);
 
     myprintf( "sheepSlaveBrain state %d, %d:%02d:%02d\n",
               currState, hour(), minute(), second());
-    myprintf(" currentEpoc %d, %d feet to the man, %dms to next epoc\n", animationEPOC, 
-    (int) commData.feetFromMan, millisToChange);
+    myprintf(" currentEpoc %d, %d feet to the man, %dms to next epoc\n", animationEPOC,
+             (int) commData.feetFromMan, millisToChange);
     nextUpdate = now + 5000;
   }
 
   LEDS.clear();
 
   currentAnimation->update(now);
-  
+
   overlays();
 
   copyLEDs();
   LEDS.show();
+  unsigned long timeUsed = millis() - now;
 
-  delay(10);
+  long timeToWait = 33 - timeUsed;
+  if (timeToWait > 0)
+    delay(timeToWait);
 }
 
 
