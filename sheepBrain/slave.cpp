@@ -20,8 +20,8 @@ uint8_t sendComm(unsigned long now) {
   if (  commData.state != currentSheepState->state
         || commData.currTouched != currTouched
         || nextComm < now) {
-    nextComm = now + 5000;
-    commData. BRC_time = BRC_now();
+    nextComm = now + 1000;
+    commData.BRC_time = BRC_now();
     if (distanceFromMan < 0)
       commData.feetFromMan  = 0;
     else

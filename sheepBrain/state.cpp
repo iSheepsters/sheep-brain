@@ -161,7 +161,7 @@ SheepState * AttentiveState::update() {
 SheepState * ReadyToRideState::update() {
   if (wouldInterrupt())
     return this;
-  if (maybeRiding() && secondsSinceEnteredCurrentState() > 20 )
+  if (maybeRiding() && secondsSinceEnteredCurrentState() > 15 )
     return &ridingState;
 
   if (!qualityTouch() && secondsSinceEnteredCurrentState() > 20) {

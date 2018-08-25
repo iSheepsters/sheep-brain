@@ -32,6 +32,8 @@ class SoundCollection {
     void verboseList(unsigned long now,  boolean ambientSound);
 
     boolean load(const char * s);
+    boolean loadCommon(const char * s);
+    boolean load(File f);
     SoundFile* chooseSound(unsigned long now,  boolean ambientSound);
     boolean playSound(unsigned long now,  boolean ambientSound);
 };

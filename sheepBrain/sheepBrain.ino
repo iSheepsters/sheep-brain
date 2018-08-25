@@ -190,7 +190,7 @@ void setup() {
     inappropriateTouchSounds.load("INAPP");
     seperatedSounds.load("SEPRT");
 
-    baaSounds.load("baa");
+    baaSounds.loadCommon("baa");
     baaSounds.playSound(millis(), false);
 
   } else

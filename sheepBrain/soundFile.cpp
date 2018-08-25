@@ -28,13 +28,25 @@ SoundCollection::SoundCollection(uint8_t pri) : priority (pri) {
   count = 0;
   files = NULL;
 }
+
+boolean SoundCollection::loadCommon(const char * s) {
+  strncpy(name, s, 13);
+  File dir = SD.open(name);
+  return load(dir);
+}
+
 boolean SoundCollection::load(const char * s) {
   strncpy(name, s, 13);
-  File dir = SD.open(s);
+  char buf[30];
+  snprintf(buf, 30, "%d/%s");
+  File dir = SD.open(buf);
+  return load(dir);
+}
+boolean SoundCollection::load(File dir) {
   count = 0;
   if (!dir.isDirectory()) {
     files = NULL;
-    Serial.print(s);
+    Serial.print(name);
     Serial.println(" is not a directory");
     return false;
   }
@@ -134,6 +146,25 @@ boolean SoundCollection::playSound(unsigned long now, boolean ambientSound) {
 
 SoundFile * SoundCollection::chooseSound(unsigned long now,  boolean ambientSound) {
   if (count == 0) return NULL;
+  if (random(2) == 1) {
+    // start in a random position, play the eligable sound
+    // that hasn't been played in the longest time
+    SoundFile * leastRecentlyPlayed = NULL;
+    unsigned long lastPlayed = 0xfffffff;
+    int offset = random(count);
+    for(int i = 0; i < count; i++) {
+      int index = (i+offset)%count;
+      SoundFile *s = &(files[index]);
+      if (s->eligibleToPlay(now, ambientSound) && lastPlayed > s->lastPlaying 
+      || !ambientSound && leastRecentlyPlayed == NULL) {
+        leastRecentlyPlayed = s;
+        lastPlayed =  s->lastPlaying;
+      } 
+    }
+    return leastRecentlyPlayed;
+  }
+  // otherwise, examine in random order
+  // return first eligable sound
   int firstChoice = random(count);
   if (count > 1)
     while (firstChoice == lastChoice)
@@ -143,9 +174,9 @@ SoundFile * SoundCollection::chooseSound(unsigned long now,  boolean ambientSoun
   while (true) {
     SoundFile *s = &(files[i]);
     lastChoice = i;
-    if (s->eligibleToPlay(now, ambientSound)) 
+    if (s->eligibleToPlay(now, ambientSound))
       return s;
-      
+
     i = (i + 1) % count;
     if (i == firstChoice) {
       if (ambientSound)
