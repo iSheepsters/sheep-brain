@@ -6,6 +6,8 @@ extern boolean setupSD();
 extern void printDirectory(File dir, int numTabs);
 extern boolean soundPlayedRecently(unsigned long now);
 
+ class SoundCollection;
+
 class SoundFile {
   public:
     SoundFile() : lastStarted(0), lastPlaying(0), duration(0) {
@@ -15,6 +17,7 @@ class SoundFile {
     uint32_t lastStarted;
     uint32_t lastPlaying;
     uint32_t duration;
+    SoundCollection * collection;
     boolean eligibleToPlay(unsigned long now,  boolean ambientSound);
 };
 
@@ -24,6 +27,7 @@ class SoundCollection {
     char name[13];
     uint16_t count;
     uint16_t lastChoice;
+    boolean common = false;
     const uint8_t priority; // higher priority sounds will preempt lower priority sounds
     SoundFile *files;
 

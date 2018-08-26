@@ -31,7 +31,7 @@ Adafruit_VS1053_FilePlayer musicPlayer =
 #define MAX9744_I2CADDR 0x4B
 
 // We'll track the volume level in this variable.
-int8_t thevol = 35;
+int8_t thevol = 63;
 uint8_t VS1053_volume = 0;
 unsigned long lastSoundStarted = 0;
 unsigned long lastSoundPlaying = 0;
@@ -139,11 +139,14 @@ void slowlyStopMusic() {
 
 
 void setNextAmbientSound(unsigned long durationOfLastSound) {
+
   if (durationOfLastSound < 6000) durationOfLastSound = 6000;
+  else if (durationOfLastSound > 30000) durationOfLastSound = 30000;
   float crowded = howCrowded();
   Serial.print("Crowding: ");
   Serial.println(crowded);
-  unsigned long result = durationOfLastSound / 2 + (unsigned long)(random(30000, 90000) * crowded);
+  
+  unsigned long result = durationOfLastSound / 2 + (unsigned long)(random(30000, 60000) * crowded);
   myprintf(Serial, "next ambient sound in %d ms\n", result);
   nextAmbientSound = millis() + result;
 }

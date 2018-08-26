@@ -2,6 +2,7 @@
 #include "soundFile.h"
 #include "sound.h"
 #include "printf.h"
+#include "util.h"
 #include <SPI.h>
 #include <SD.h>
 
@@ -32,13 +33,15 @@ SoundCollection::SoundCollection(uint8_t pri) : priority (pri) {
 boolean SoundCollection::loadCommon(const char * s) {
   strncpy(name, s, 13);
   File dir = SD.open(name);
+  common = true;
   return load(dir);
 }
 
 boolean SoundCollection::load(const char * s) {
   strncpy(name, s, 13);
   char buf[30];
-  snprintf(buf, 30, "%d/%s");
+  snprintf(buf, 30, "%d/%s", sheepNumber, name);
+  myprintf(Serial, "opening %s\n", buf);
   File dir = SD.open(buf);
   return load(dir);
 }
@@ -66,6 +69,7 @@ boolean SoundCollection::load(File dir) {
       break;
     if (isMusicFile(entry)) {
       strncpy(files[i].name,  entry.name(), 13);
+      files[i].collection = this;
       i++;
     }
   }
@@ -131,7 +135,12 @@ boolean SoundCollection::playSound(unsigned long now, boolean ambientSound) {
   };
   slowlyStopMusic();
 
-  if (!playFile("%s/%s", name, s->name )) {
+  boolean result = false;
+  if (common)
+    result = playFile("%s/%s", name, s->name );
+  else
+    result = playFile("%d/%s/%s", sheepNumber, name, s->name);
+  if (!result) {
     myprintf(Serial, "Could not start %s/%s\n", name, s->name);
     return false;
   } else {
@@ -152,14 +161,14 @@ SoundFile * SoundCollection::chooseSound(unsigned long now,  boolean ambientSoun
     SoundFile * leastRecentlyPlayed = NULL;
     unsigned long lastPlayed = 0xfffffff;
     int offset = random(count);
-    for(int i = 0; i < count; i++) {
-      int index = (i+offset)%count;
+    for (int i = 0; i < count; i++) {
+      int index = (i + offset) % count;
       SoundFile *s = &(files[index]);
-      if (s->eligibleToPlay(now, ambientSound) && lastPlayed > s->lastPlaying 
-      || !ambientSound && leastRecentlyPlayed == NULL) {
+      if (s->eligibleToPlay(now, ambientSound) && lastPlayed > s->lastPlaying
+          || !ambientSound && leastRecentlyPlayed == NULL) {
         leastRecentlyPlayed = s;
         lastPlayed =  s->lastPlaying;
-      } 
+      }
     }
     return leastRecentlyPlayed;
   }
@@ -231,7 +240,7 @@ boolean setupSD() {
 
 
   // list files
-  //  printDirectory(SD.open("/"), 0);
+  // printDirectory(SD.open("/"), 0);
   return true;
 }
 

@@ -114,7 +114,7 @@ void setup() {
   Wire.begin();
   randomSeed(analogRead(0));
   Serial.begin(115200);
-  if (true) while (!Serial && millis() < 5000) {
+  if (true) while (!Serial && millis() < 2000) {
       digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
       setupDelay(200);                     // wait for a second
       digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
@@ -256,7 +256,7 @@ void loop() {
     digitalWrite(LED_BUILTIN, LOW);
 
 
-  if (nextTestDistress < now) {
+  if (false && nextTestDistress < now) {
     nextTestDistress = now + random(150000, 170000);
     logDistress("This is a test distress message from sheep %d, next test in %d seconds",
                 sheepNumber, (nextTestDistress - now) / 1000);
