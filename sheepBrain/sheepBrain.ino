@@ -291,8 +291,10 @@ void loop() {
       myprintf(Serial, "  playing %s\n", currentSoundFile -> name);
     else if (musicPlayer.playingMusic)
       Serial.println("  Playing unknown sound");
-    else
+    else {
       myprintf(Serial, "next ambient sound in %d ms\n", nextAmbientSound - now);
+      myprintf(Serial, "next baa in %d ms\n", nextBaa - now);
+    }
 
     myprintf(Serial, "  GPS readings %d good, %d bad\n", total_good_GPS, total_bad_GPS);
     if (getGPSFixQuality)
@@ -398,8 +400,8 @@ void loop() {
   if (useGPS && !useGPSinterrupts) {
     quickGPSUpdate();
   }
-    if (TRACE) Serial.println("checkForCommand");
-    checkForCommand(now);
+  if (TRACE) Serial.println("checkForCommand");
+  checkForCommand(now);
 
   //yield(10);
 }
@@ -407,26 +409,29 @@ void loop() {
 void checkForNextAmbientSound(unsigned long now) {
   if (!useSound || !playSound)
     return;
-  if (now < nextAmbientSound)
-    return;
+
   if (musicPlayer.playingMusic || soundPlayedRecently(now)) {
-    nextAmbientSound = now + 3000;
     return;
   }
-
-  if (random(3) == 0) {
-    if (baaSounds.playSound(now, true))
-      nextAmbientSound = now + 3000; //random(5000, 14000);
-    else
-      nextAmbientSound = now + 3000;
-  } else {
-    if (currentSheepState -> playSound(now, true))
-      nextAmbientSound = now + 3000; // random(12000, 30000);
-    else
-      nextAmbientSound = now + 3000;
+  if (now > nextAmbientSound && currentSheepState -> playSound(now, true)) {
+    
+    unsigned long delay = 20000;
+    if (currentSoundFile -> duration > 0 && currentSoundFile -> duration < delay)
+    delay = currentSoundFile -> duration ;
+    delay = (delay + random(20000)) * howCrowded();
+    myprintf(Serial, "Started playing ambient sound, next in %dms\n", delay);
+    nextAmbientSound = now + delay;
+    return;
   }
-
+  if (now > nextBaa && nextBaa + 8000 < nextAmbientSound && baaSounds.playSound(now, true)) {
+    unsigned long delay = random(10000, 20000) * howCrowded();
+    Serial.println("Started playing baa");
+    myprintf(Serial, "Started playing baa sound, next in %dms\n", delay);
+    nextBaa = now + delay;
+    return;
+  }
 }
+
 unsigned long nextCommandCheck = 0;
 void checkForCommand(unsigned long now) {
   if (nextCommandCheck > now)

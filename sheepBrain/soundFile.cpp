@@ -112,7 +112,7 @@ void SoundCollection::verboseList(unsigned long now, boolean ambientSound) {
 }
 
 boolean soundPlayedRecently(unsigned long now) {
-  return lastSoundPlaying + 18000L > now && now > 18000;
+  return lastSoundPlaying + 10000L > now && now > 18000;
 }
 
 boolean SoundCollection::playSound(unsigned long now, boolean ambientSound) {
@@ -125,7 +125,8 @@ boolean SoundCollection::playSound(unsigned long now, boolean ambientSound) {
   if (s == NULL) {
     if (ambientSound)
       Serial.print("No ambient sound found for ");
-    else Serial.print("No sound found for ");
+    else
+      Serial.print("No sound found for ");
     Serial.println(name);
 
 
@@ -144,6 +145,7 @@ boolean SoundCollection::playSound(unsigned long now, boolean ambientSound) {
     myprintf(Serial, "Could not start %s/%s\n", name, s->name);
     return false;
   } else {
+    myprintf(Serial, "Starting %s/%s at %d\n", name, s->name, now);
     s->lastStarted = s->lastPlaying = now;
     currentSoundFile = s;
     currentSoundPriority = priority;
@@ -153,46 +155,64 @@ boolean SoundCollection::playSound(unsigned long now, boolean ambientSound) {
 }
 
 
+// If ambientSound is false, always return something
+SoundFile * SoundCollection::leastRecentlyPlayed(unsigned long now,
+    boolean ambientSound) {
+
+  myprintf(Serial, "finding least recently played %s\n", name);
+
+  SoundFile * candidate = NULL;
+  unsigned long bestTime = 0xfffffff;
+  int offset = random(count);
+  for (int i = 0; i < count; i++) {
+    int index = (i + offset) % count;
+    SoundFile *s = &(files[index]);
+    if (s->lastPlaying == 0)
+      return s;
+    if (s->eligibleToPlay(now, ambientSound) && bestTime > s->lastPlaying) {
+      candidate = s;
+      bestTime =  s->lastPlaying;
+    }
+  }
+  if (candidate != NULL || ambientSound)
+    return candidate;
+  bestTime = 0xfffffff;
+  for (int i = 0; i < count; i++) {
+    int index = (i + offset) % count;
+    SoundFile *s = &(files[index]);
+    if (bestTime > s->lastPlaying) {
+      candidate = s;
+      bestTime =  s->lastPlaying;
+    }
+  }
+  return candidate;
+}
+
+
 SoundFile * SoundCollection::chooseSound(unsigned long now,  boolean ambientSound) {
   if (count == 0) return NULL;
-  if (random(2) == 1) {
-    // start in a random position, play the eligable sound
-    // that hasn't been played in the longest time
-    SoundFile * leastRecentlyPlayed = NULL;
-    unsigned long lastPlayed = 0xfffffff;
-    int offset = random(count);
-    for (int i = 0; i < count; i++) {
-      int index = (i + offset) % count;
-      SoundFile *s = &(files[index]);
-      if (s->eligibleToPlay(now, ambientSound) && lastPlayed > s->lastPlaying
-          || !ambientSound && leastRecentlyPlayed == NULL) {
-        leastRecentlyPlayed = s;
-        lastPlayed =  s->lastPlaying;
+  if (random(3) <= 1) {
+    // otherwise, examine in random order
+    // return first eligable sound
+    int firstChoice = random(count);
+    if (count > 1)
+      while (firstChoice == lastChoice)
+        firstChoice = random(count);
+
+    int i = firstChoice;
+    while (true) {
+      SoundFile *s = &(files[i]);
+      lastChoice = i;
+      if (s->eligibleToPlay(now, ambientSound))
+        return s;
+
+      i = (i + 1) % count;
+      if (i == firstChoice) {
+        break;
       }
     }
-    return leastRecentlyPlayed;
   }
-  // otherwise, examine in random order
-  // return first eligable sound
-  int firstChoice = random(count);
-  if (count > 1)
-    while (firstChoice == lastChoice)
-      firstChoice = random(count);
-
-  int i = firstChoice;
-  while (true) {
-    SoundFile *s = &(files[i]);
-    lastChoice = i;
-    if (s->eligibleToPlay(now, ambientSound))
-      return s;
-
-    i = (i + 1) % count;
-    if (i == firstChoice) {
-      if (ambientSound)
-        return NULL;
-      return s;
-    }
-  }
+  return leastRecentlyPlayed(now, ambientSound);
 }
 
 boolean SoundFile::eligibleToPlay(unsigned long now, boolean ambientSound) {
@@ -200,13 +220,14 @@ boolean SoundFile::eligibleToPlay(unsigned long now, boolean ambientSound) {
     myprintf(Serial, "%s eligable, not played before\n", name);
     return true;
   }
-  unsigned long d = max(3000, duration);
-
-  uint32_t minimumQuietTime = d  + 15000L;
-  if (ambientSound && lastSoundPlaying + minimumQuietTime > now && now > 15000)
+  uint32_t minimumQuietTime = 10000;
+  if (ambientSound && lastSoundPlaying + minimumQuietTime > now)
     return false;
 
-  uint32_t minimumRepeatTime = d * 3 + 120000L;
+  unsigned long d = duration;
+  if (d == 0) d = 5000;
+
+  uint32_t minimumRepeatTime = d * 2 + 120000L;
 
   boolean result = lastPlaying == 0 || lastPlaying + minimumRepeatTime < now;
   if (result) {

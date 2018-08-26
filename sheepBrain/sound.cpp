@@ -1,6 +1,7 @@
 #include "Arduino.h"
 #include "util.h"
 #include "gps.h"
+#include "state.h"
 #include "printf.h"
 #include <Adafruit_SleepyDog.h>
 
@@ -139,14 +140,21 @@ void slowlyStopMusic() {
 
 
 void setNextAmbientSound(unsigned long durationOfLastSound) {
+  if (currentSheepState->state == Violated) {
+    unsigned long result = + random(8000, 15000);
+    nextAmbientSound = millis()  + result;
+    myprintf(Serial, "violated; next ambient sound in %d ms\n", result);
+
+    return;
+  }
 
   if (durationOfLastSound < 6000) durationOfLastSound = 6000;
   else if (durationOfLastSound > 30000) durationOfLastSound = 30000;
   float crowded = howCrowded();
   Serial.print("Crowding: ");
   Serial.println(crowded);
-  
-  unsigned long result = durationOfLastSound / 2 + (unsigned long)(random(30000, 60000) * crowded);
+
+  unsigned long result = durationOfLastSound / 2 + (unsigned long)(random(20000, 40000) * crowded);
   myprintf(Serial, "next ambient sound in %d ms\n", result);
   nextAmbientSound = millis() + result;
 }
@@ -159,18 +167,29 @@ void noteEndOfMusic() {
   if (!wasPlayingMusic)
     return;
   wasPlayingMusic = false;
+  boolean isBaa = true;
   if (currentSoundFile) {
     currentSoundFile->lastPlaying = millis();
     if (currentSoundFile->duration == 0) {
       currentSoundFile->duration = currentSoundFile->lastPlaying - currentSoundFile->lastStarted;
-      Serial.print(currentSoundFile->duration);
-      Serial.print("ms for  ");
-      Serial.println(currentSoundFile->name);
+      myprintf(Serial, "%d ms for %s/%s\n",
+               currentSoundFile->duration,
+               currentSoundFile->collection->name,
+               currentSoundFile->name);
+      isBaa = currentSoundFile->collection == &baaSounds;
+      currentSoundFile = NULL;
     }
-    currentSoundFile = NULL;
 
   }
-  setNextAmbientSound(lastSoundPlaying - lastSoundStarted);
+  if (!isBaa) {
+    setNextAmbientSound(lastSoundPlaying - lastSoundStarted);
+    nextBaa = millis() + random(10000, 20000) * howCrowded();
+    myprintf(Serial, "ambient ended, next sound in %d seconds\n",
+             (nextAmbientSound - millis()) / 1000);
+  }
+  nextBaa = millis() + random(10000, 20000) * howCrowded();
+  myprintf(Serial, "next baa in %d seconds\n",
+           (nextBaa - millis()) / 1000);
 }
 
 
@@ -190,7 +209,7 @@ boolean playFile(const char *fmt, ... ) {
   boolean result =  musicPlayer.startPlayingFile(buf);
   if (result)
     currentSoundPriority = 0;
-  
+
   return result;
 
 }

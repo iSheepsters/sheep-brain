@@ -6,6 +6,8 @@
 #include "printf.h"
 
 unsigned long nextAmbientSound = 10000;
+unsigned long nextBaa = 30000;
+
 unsigned long timeEnteredCurrentState = 0;
 unsigned long lastReadyToRide = 0;
 
@@ -122,7 +124,10 @@ void updateState(unsigned long now) {
     if (!musicPlayer.playingMusic ||
         newState->sounds.priority >= currentSoundPriority) {
       newState->sounds.playSound(now, false);
-      nextAmbientSound = now + 12000 + random(1, 15000);
+      if (newState == &violatedState)
+        nextAmbientSound = now + 12000;
+      else
+        nextAmbientSound = now + 12000 + random(1, 15000);
     }
     currentSheepState = newState;
     timeEnteredCurrentState = now;
@@ -132,17 +137,14 @@ void updateState(unsigned long now) {
 
 
 boolean SheepState::playSound(unsigned long now, boolean ambientNoise) {
-  if (sounds.playSound(now, ambientNoise)) {
-    return true;
-  }
-  return baaSounds.playSound(now, ambientNoise);
+  return sounds.playSound(now, ambientNoise);
 }
 
 SheepState * BoredState::update() {
   if (secondsSinceEnteredCurrentState() > 20)
     privateTouches = 0;
-  if (privateTouches == 0 && mightBeRiding() && millis() - lastReadyToRide < 5000)
-    return &riding();
+  if (privateTouches == 0 && maybeRiding() && millis() - lastReadyToRide < 8000)
+    return &ridingState;
   if (isTouched()) {
     if (random(100) < 20 && secondsSinceEnteredCurrentState() > 30) {
       int notInTheMood =  (random(30, 60) + random(20, 100));
@@ -159,8 +161,8 @@ SheepState * AttentiveState::update() {
 
   if (isIgnored())
     return &boredState;
-  if (privateTouches == 0 && mightBeRiding() && millis() - lastReadyToRide < 5000)
-    return &riding();
+  if (privateTouches == 0 && maybeRiding() && millis() - lastReadyToRide < 8000)
+    return &ridingState;
 
   if (definitivelyRiding()) {
     becomeViolated();
@@ -219,7 +221,7 @@ SheepState * NotInTheMoodState::update() {
   if (wouldInterrupt())
     return this;
 
-  if (millis() > notInTheMoodUntil || secondsSinceEnteredCurrentState() > 30) {
+  if (millis() > notInTheMoodUntil && secondsSinceEnteredCurrentState() > 30) {
     if (qualityTouch()) {
       if (notInTheMoodUntil > 20000)
         notInTheMoodUntil -= 20000;

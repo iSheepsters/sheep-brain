@@ -6,7 +6,7 @@ extern boolean setupSD();
 extern void printDirectory(File dir, int numTabs);
 extern boolean soundPlayedRecently(unsigned long now);
 
- class SoundCollection;
+class SoundCollection;
 
 class SoundFile {
   public:
@@ -39,7 +39,9 @@ class SoundCollection {
     boolean loadCommon(const char * s);
     boolean load(File f);
     SoundFile* chooseSound(unsigned long now,  boolean ambientSound);
+    SoundFile* leastRecentlyPlayed(unsigned long now, boolean ambientSound);
     boolean playSound(unsigned long now,  boolean ambientSound);
+
 };
 
 
@@ -47,6 +49,7 @@ extern SoundFile * currentSoundFile;
 extern int currentSoundPriority;
 
 extern unsigned long nextAmbientSound;
+extern unsigned long nextBaa;
 
 extern SoundCollection boredSounds;
 extern SoundCollection ridingSounds;

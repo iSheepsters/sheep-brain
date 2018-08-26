@@ -131,6 +131,7 @@ boolean isInFriendlyTerritory() {
 
 // If there are x sheep immediately around me, returns x.
 // If the rest of the sheep are 20 feet away, returns 1+(x-1)/3;
+// In corral with 12 sheep, will likely return 6 or more
 float howCrowded() {
   if (!anyFix)
     return 2.0;
