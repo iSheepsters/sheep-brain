@@ -63,6 +63,8 @@ void setup() {
   .setCorrection(TypicalLEDStrip);
   LEDS.show();
   Serial.begin(115200);
+  if (false) while (!Serial)
+      delay(20);
 
   if (true) {
     int countdownMS = Watchdog.enable(4000);
@@ -71,8 +73,7 @@ void setup() {
     Serial.println(" milliseconds!");
     Serial.println();
   }
-  // setup LEDS and turn them off
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < 20; i++) {
     digitalWrite(led, HIGH);   // turn the LED on (HIGH is the voltage level)
     delay(50);               // wait for a second
     digitalWrite(led, LOW);    // turn the LED off by making the voltage LOW

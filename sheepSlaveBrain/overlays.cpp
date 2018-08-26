@@ -9,6 +9,10 @@ const  uint8_t HEAD_HALF = 25;
 
 uint16_t tracerFrame = 0;
 
+boolean pettingOnly() {
+  return (commData.state == NotInTheMood || commData.state == VIOLATED);
+}
+
 uint8_t flash[GRID_WIDTH][GRID_HEIGHT];
 
 const int numTracers = 8;
@@ -184,19 +188,21 @@ void privateLights() {
 void rumpLights() {
   for (int x = HALF_GRID_WIDTH - 3; x < HALF_GRID_WIDTH + 3; x++)
     for (int y = GRID_HEIGHT - 4; y < GRID_HEIGHT - 1; y++)
-      getSheepLEDFor(x, y) = CRGB::Grey;
+      getSheepLEDFor(x, y) = pettingOnly() ? CRGB::Pink : CRGB::Grey;
 }
 
 void leftLights() {
 
   // left side
   for (int y = 4; y < 12; y++)
-    getSheepLEDFor( QUARTER_GRID_WIDTH + 1, y) = CRGB::LightGrey;
+    getSheepLEDFor( QUARTER_GRID_WIDTH + 1, y)
+      = pettingOnly() ? CRGB::Pink : CRGB::Grey;
 }
 void rightLights() {
   // right side
   for (int y = 4; y < 12; y++)
-    getSheepLEDFor( QUARTER_GRID_WIDTH + HALF_GRID_WIDTH - 1, y) = CRGB::LightGrey;
+    getSheepLEDFor( QUARTER_GRID_WIDTH + HALF_GRID_WIDTH - 1, y)
+      = pettingOnly() ? CRGB::Pink : CRGB::Grey;
 }
 void backLights() {
   // back side
@@ -206,88 +212,92 @@ void backLights() {
 }
 void headLights() {
   // head
+  boolean flash = (millis() / 500) % 2 == 1;
+
   for (int j = HEAD_BOTTOM + HEAD_EYES; j < HEAD_BOTTOM + HEAD_EYES + 2 * HEAD_TOP; j++)
+
     leds[ j] = CRGB::Green;
-  for (int x = HALF_GRID_WIDTH - 1; x <= HALF_GRID_WIDTH; x++)
+  for (int x = HALF_GRID_WIDTH - 2; x <= HALF_GRID_WIDTH + 1; x++)
     getSheepLEDFor(x, 0) = CRGB::Green;
 }
 
 void violatedLights() {
-  
-  // x-y = 24-midSaddle
-  // 24, midSaddle
-  // 25, midSaddle+1
-  // 26, midSaddle+2
-  const int difference = 24-midSaddle;
-  
-  // x+y = 25+midSaddle
-  // 24, midSaddle+1
-  // 25, midSaddle
-  const int sum = 25+midSaddle;
-  boolean flash = (millis()/500) % 2 == 1;
-    for (int x = 0; x < GRID_WIDTH; x++)
-    for (int y = 0; y < GRID_HEIGHT; y++) {
-       int offset1 = abs(x-y - difference);
-       int offset2 = abs(x+y - sum);
-       if (offset1 == 0 || offset2 == 0)
-         getSheepLEDFor(x,y) = flash ? CRGB::Red : CRGB::Black;
-       else if (offset1 == 1 || offset2 == 1)
-        getSheepLEDFor(x,y) = CRGB::Black;
-}
 
-void head() {
-  unsigned long now = millis();
-  if (blinking) {
-    if (nextBlinkEnds < now)
-      blinking = false;
-  }  else if (nextBlinkStarts < now) {
-    startBlink(now);
-  }
-  if (commData.sheepNum == 13) {
-    float v1 = sin(now / 1500.0 * PI);
-    if (!blinking) {
-      for (int j = 0; j < 50; j++) {
-        float v2 = sin((now + j * 717) / 500.0 * PI);
-        int b = 15 + ((v1 + v2) + 4.0) * 40;
-        if (b < 0) b = 0;
-        if (b > 255) b = 255;
-        leds[j] = CRGB(b, 0, 0);
-      }
+  // HALF_GRID_WIDTH-1, midSaddle
+  // HALF_GRID_WIDTH, midSaddle+1
+  // HALF_GRID_WIDTH+1, midSaddle+2
+  // x-y = HALF_GRID_WIDTH-1-midSaddle
+  const int difference = HALF_GRID_WIDTH - 1 - midSaddle;
+
+  // HALF_GRID_WIDTH, midSaddle
+  // HALF_GRID_WIDTH-1, midSaddle+1
+  // x+y = HALF_GRID_WIDTH+midSaddle
+
+  const int sum = HALF_GRID_WIDTH + midSaddle;
+  boolean flash = (millis() / 500) % 2 == 1;
+  for (int x = 0; x < GRID_WIDTH; x++)
+    for (int y = 0; y < GRID_HEIGHT; y++) {
+      int offset1 = abs(x - y - difference);
+      int offset2 = abs(x + y - sum);
+      if (offset1 == 0 || offset2 == 0)
+        getSheepLEDFor(x, y) = flash ? CRGB::Red : CRGB::Black;
+      else if (offset1 == 1 || offset2 == 1)
+        getSheepLEDFor(x, y) = CRGB::Black;
     }
 
-  } else
-    for (int j = 0; j < 50; j++)
-      if (isEye(j)) {
-        if (!blinking)
+  void head() {
+    unsigned long now = millis();
+    if (blinking) {
+      if (nextBlinkEnds < now)
+        blinking = false;
+    }  else if (nextBlinkStarts < now) {
+      startBlink(now);
+    }
+    if (commData.sheepNum == 13) {
+      float v1 = sin(now / 1500.0 * PI);
+      if (!blinking) {
+        for (int j = 0; j < 50; j++) {
+          float v2 = sin((now + j * 717) / 500.0 * PI);
+          int b = 15 + ((v1 + v2) + 4.0) * 40;
+          if (b < 0) b = 0;
+          if (b > 255) b = 255;
+          leds[j] = CRGB(b, 0, 0);
+        }
+      }
+
+    } else
+      for (int j = 0; j < 50; j++)
+        if (isEye(j)) {
+          if (!blinking)
+            leds[j] = CRGB::White;
+        } else
           leds[j] = CRGB::White;
-      } else
-        leds[j] = CRGB::White;
-}
-
-void overlays() {
-
-  head();
-  updateTracers();
-  applyAndFadeFlash();
-
-  if (commData.state == Violated) {
-    violatedLights();
   }
-  uint8_t touchData = commData.currTouched;
 
-  if (touchData & 0x1)
-    privateLights();
-  if (touchData & 0x2)
-    rumpLights();
-  if (touchData & 0x4)
-    leftLights();
-  if (touchData & 0x8)
-    rightLights();
-  if (touchData & 0x10)
-    backLights();
-  if (touchData & 0x20)
-    headLights();
+  void overlays() {
 
-}
+    head();
+    updateTracers();
+    applyAndFadeFlash();
+
+    if (commData.state == Violated) {
+      violatedLights();
+    }
+    uint8_t touchData = commData.currTouched;
+
+    if (touchData & 0x1)
+      privateLights();
+    if (touchData & 0x2)
+      rumpLights();
+    if (touchData & 0x4)
+      leftLights();
+    if (touchData & 0x8)
+      rightLights();
+    if (touchData & 0x10)
+      backLights();
+    if (touchData & 0x20)
+      headLights();
+
+  }
 
 

@@ -6,7 +6,7 @@
 #include <Time.h>
 
 double ANIMATION_FEET_PER_SECOND = 5.0;
-const int ANIMATION_EPOC_SECONDS = 120;
+const int ANIMATION_EPOC_SECONDS = 30;
 
 const time_t BEFORE_BURN = 1535000000;
 
@@ -75,6 +75,7 @@ void setupSchedule() {
 SdFatSdioEX sd;
 
 FatFile dirFile;
+FatFile customAnimations;
 
 const size_t MAX_FILE_NAME_LENGTH = 30;
 
@@ -145,10 +146,16 @@ boolean isOPC(FatFile f) {
 }
 
 void setupAnimations() {
+  Serial.println("setupAnimations");
   sd.begin();
+  if (!customAnimations.open(sd.vwd(), "custom", O_READ)) {
+    opcOK = false;
+    Serial.println("Open custom/ failed, ignoring animations");
+    return;
+  }
   if (!dirFile.open(sd.vwd(), "opcFiles", O_READ)) {
     opcOK = false;
-    Serial.println("Open animations failed, ignoring animations");
+    Serial.println("Open opcFiles/ failed, ignoring animations");
     return;
   }
   FatFile file;
@@ -245,24 +252,39 @@ class ShowOPC : public Animation {
     virtual void printName() {
       myprintf("Opc animation %d\n", index);
     }
-    void readFirstHeader() {
+    boolean readFirstHeader() {
       int count = file.read(header, 4);
-      
+
       if (count != 4) {
         Serial.print(count);
         Serial.println(" bytes read");
 
-        return;
+        return false;
       }
       if (header[0] != 'O' || header[1] != 'P' || header[2] != 'C') {
         Serial.println("Not OPC file");
-        return;
+        return false;
       }
       frameRate = header[3];
       if (frameRate == 0)
         frameRate = 30;
       bytesRead += 4;
       myprintf("set up opc animation\n");
+      return true;
+    }
+    void initializeCustom(int idx) {
+      myprintf("Initialize custom %d\n", idx);
+      index = idx;
+      ok = false;
+      char buffer[20];
+      snprintf(buffer, 20, "%d.opc", idx);
+      myprintf("Opening custom/%s\n",  buffer);
+      if (!file.open(&customAnimations, buffer , O_READ)) {
+        myprintf("Could not open %s\n", buffer );
+        return;
+      }
+      if (readFirstHeader())
+        ok = true;
     }
     void initialize(int idx) {
       myprintf("Initialize opc %d\n", idx);
@@ -279,8 +301,8 @@ class ShowOPC : public Animation {
         myprintf("Could not open %s\n", thisAnimation.name );
         return;
       }
-      readFirstHeader();
-      ok = true;
+      if (readFirstHeader())
+        ok = true;
     }
     void close() {
       file.close();
@@ -341,23 +363,27 @@ Animation * getAnimation() {
   int index = animationEPOC % numberOfAnimations;
   enum AnimationKind k = getKind(index);
   int kindIndex = getKindIndex(index);
-  myprintf("get animation %d %d %d %d\n", animationEPOC, index, k, kindIndex);
+  myprintf("get animation %d %d %d %d %d\n", numberOfAnimations, animationEPOC, index, k, kindIndex);
   Animation * result = NULL;
   switch (k) {
     case GPS_KIND : result = &animationGPSHue;
+      result->initialize(kindIndex);
       break;
     case OPC_KIND : result = & animationShowOPC;
+      result->initialize(kindIndex);
       break;
-    case CUSTOM_KIND : result =  &animationRotateRainbowUp;
+    case CUSTOM_KIND : result =  &animationShowOPC;
+      animationShowOPC.initializeCustom(commData.sheepNum);
       break;
     case BASIC_KIND : result =  &animationRotateRainbowUp;
+      result->initialize(kindIndex);
       break;
     default:
       myprintf("Unknown kind %d\n", k);
       result =  &animationRotateRainbowUp;
+      result->initialize(0);
       break;
   }
-  result->initialize(kindIndex);
   return result;
 }
 
