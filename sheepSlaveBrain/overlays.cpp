@@ -213,12 +213,26 @@ void headLights() {
 }
 
 void violatedLights() {
-  for (int i = 0; i < GRID_HEIGHT / 2; i++) {
-    getSheepLEDFor( HALF_GRID_WIDTH - 1 - i, GRID_HEIGHT / 2 - 1 - i) = CRGB::White;
-    getSheepLEDFor( HALF_GRID_WIDTH + i, GRID_HEIGHT / 2 - 1 - i) = CRGB::White;
-    getSheepLEDFor( HALF_GRID_WIDTH - 1 - i, GRID_HEIGHT / 2 + i) = CRGB::White;
-    getSheepLEDFor( HALF_GRID_WIDTH + i, GRID_HEIGHT / 2 + i) = CRGB::White;
-  }
+  
+  // x-y = 24-midSaddle
+  // 24, midSaddle
+  // 25, midSaddle+1
+  // 26, midSaddle+2
+  const int difference = 24-midSaddle;
+  
+  // x+y = 25+midSaddle
+  // 24, midSaddle+1
+  // 25, midSaddle
+  const int sum = 25+midSaddle;
+  boolean flash = (millis()/500) % 2 == 1;
+    for (int x = 0; x < GRID_WIDTH; x++)
+    for (int y = 0; y < GRID_HEIGHT; y++) {
+       int offset1 = abs(x-y - difference);
+       int offset2 = abs(x+y - sum);
+       if (offset1 == 0 || offset2 == 0)
+         getSheepLEDFor(x,y) = flash ? CRGB::Red : CRGB::Black;
+       else if (offset1 == 1 || offset2 == 1)
+        getSheepLEDFor(x,y) = CRGB::Black;
 }
 
 void head() {
