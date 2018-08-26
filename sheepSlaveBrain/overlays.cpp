@@ -10,7 +10,7 @@ const  uint8_t HEAD_HALF = 25;
 uint16_t tracerFrame = 0;
 
 boolean pettingOnly() {
-  return (commData.state == NotInTheMood || commData.state == VIOLATED);
+  return (commData.state == NotInTheMood || commData.state == Violated);
 }
 
 uint8_t flash[GRID_WIDTH][GRID_HEIGHT];
@@ -244,6 +244,7 @@ void violatedLights() {
       else if (offset1 == 1 || offset2 == 1)
         getSheepLEDFor(x, y) = CRGB::Black;
     }
+}
 
   void head() {
     unsigned long now = millis();
