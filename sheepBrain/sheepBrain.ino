@@ -349,7 +349,7 @@ void loop() {
     if (debugTouch) {
       Serial.print("TD ");
       for (int i = 0; i < numTouchSensors; i++)
-        myprintf(Serial, " %3d %3d ", stableValue[i], sensorValue((TouchSensor)i));
+        myprintf(Serial, " %3d %3d %3d  ", stableValue[i],  currentValue[i], sensorValue((TouchSensor)i));
       Serial.println();
     }
   }

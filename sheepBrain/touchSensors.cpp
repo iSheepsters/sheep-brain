@@ -142,18 +142,19 @@ void dumpTouchData() {
   Serial.println();
 }
 
+
+uint8_t touchThreshold(uint8_t i) {
+  if (i == (uint8_t) LEFT_SENSOR || i == (uint8_t) RIGHT_SENSOR)
+    return 8;
+  if (i == (uint8_t) PRIVATES_SENSOR)
+    return 40;
+  return 15;
+}
+
 int16_t sensorValue(enum TouchSensor sensor) {
   int value = cap.filteredData((uint8_t) sensor);
   if (value < 10) return 0;
-  return value - stableValue[sensor];
-}
-
-boolean touchThreshold(uint8_t i) {
-  if (i == (uint8_t) LEFT_SENSOR || i == (uint8_t) RIGHT_SENSOR)
-    return 7;
-  if (i == (uint8_t) PRIVATES_SENSOR)
-    return 35;
-  return 15;
+  return value - ( stableValue[sensor] - touchThreshold((uint8_t)sensor));
 }
 
 uint16_t currentValue[numTouchSensors];
@@ -164,7 +165,10 @@ void updateTouchData(unsigned long now, boolean debug) {
       uint16_t value = cap.filteredData(i);
       if (value > 10) {
         currentValue[i] = value;
-        if (currentValue[i] < stableValue[i] - touchThreshold(i))
+        int16_t threshold = touchThreshold(i);
+        if (lastTouched & _BV(i))
+          threshold = threshold / 2;
+        if (currentValue[i] < stableValue[i] - threshold)
           currTouched |= 1 << i;
       }
     }

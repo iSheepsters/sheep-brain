@@ -94,21 +94,30 @@ unsigned long nextUpdate = 0;
 
 int counter = 0;
 
+boolean isDaytime() {
+  int hour = hour();
+  return h >= 7 && h <= 18;
+}
+
 void loop() {
   Watchdog.reset();
   unsigned long now = millis();
 
   State currState = commData.state;
   digitalWrite(led, (now / 1000) % 2 == 1);
-  switch (currState) {
-    case   Bored:
-    case Violated:
-      LEDS.setBrightness(BRIGHTNESS_BORED);
-      break;
-    default :
-      LEDS.setBrightness(BRIGHTNESS_NORMAL);
-      break;
-  }
+
+  if (isDaytime())
+    LEDS.setBrightness(BRIGHTNESS_BORED);
+  else
+    switch (currState) {
+      case   Bored:
+      case Violated:
+        LEDS.setBrightness(BRIGHTNESS_BORED);
+        break;
+      default :
+        LEDS.setBrightness(BRIGHTNESS_NORMAL);
+        break;
+    }
 
   if (nextUpdate < now) {
     unsigned long millisToChange =  updateAnimation(now);
@@ -122,7 +131,8 @@ void loop() {
 
   LEDS.clear();
 
-  currentAnimation->update(now);
+  if (!daytime())
+    currentAnimation->update(now);
 
   overlays();
 

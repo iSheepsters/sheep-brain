@@ -37,7 +37,7 @@ boolean maybeRiding() {
 
   return touchDuration(BACK_SENSOR) > 8200 && extra >= 2
          ||  touchDuration(BACK_SENSOR) > 6200 && extra == 3;
-  
+
 }
 
 boolean definitivelyRiding() {
@@ -50,7 +50,7 @@ boolean definitivelyRiding() {
     extra ++;
   return touchDuration(BACK_SENSOR) > 15200 && extra >= 2
          || touchDuration(BACK_SENSOR) > 11000 && extra == 3;
-         
+
 }
 
 boolean isIgnored() {
@@ -69,8 +69,8 @@ boolean isTouched() {
 boolean qualityTouch() {
   return  touchDuration(BACK_SENSOR) > 17000
           ||  touchDuration(HEAD_SENSOR) > 13000
-          ||  touchDuration(BACK_SENSOR) + touchDuration(RUMP_SENSOR)/2
-          +  2*touchDuration(HEAD_SENSOR) > 30000;
+          ||  touchDuration(BACK_SENSOR) + touchDuration(RUMP_SENSOR) / 2
+          +  2 * touchDuration(HEAD_SENSOR) > 30000;
 }
 
 int privateTouches = 0;
@@ -88,22 +88,40 @@ boolean wouldInterrupt() {
   return true;
 }
 
-void updateState(unsigned long now) {
-  if (touchDuration(PRIVATES_SENSOR) > 2000 && now > lastPrivateTouch + 4000
-      && !(currentSoundPriority == 4 && currentSoundFile != NULL)) {
-    lastPrivateTouch = now;
-    privateTouches++;
-    myprintf(Serial, "inappropriate touch duration %d, num inappropriate touches = %d\n",
-             touchDuration(PRIVATES_SENSOR), privateTouches);
-    myprintf(Serial, "current value = %d, stable value = %d\n",
-             cap.filteredData((uint8_t) PRIVATES_SENSOR), stableValue[PRIVATES_SENSOR]);
-    inappropriateTouchSounds.playSound(now, false);
 
-    if (privateTouches >= 2 && currentSheepState != &violatedState) {
-      becomeViolated();
-      currentSheepState = &violatedState;
-      timeEnteredCurrentState = now;
-      return;
+
+unsigned long privateTouchDisabledUntil = 0;
+int privateTouchLoad = 0;
+unsigned long privateTouchFade = 0;
+
+
+void updateState(unsigned long now) {
+  if (privateTouchFade < now) {
+    if (privateTouchLoad > 0) privateTouchLoad--;
+    privateTouchFade = now + 2 * 60 * 1000;
+  }
+
+  if (now > privateTouchDisabledUntil &&  touchDuration(PRIVATES_SENSOR) > 2000 && now > lastPrivateTouch + 3000
+      && !(currentSoundPriority == 4 && currentSoundFile != NULL)) {
+    privateTouchLoad++;
+    if (privateTouchLoad > 6) {
+      privateTouchDisabledUntil = now + 15 * 60 * 1000;
+    } else {
+      lastPrivateTouch = now;
+      privateTouches++;
+
+      myprintf(Serial, "inappropriate touch duration %d, num inappropriate touches = %d\n",
+               touchDuration(PRIVATES_SENSOR), privateTouches);
+      myprintf(Serial, "current value = %d, stable value = %d\n",
+               cap.filteredData((uint8_t) PRIVATES_SENSOR), stableValue[PRIVATES_SENSOR]);
+      inappropriateTouchSounds.playSound(now, false);
+
+      if (privateTouches >= 2 && currentSheepState != &violatedState) {
+        becomeViolated();
+        currentSheepState = &violatedState;
+        timeEnteredCurrentState = now;
+        return;
+      }
     }
   }
 

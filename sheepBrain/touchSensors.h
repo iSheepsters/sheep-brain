@@ -15,6 +15,8 @@ enum TouchSensor {
   HEAD_SENSOR
 };
 
+
+extern uint16_t currentValue[numTouchSensors];
 extern uint16_t pettingDataPosition; 
 
 const uint8_t numPettingSensors = numTouchSensors;
@@ -29,6 +31,7 @@ extern uint16_t newTouched;
 extern void dumpConfiguration();
 extern void dumpData();
 extern void mySetup();
+
 
 
 extern void updateTouchData(unsigned long now, boolean debug);

@@ -98,7 +98,7 @@ boolean setupRadio() {
 
   // Defaults after init are 434.0MHz, 13dBm, Bw = 125 kHz, Cr = 4/5, Sf = 128chips/symbol, CRC on
   // change to < Bw = 31.25 kHz, Cr = 4/8, Sf = 512chips/symbol, CRC on. Slow+long range
-  if (false)
+  if (true)
     rf95.setModemConfig(RH_RF95::Bw31_25Cr48Sf512);
   else
     rf95.setModemConfig(RH_RF95::Bw125Cr45Sf128);// The default transmitter power is 13dBm, using PA_BOOST.

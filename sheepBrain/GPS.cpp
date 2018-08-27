@@ -139,7 +139,7 @@ float howCrowded() {
   for (int s = 1; s <= NUMBER_OF_SHEEP; s++)
     if (s != sheepNumber && isRecent(s)) { 
       float distance = distanceToSheep(s);
-      myprintf(Serial, "Sheep %d at distance", s);
+      myprintf(Serial, "Sheep %d at distance ", s);
       Serial.println(distance);
       answer += 10.0 / (10.0 + distance);
     }
