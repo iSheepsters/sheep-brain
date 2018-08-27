@@ -53,13 +53,6 @@ boolean definitivelyRiding() {
 
 }
 
-boolean isIgnored() {
-  return untouchDuration(BACK_SENSOR) > 15000
-         && untouchDuration(HEAD_SENSOR) > 15000
-         && untouchDuration(RUMP_SENSOR) > 10000
-         && untouchDuration(LEFT_SENSOR) > 10000
-         && untouchDuration(RIGHT_SENSOR) > 10000;
-}
 
 boolean isTouched() {
   return  touchDuration(BACK_SENSOR) > 400
@@ -67,10 +60,21 @@ boolean isTouched() {
 }
 
 boolean qualityTouch() {
-  return  touchDuration(BACK_SENSOR) > 17000
-          ||  touchDuration(HEAD_SENSOR) > 13000
-          ||  touchDuration(BACK_SENSOR) + touchDuration(RUMP_SENSOR) / 2
-          +  2 * touchDuration(HEAD_SENSOR) > 30000;
+  return  qualityTime(BACK_SENSOR) > 17000
+          ||  qualityTime(HEAD_SENSOR) > 13000
+          ||  qualityTime(BACK_SENSOR) + qualityTime(RUMP_SENSOR) / 2
+          +  2 * qualityTime(HEAD_SENSOR) > 30000;
+}
+
+boolean isIgnored() {
+  if (qualityTouch() || isTouched())
+    return false;
+  return untouchDuration(BACK_SENSOR) > 15000
+         && untouchDuration(HEAD_SENSOR) > 15000
+         && untouchDuration(RUMP_SENSOR) > 10000
+         && untouchDuration(LEFT_SENSOR) > 10000
+         && untouchDuration(RIGHT_SENSOR) > 10000
+         && untouchDuration(PRIVATES_SENSOR) > 10000;
 }
 
 int privateTouches = 0;
@@ -264,7 +268,7 @@ SheepState * NotInTheMoodState::update() {
 
 
 SheepState * ViolatedState::update() {
-  if (secondsSinceEnteredCurrentState() > 60 && !isTouched() && !wouldInterrupt())  {
+  if (qualityTime(PRIVATES_SENSOR) == 0 && secondsSinceEnteredCurrentState() > 60 && !isTouched() && !wouldInterrupt())  {
     return &boredState;
   }
   return this;

@@ -295,6 +295,8 @@ void loop() {
       myprintf(Serial, "next ambient sound in %d ms\n", nextAmbientSound - now);
       myprintf(Serial, "next baa in %d ms\n", nextBaa - now);
     }
+    if (ampOn)
+      Serial.println("  Amplifier on");
 
     myprintf(Serial, "  GPS readings %d good, %d bad\n", total_good_GPS, total_bad_GPS);
     if (getGPSFixQuality)
@@ -413,23 +415,29 @@ void checkForNextAmbientSound(unsigned long now) {
   if (musicPlayer.playingMusic || soundPlayedRecently(now)) {
     return;
   }
-  if (now > nextAmbientSound && currentSheepState -> playSound(now, true)) {
-    
-    unsigned long delay = 20000;
-    if (currentSoundFile -> duration > 0 && currentSoundFile -> duration < delay)
-    delay = currentSoundFile -> duration ;
-    delay = (delay + random(20000)) * howCrowded();
-    myprintf(Serial, "Started playing ambient sound, next in %dms\n", delay);
-    nextAmbientSound = now + delay;
-    return;
+  if (now > nextAmbientSound) {
+    if (currentSheepState -> playSound(now, true)) {
+      unsigned long delay = 20000;
+      if (currentSoundFile -> duration > 0 && currentSoundFile -> duration < delay)
+        delay = currentSoundFile -> duration ;
+      delay = (delay + random(20000)) * howCrowded();
+      myprintf(Serial, "Started playing ambient sound, next in %dms\n", delay);
+      nextAmbientSound = now + delay;
+      return;
+    } else
+      nextAmbientSound = now + 5000;
   }
-  if (now > nextBaa && nextBaa + 8000 < nextAmbientSound && baaSounds.playSound(now, true)) {
-    unsigned long delay = random(10000, 20000) * howCrowded();
-    Serial.println("Started playing baa");
-    myprintf(Serial, "Started playing baa sound, next in %dms\n", delay);
-    nextBaa = now + delay;
-    return;
+  if (now > nextBaa && nextBaa + 8000 < nextAmbientSound) {
+    if (baaSounds.playSound(now, true)) {
+      unsigned long delay = random(10000, 20000) * howCrowded();
+      Serial.println("Started playing baa");
+      myprintf(Serial, "Started playing baa sound, next in %dms\n", delay);
+      nextBaa = now + delay;
+      return;
+    } else
+      nextBaa = now + 3000 + random(1, 5000);
   }
+
 }
 
 unsigned long nextCommandCheck = 0;
@@ -488,7 +496,7 @@ void checkForCommand(unsigned long now) {
           if (thevol > 63) thevol = 63;
           if (thevol < 0) thevol = 0;
 
-          setVolume(thevol);
+          setAmpVolume(thevol);
           break;
       }
     }

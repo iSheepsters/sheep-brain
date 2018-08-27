@@ -1,5 +1,6 @@
 
 #include "all.h"
+#include "printf.h"
 
 const int midSaddle = 8;
 const  uint8_t HEAD_BOTTOM = 17;
@@ -188,7 +189,7 @@ void privateLights() {
 void rumpLights() {
   for (int x = HALF_GRID_WIDTH - 3; x < HALF_GRID_WIDTH + 3; x++)
     for (int y = GRID_HEIGHT - 4; y < GRID_HEIGHT - 1; y++)
-      getSheepLEDFor(x, y) = pettingOnly() ? CRGB::Pink : CRGB::Grey;
+      getSheepLEDFor(x, y) = pettingOnly() ? CRGB::Pink : CRGB::LightGrey;
 }
 
 void leftLights() {
@@ -196,24 +197,41 @@ void leftLights() {
   // left side
   for (int y = 4; y < 12; y++)
     getSheepLEDFor( QUARTER_GRID_WIDTH + 1, y)
-      = pettingOnly() ? CRGB::Pink : CRGB::Grey;
+      = pettingOnly() ? CRGB::Pink : CRGB::LightGrey;
 }
 void rightLights() {
   // right side
   for (int y = 4; y < 12; y++)
     getSheepLEDFor( QUARTER_GRID_WIDTH + HALF_GRID_WIDTH - 1, y)
-      = pettingOnly() ? CRGB::Pink : CRGB::Grey;
+      = pettingOnly() ? CRGB::Pink : CRGB::LightGrey;
 }
 void backLights() {
   // back side
-  for (int x = HALF_GRID_WIDTH - 1; x <= HALF_GRID_WIDTH; x++)
-    for (int y = midSaddle - 3; y < midSaddle + 3; y++)
-      getSheepLEDFor(x, y) = CRGB::LightGrey;
+  int q = commData.backTouchQuality + commData.backTouchQuality / 4;
+
+  for (int y = -4; y <=  4; y++) {
+    int brightness = 250 - abs(y) * 130 + q * 25;
+    brightness = max(0, min(255, brightness));
+    if (brightness > 200)
+      brightness = 255;
+    for (int x = HALF_GRID_WIDTH - 1; x <= HALF_GRID_WIDTH; x++)
+
+      getSheepLEDFor(x, y + midSaddle) = CRGB(brightness, brightness, brightness);
+  }
 }
 void headLights() {
   // head
   boolean flash = (millis() / 500) % 2 == 1;
-
+  int q =  commData.backTouchQuality / 2;
+  if (q > 7) q = 7;
+  if (q > 0)
+    myprintf("Setting %d extra head lights green\n", q);
+  for (int j = HEAD_BOTTOM - q; j < HEAD_BOTTOM; j++)
+    leds[ j] = CRGB::Green;
+  int startOfLeft = HEAD_HALF + HEAD_TOP + HEAD_EYES;
+  for (int j = startOfLeft;
+       j < startOfLeft + q; j++)
+    leds[ j] = CRGB::Green;
   for (int j = HEAD_BOTTOM + HEAD_EYES; j < HEAD_BOTTOM + HEAD_EYES + 2 * HEAD_TOP; j++)
 
     leds[ j] = CRGB::Green;
@@ -246,59 +264,59 @@ void violatedLights() {
     }
 }
 
-  void head() {
-    unsigned long now = millis();
-    if (blinking) {
-      if (nextBlinkEnds < now)
-        blinking = false;
-    }  else if (nextBlinkStarts < now) {
-      startBlink(now);
-    }
-    if (commData.sheepNum == 13) {
-      float v1 = sin(now / 1500.0 * PI);
-      if (!blinking) {
-        for (int j = 0; j < 50; j++) {
-          float v2 = sin((now + j * 717) / 500.0 * PI);
-          int b = 15 + ((v1 + v2) + 4.0) * 40;
-          if (b < 0) b = 0;
-          if (b > 255) b = 255;
-          leds[j] = CRGB(b, 0, 0);
-        }
+void head() {
+  unsigned long now = millis();
+  if (blinking) {
+    if (nextBlinkEnds < now)
+      blinking = false;
+  }  else if (nextBlinkStarts < now) {
+    startBlink(now);
+  }
+  if (commData.sheepNum == 13) {
+    float v1 = sin(now / 1500.0 * PI);
+    if (!blinking) {
+      for (int j = 0; j < 50; j++) {
+        float v2 = sin((now + j * 717) / 500.0 * PI);
+        int b = 15 + ((v1 + v2) + 4.0) * 40;
+        if (b < 0) b = 0;
+        if (b > 255) b = 255;
+        leds[j] = CRGB(b, 0, 0);
       }
-
-    } else
-      for (int j = 0; j < 50; j++)
-        if (isEye(j)) {
-          if (!blinking)
-            leds[j] = CRGB::White;
-        } else
-          leds[j] = CRGB::White;
-  }
-
-  void overlays() {
-
-    head();
-    updateTracers();
-    applyAndFadeFlash();
-
-    if (commData.state == Violated) {
-      violatedLights();
     }
-    uint8_t touchData = commData.currTouched;
 
-    if (touchData & 0x1)
-      privateLights();
-    if (touchData & 0x2)
-      rumpLights();
-    if (touchData & 0x4)
-      leftLights();
-    if (touchData & 0x8)
-      rightLights();
-    if (touchData & 0x10)
-      backLights();
-    if (touchData & 0x20)
-      headLights();
+  } else
+    for (int j = 0; j < 50; j++)
+      if (isEye(j)) {
+        if (!blinking)
+          leds[j] = CRGB::White;
+      } else
+        leds[j] = CRGB::White;
+}
 
+void overlays() {
+
+  head();
+  updateTracers();
+  applyAndFadeFlash();
+
+  if (commData.state == Violated) {
+    violatedLights();
   }
+  uint8_t touchData = commData.currTouched;
+
+  if (touchData & 0x1)
+    privateLights();
+  if (touchData & 0x2)
+    rumpLights();
+  if (touchData & 0x4)
+    leftLights();
+  if (touchData & 0x8)
+    rightLights();
+  if (touchData & 0x10)
+    backLights();
+  if (touchData & 0x20)
+    headLights();
+
+}
 
 

@@ -12,6 +12,9 @@ struct __attribute__ ((packed)) CommData {
   uint8_t sheepNum;
   enum State state;
   uint8_t currTouched;
+  uint8_t backTouchQuality; // seconds
+  uint8_t headTouchQuality; // seconds
+  boolean haveFix;
   enum DayState when;
 };
 

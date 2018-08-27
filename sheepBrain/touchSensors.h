@@ -1,3 +1,6 @@
+#ifndef _TOUCH_H
+#define _TOUCH_H
+
 #include <Wire.h>
 #include "Adafruit_MPR121.h"
 
@@ -38,9 +41,11 @@ extern void updateTouchData(unsigned long now, boolean debug);
 extern int16_t sensorValue(enum TouchSensor sensor);
 extern boolean isTouched(enum TouchSensor sensor);
 extern int32_t touchDuration(enum TouchSensor sensor);
+extern int32_t qualityTime(enum TouchSensor sensor);
 extern int32_t combinedTouchDuration(enum TouchSensor sensor);
 extern int32_t untouchDuration(enum TouchSensor sensor);
 extern boolean newTouch(enum TouchSensor sensor);
+extern void wasTouchedInappropriately();
 extern uint8_t calculateBaseline(uint16_t value);
 extern uint8_t CDTx_value(enum TouchSensor sensor);
 
@@ -50,3 +55,4 @@ extern uint8_t CDCx_value(enum TouchSensor sensor);
 extern float detectPetting(uint8_t touchSensor, uint16_t sampleSize, float * confidence);
 
 
+#endif

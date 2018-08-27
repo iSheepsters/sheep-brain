@@ -36,24 +36,37 @@ int8_t thevol = 55;
 uint8_t VS1053_volume = 0;
 unsigned long lastSoundStarted = 0;
 unsigned long lastSoundPlaying = 0;
+boolean ampOn = false;
 
 boolean wasPlayingMusic;
 
 // note: 0 is full volume
 void musicPlayerSetVolume(uint8_t v) {
+  ampOn = true;
   VS1053_volume = v;
   // right channel is always silent, we don't use it
   musicPlayer.setVolume(v, 0xfe);
+  setAmpVolume(thevol);
 }
 void musicPlayerFullVolume() {
+  ampOn = true;
+  Serial.println("musicPlayerFullVolume");
   VS1053_volume = 0;
   musicPlayer.setVolume(0, 0xfe);
+  setAmpVolume(thevol);
+}
+void musicPlayerNoVolume() {
+  ampOn = false;
+  Serial.println("musicPlayerNoVolume");
+  VS1053_volume = 0;
+  musicPlayer.setVolume(0, 0);
+  setAmpVolume(0);
 }
 
 volatile boolean musicPlayerReady = false;
 void setupSound() {
   if (true) {
-    if (! setVolume(0))
+    if (! setAmpVolume(0))
       Serial.println("Failed to set volume, MAX9744 not found!");
     else
       Serial.println("MAX9744 found");
@@ -67,7 +80,7 @@ void setupSound() {
   }
 
   Serial.println(F("VS1053 found"));
-  if (! setVolume(thevol))
+  if (! setAmpVolume(thevol))
     Serial.println("Failed to set volume, MAX9744 not found!");
   else
     Serial.println("MAX9744 found");
@@ -105,7 +118,7 @@ void updateSound(unsigned long now) {
 
 // Setting the volume is very simple! Just write the 6-bit
 // volume to the i2c bus. That's it!
-boolean setVolume(int8_t v) {
+boolean setAmpVolume(int8_t v) {
   if (!USE_AMPLIFIER) {
     Serial.println("Skipping amplifier");
     return false;
@@ -132,7 +145,6 @@ void slowlyStopMusic() {
     }
     Serial.println("Music slowly stopped");
     musicPlayer.stopPlaying();
-    musicPlayerFullVolume();
   }
   noteEndOfMusic();
 }
@@ -168,6 +180,8 @@ void noteEndOfMusic() {
   if (!wasPlayingMusic)
     return;
   wasPlayingMusic = false;
+  musicPlayerNoVolume();
+
   boolean isBaa = true;
   if (currentSoundFile) {
     currentSoundFile->lastPlaying = now;

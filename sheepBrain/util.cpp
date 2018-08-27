@@ -7,6 +7,11 @@ uint16_t batteryVoltageRaw() {
   return analogRead(A2);
 }
 
+ uint8_t millisToSecondsCapped(unsigned long ms) {
+  ms = ms/1000;
+  if (ms < 255) return ms;
+  return 255;
+}
 
 SheepInfo & getSheep() {
   if (sheepNumber == 0)

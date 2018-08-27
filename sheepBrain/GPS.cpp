@@ -93,6 +93,9 @@ time_t BRC_now() {
   return now() - 7 * 60 * 60;
 }
 
+boolean haveFixNow() {
+  return haveFix;
+}
 
 boolean inCorral(int sheep) {
   float corralEW = FEET_PER_DEGREE_LONGITUDE * (getSheep(sheep).longitude - CORRAL_LONGITUDE);

@@ -98,6 +98,7 @@ uint16_t ago( unsigned long t,  unsigned long now) {
   return (now - t) / 1000;
 }
 
+
 void SoundCollection::verboseList(unsigned long now, boolean ambientSound) {
 
 
@@ -115,14 +116,16 @@ boolean soundPlayedRecently(unsigned long now) {
   return lastSoundPlaying + 10000L > now && now > 18000;
 }
 
+unsigned long nextVerboseList = 0;
 boolean SoundCollection::playSound(unsigned long now, boolean ambientSound) {
+  myprintf(Serial, "trying to play sound for %s\n", name);
   if (ambientSound && soundPlayedRecently(now)) {
     Serial.print("Too soon for any sound from ");
     Serial.println(name);
     return false;
   }
   SoundFile *s  = chooseSound(now, ambientSound);
-  if (s == NULL) {
+  if (nextVerboseList < now && s == NULL) {
     if (ambientSound)
       Serial.print("No ambient sound found for ");
     else
@@ -132,9 +135,11 @@ boolean SoundCollection::playSound(unsigned long now, boolean ambientSound) {
 
     myprintf(Serial, "Last sound %d\n", ago(lastSoundPlaying, now));
     verboseList(now, ambientSound);
+    nextVerboseList = now + 30000;
     return false;
   };
   slowlyStopMusic();
+  musicPlayerFullVolume();
 
   boolean result = false;
   if (common)
@@ -143,6 +148,7 @@ boolean SoundCollection::playSound(unsigned long now, boolean ambientSound) {
     result = playFile("%d/%s/%s", sheepNumber, name, s->name);
   if (!result) {
     myprintf(Serial, "Could not start %s/%s\n", name, s->name);
+    musicPlayerNoVolume();
     return false;
   } else {
     myprintf(Serial, "Starting %s/%s at %d\n", name, s->name, now);
@@ -216,9 +222,10 @@ SoundFile * SoundCollection::chooseSound(unsigned long now,  boolean ambientSoun
   return leastRecentlyPlayed(now, ambientSound);
 }
 
+const boolean debug_eligible = false;
 boolean SoundFile::eligibleToPlay(unsigned long now, boolean ambientSound) {
   if (now == 0) {
-    myprintf(Serial, "%s eligable, not played before\n", name);
+    if (debug_eligible) myprintf(Serial, "%s eligable, not played before\n", name);
     return true;
   }
   uint32_t minimumQuietTime = 10000;
@@ -231,21 +238,22 @@ boolean SoundFile::eligibleToPlay(unsigned long now, boolean ambientSound) {
   uint32_t minimumRepeatTime = d * 2 + 120000L;
 
   boolean result = lastPlaying == 0 || lastPlaying + minimumRepeatTime < now;
-  if (result) {
-    if (lastPlaying == 0)
-      myprintf(Serial, "%s eligable: not played before\n",  name);
-    else
-      myprintf(Serial, "%s eligable: Last playing %d seconds ago; %d minimum\n",
+  if (debug_eligible) { // list reasons
+    if (result) {
+      if (lastPlaying == 0)
+        myprintf(Serial, "%s eligable: not played before\n",  name);
+      else
+        myprintf(Serial, "%s eligable: Last playing %d seconds ago; %d minimum\n",
+                 name, (now - lastPlaying) / 1000, minimumRepeatTime / 1000);
+      if (ambientSound) myprintf(Serial, "  last sound %d seconds ago, minimum quiet %d seconds\n",
+                                   (now - lastSoundPlaying) / 1000, minimumQuietTime / 1000);
+    } else if (false) {
+      myprintf(Serial, "%s not eligable: Last playing %d seconds ago; %d minimum\n",
                name, (now - lastPlaying) / 1000, minimumRepeatTime / 1000);
-    if (ambientSound) myprintf(Serial, "  last sound %d seconds ago, minimum quiet %d seconds\n",
-                                 (now - lastSoundPlaying) / 1000, minimumQuietTime / 1000);
+      if (ambientSound) myprintf(Serial, "  last sound %d seconds ago, minimum quiet %d seconds\n",
+                                   (now - lastSoundPlaying) / 1000, minimumQuietTime / 1000);
 
-  } else if (false) {
-    myprintf(Serial, "%s not eligable: Last playing %d seconds ago; %d minimum\n",
-             name, (now - lastPlaying) / 1000, minimumRepeatTime / 1000);
-    if (ambientSound) myprintf(Serial, "  last sound %d seconds ago, minimum quiet %d seconds\n",
-                                 (now - lastSoundPlaying) / 1000, minimumQuietTime / 1000);
-
+    }
   }
   return result;
 }

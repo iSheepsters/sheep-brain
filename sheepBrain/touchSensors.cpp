@@ -20,8 +20,11 @@ uint16_t maxRecentValue[numTouchSensors];
 uint16_t stableValue[numTouchSensors];
 int32_t timeTouched[numTouchSensors];
 int32_t timeUntouched[numTouchSensors];
+int32_t qualityTimeIntervals[numTouchSensors];
+unsigned long firstTouchThisInterval[numTouchSensors];
 uint16_t touchedThisInterval;
 unsigned long nextTouchInterval = 2000;
+unsigned long lastTouchInterval = 0;
 const uint16_t touchInterval = 1000;
 const uint16_t recentInterval = 15000;
 unsigned long nextRecentInterval = 2000;
@@ -107,6 +110,7 @@ void setupTouch() {
       myprintf(Serial, "sensor %d not connected\n", i);
     else if (value > 10)
       stableValue[i] = value - 2;
+    firstTouchThisInterval[i] = 0;
   }
   nextRecentInterval = nextTouchInterval = millis() + 1000;
   Serial.println("done with touch ");
@@ -142,13 +146,29 @@ void dumpTouchData() {
   Serial.println();
 }
 
+void wasTouchedInappropriately() {
+  qualityTimeIntervals[BACK_SENSOR] = 0;
+  qualityTimeIntervals[HEAD_SENSOR] = 0;
+  qualityTimeIntervals[RUMP_SENSOR] = 0;
+
+}
 
 uint8_t touchThreshold(uint8_t i) {
-  if (i == (uint8_t) LEFT_SENSOR || i == (uint8_t) RIGHT_SENSOR)
-    return 8;
-  if (i == (uint8_t) PRIVATES_SENSOR)
-    return 40;
-  return 15;
+  enum TouchSensor sensor = (TouchSensor) i;
+  switch (sensor) {
+    case LEFT_SENSOR:
+    case RIGHT_SENSOR:
+    case HEAD_SENSOR:
+      return 5;
+    case PRIVATES_SENSOR:
+      return 30;
+    case BACK_SENSOR:
+    case RUMP_SENSOR:
+    default:
+      return 10;
+
+  }
+
 }
 
 int16_t sensorValue(enum TouchSensor sensor) {
@@ -168,8 +188,11 @@ void updateTouchData(unsigned long now, boolean debug) {
         int16_t threshold = touchThreshold(i);
         if (lastTouched & _BV(i))
           threshold = threshold / 2;
-        if (currentValue[i] < stableValue[i] - threshold)
+        if (value < 750 && currentValue[i] < stableValue[i] - threshold || currentValue[i] < 670) {
           currTouched |= 1 << i;
+          if ( firstTouchThisInterval[i] == 0)
+            firstTouchThisInterval[i] = now;
+        }
       }
     }
 
@@ -216,21 +239,43 @@ void updateTouchData(unsigned long now, boolean debug) {
     }
 
   if (nextTouchInterval < now) {
+    // advance to next touch interval
     for (int i = 0; i < numTouchSensors; i++) {
+
       if ((touchedThisInterval & _BV(i)) != 0) {
         timeTouched[i]++;
+        qualityTimeIntervals[i]++;
+        if (qualityTimeIntervals[i] > 20)
+          qualityTimeIntervals[i] = 20;
         timeUntouched[i] = 0;
+        firstTouchThisInterval[i] = now;
         if (debug) Serial.print(timeTouched[i]);
       } else {
         timeTouched[i] = 0;
+        firstTouchThisInterval[i] = 0;
         timeUntouched[i]++;
+        int q = qualityTimeIntervals[i] - timeUntouched[i];
+        if (q < 0)
+          qualityTimeIntervals[i] = 0;
+        else
+          qualityTimeIntervals[i] = q;
+
         if (debug) Serial.print(-timeUntouched[i]);
       }
       if (debug) Serial.print(" ");
+
     }
     if (debug) Serial.println();
+    Serial.print("Touch: ");
+    for (int i = 0; i < numTouchSensors; i++) {
+      myprintf(Serial, "%2d %2d %2d  ", timeTouched[i], qualityTimeIntervals[i], timeUntouched[i]);
+    }
+    Serial.println();
+
     touchedThisInterval = currTouched;
+    lastTouchInterval = nextTouchInterval;
     nextTouchInterval = now + touchInterval;
+
   } else {
     touchedThisInterval |= currTouched;
 
@@ -262,8 +307,24 @@ int32_t combinedTouchDuration(enum TouchSensor sensor) {
   return -timeUntouched[sensor] * touchInterval;
 
 }
+int32_t recentTouchDuration(enum TouchSensor sensor) {
+  int8_t i = sensor;
+  if ( !(touchedThisInterval & _BV(i)) )
+    return 0;
+  if ( firstTouchThisInterval[i] < lastTouchInterval) {
+    myprintf(Serial, "Touch error; firstTouchThisInterval[%d] = %d, lastTouchInterval=%d\n",
+             i, firstTouchThisInterval[i], lastTouchInterval);
+    return millis() - lastTouchInterval;
+  }
+  return millis() - firstTouchThisInterval[i];
+}
+
 int32_t touchDuration(enum TouchSensor sensor) {
-  return timeTouched[sensor] * touchInterval;
+  return timeTouched[sensor] * touchInterval
+         + recentTouchDuration(sensor);
+}
+int32_t qualityTime(enum TouchSensor sensor) {
+  return qualityTimeIntervals[sensor] * touchInterval + recentTouchDuration(sensor);
 }
 int32_t untouchDuration(enum TouchSensor sensor) {
   return timeUntouched[sensor] * touchInterval;

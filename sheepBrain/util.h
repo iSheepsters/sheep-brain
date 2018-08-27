@@ -13,6 +13,8 @@ extern uint16_t totalYield;
 extern void setupDelay(uint16_t ms);
 extern void yield(uint16_t ms);
 
+extern uint8_t millisToSecondsCapped(unsigned long ms);
+
 extern unsigned long updateGPSLatency();
 
 

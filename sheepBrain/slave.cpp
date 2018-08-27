@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include "slave.h"
+#include "touchSensors.h"
 #include "printf.h"
 #include "Print.h"
 #include "util.h"
@@ -29,6 +30,9 @@ uint8_t sendComm(unsigned long now) {
     commData.state = currentSheepState->state;
 
     commData.currTouched = currTouched;
+    commData.backTouchQuality = millisToSecondsCapped(qualityTime(BACK_SENSOR));
+    commData.headTouchQuality = millisToSecondsCapped(qualityTime(HEAD_SENSOR));
+    commData. haveFix = haveFixNow();
     commData.when = Night;
     uint8_t * p = (uint8_t *)&commData;
     if (false) {

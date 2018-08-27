@@ -8,6 +8,7 @@
 extern Adafruit_GPS GPS;
 extern uint32_t fixCount;
 extern unsigned long lastGPSReading;
+extern boolean haveFixNow();
 extern boolean setupGPS();
 extern boolean discardGPS();
 extern void quickGPSUpdate();

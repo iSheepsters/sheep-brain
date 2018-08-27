@@ -287,14 +287,9 @@ class ShowOPC : public Animation {
         ok = true;
     }
     void initialize(int idx) {
-      myprintf("Initialize opc %d\n", idx);
-      index = idx;
+      int index = (idx+commData.sheepNum)%numberOfOPCFiles;
+      myprintf("Initialize opc. index= %d, sheepNum = %d, opc=%d\n", idx);
       ok = false;
-      if (index < 0 || index >= numberOfOPCFiles) {
-        myprintf("opc index of %d out of bounds\n", index);
-        index = 0;
-        return;
-      }
       AnimationFile thisAnimation = animationFile[index];
       myprintf("Opening %s\n",  thisAnimation.name );
       if (!file.open(&dirFile, thisAnimation.name , O_READ)) {

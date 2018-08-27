@@ -95,7 +95,7 @@ unsigned long nextUpdate = 0;
 int counter = 0;
 
 boolean isDaytime() {
-  int hour = hour();
+  int h = hour();
   return h >= 7 && h <= 18;
 }
 
@@ -107,7 +107,7 @@ void loop() {
   digitalWrite(led, (now / 1000) % 2 == 1);
 
   if (isDaytime())
-    LEDS.setBrightness(BRIGHTNESS_BORED);
+    LEDS.setBrightness(255);
   else
     switch (currState) {
       case   Bored:
@@ -124,14 +124,21 @@ void loop() {
 
     myprintf( "sheepSlaveBrain state %d, %d:%02d:%02d\n",
               currState, hour(), minute(), second());
-    myprintf(" currentEpoc %d, %d feet to the man, %dms to next epoc\n", animationEPOC,
-             (int) commData.feetFromMan, millisToChange);
+
+    myprintf(" currentEpoc %d, %dms to next epoc, %d feet to the man", animationEPOC,
+             millisToChange,  (int) commData.feetFromMan);
+    if (commData.haveFix)
+      Serial.println(", fix current");
+    else
+      Serial.println();
+    myprintf(" touched %02x, quality head = %d, quality back = %d\n",
+             commData.currTouched, commData.headTouchQuality, commData.backTouchQuality);
     nextUpdate = now + 5000;
   }
 
   LEDS.clear();
 
-  if (!daytime())
+  if (true || !isDaytime())
     currentAnimation->update(now);
 
   overlays();

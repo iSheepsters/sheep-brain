@@ -3,6 +3,7 @@
 #include <RH_RF95.h>
 
 #include "util.h"
+#include "sound.h"
 #include "radio.h"
 #include "printf.h"
 #include "secret.h"
@@ -149,8 +150,8 @@ void updateRadio() {
   if (!radioAvailable) return;
   if (badPacketReport < badPackets) {
     myprintf(Serial, "Received %d bad packets\n", badPackets);
-    badPacketReport = 10 + 3*badPacketReport/2;
-    
+    badPacketReport = 10 + 3 * badPacketReport / 2;
+
   }
   while (rf95.available()) {
     uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
@@ -216,6 +217,10 @@ void updateRadio() {
   uint16_t radioWindow = (trueTime % RADIO_EPOC) / RADIO_WINDOW;
   if (radioEpoc != lastEpoc && radioWindow == sheepNumber) {
     myprintf(Serial, "Sending out radio packet for epoc %d\n", radioEpoc);
+    if (ampOn)
+      Serial.println("amp on");
+    else
+      Serial.println("amp off");
     lastEpoc = radioEpoc;
     hashInfo.sheepNumber = sheepNumber;
     hashInfo.currentTime = trueTime;
