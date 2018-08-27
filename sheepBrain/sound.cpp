@@ -160,6 +160,7 @@ void setNextAmbientSound(unsigned long durationOfLastSound) {
 }
 
 void noteEndOfMusic() {
+  unsigned long now = millis();
   if (musicPlayer.playingMusic) {
     Serial.println("Music still playing");
     return;
@@ -169,7 +170,7 @@ void noteEndOfMusic() {
   wasPlayingMusic = false;
   boolean isBaa = true;
   if (currentSoundFile) {
-    currentSoundFile->lastPlaying = millis();
+    currentSoundFile->lastPlaying = now;
     if (currentSoundFile->duration == 0) {
       currentSoundFile->duration = currentSoundFile->lastPlaying - currentSoundFile->lastStarted;
       myprintf(Serial, "%d ms for %s/%s\n",
@@ -183,13 +184,15 @@ void noteEndOfMusic() {
   }
   if (!isBaa) {
     setNextAmbientSound(lastSoundPlaying - lastSoundStarted);
-    nextBaa = millis() + random(10000, 20000) * howCrowded();
+    nextBaa = now + random(10000, 20000) * howCrowded();
     myprintf(Serial, "ambient ended, next sound in %d seconds\n",
-             (nextAmbientSound - millis()) / 1000);
+             (nextAmbientSound - now) / 1000);
   }
   nextBaa = millis() + random(10000, 20000) * howCrowded();
-  myprintf(Serial, "next baa in %d seconds\n",
-           (nextBaa - millis()) / 1000);
+  if (nextAmbientSound < now + 4000)
+    nextAmbientSound = now + 4000;
+  myprintf(Serial, "next baa in %d seconds, next ambient in %d\n",
+           (nextBaa - now) / 1000, (nextAmbientSound - now) / 1000);
 }
 
 

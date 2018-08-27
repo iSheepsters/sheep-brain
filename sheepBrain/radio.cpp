@@ -125,7 +125,7 @@ boolean findNextWaywardSheep() {
   boolean continueLooking = true;
   while (continueLooking) {
     count++;
-    if (count > NUMBER_OF_SHEEP) 
+    if (count > NUMBER_OF_SHEEP)
       return false;
     s = nextSheep(s);
     if (s == lastWaywardSheep)
@@ -142,19 +142,38 @@ boolean findNextWaywardSheep() {
 }
 
 HashInfo hashInfo;
+int badPackets = 0;
+int badPacketReport = 10;
 
 void updateRadio() {
   if (!radioAvailable) return;
+  if (badPacketReport < badPackets) {
+    myprintf(Serial, "Received %d bad packets\n", badPackets);
+    badPacketReport = 10 + 3*badPacketReport/2;
+    
+  }
   while (rf95.available()) {
     uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
     uint8_t len = sizeof(buf);
 
     if (rf95.recv(buf, &len)) {
+      HashInfo hashInfo;
+
+
+
       switch ((enum PacketKind) buf[0]) {
         case InfoPacket: {
             RadioInfo * received = (RadioInfo *)buf;
             uint8_t fromNum = received->sheepNumber;
             SheepInfo & from = received->myInfo;
+            hashInfo.sheepNumber = fromNum;
+            hashInfo.currentTime = received->currentTime;
+            if (hashInfo.getHash() != received->hashValue) {
+              Serial.println("Radio Info with bad hash value, rejecting");
+              badPackets++;
+              break;
+            }
+
             myprintf(Serial, "Received info packet of length %d from sheep %d\n", len, fromNum);
             memcpy(&getSheep(fromNum), &from,  sizeof(SheepInfo));
             logRadioUpdate(fromNum, from);
@@ -169,14 +188,21 @@ void updateRadio() {
         case DistressPacket: {
             DistressInfo * received = (DistressInfo *)buf;
             uint8_t fromNum = received->sheepNumber;
-
+            hashInfo.sheepNumber = fromNum;
+            hashInfo.currentTime = received->currentTime;
+            if (hashInfo.getHash() != received->hashValue) {
+              Serial.println("Radio Distress packet with bad hash value, rejecting");
+              badPackets++;
+              break;
+            }
             myprintf(Serial, "Received distress packet of length %d from sheep %d\n", len, fromNum);
             myprintf(Serial, "msg: %s\n",  received->msg);
             logRadioDistress(fromNum, distressInfo.currentTime, getSheep(fromNum), received->msg);
             break;
           }
         default: {
-            myprintf(Serial, "Received unknown packet of length %d of type %d\n", len, buf[0]);
+            //myprintf(Serial, "Received unknown packet of length %d of type %d\n", len, buf[0]);
+            badPackets++;
           }
 
       }
@@ -217,7 +243,7 @@ void updateRadio() {
     }
     uint8_t * data = (uint8_t *)&radioInfo;
     myprintf(Serial, "Sending radio packet of size %d\n", length);
-      
+
     if (rf95.send(data,  length)) {
       // rf95.waitPacketSent();
     } else

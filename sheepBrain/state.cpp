@@ -36,8 +36,8 @@ boolean maybeRiding() {
     extra ++;
 
   return touchDuration(BACK_SENSOR) > 8200 && extra >= 2
-         ||  touchDuration(BACK_SENSOR) > 6200 && extra == 3
-         || touchDuration(RUMP_SENSOR) > 10500;
+         ||  touchDuration(BACK_SENSOR) > 6200 && extra == 3;
+  
 }
 
 boolean definitivelyRiding() {
@@ -49,8 +49,8 @@ boolean definitivelyRiding() {
   if (touchDuration(RUMP_SENSOR) > 3550)
     extra ++;
   return touchDuration(BACK_SENSOR) > 15200 && extra >= 2
-         || touchDuration(BACK_SENSOR) > 11000 && extra == 3
-         || touchDuration(RUMP_SENSOR) > 12500;
+         || touchDuration(BACK_SENSOR) > 11000 && extra == 3;
+         
 }
 
 boolean isIgnored() {
@@ -68,8 +68,9 @@ boolean isTouched() {
 
 boolean qualityTouch() {
   return  touchDuration(BACK_SENSOR) > 17000
-          ||  touchDuration(RUMP_SENSOR) > 25000  ||  touchDuration(HEAD_SENSOR) > 17000
-          ||  touchDuration(BACK_SENSOR) + touchDuration(RUMP_SENSOR) +  touchDuration(HEAD_SENSOR) > 30000;
+          ||  touchDuration(HEAD_SENSOR) > 13000
+          ||  touchDuration(BACK_SENSOR) + touchDuration(RUMP_SENSOR)/2
+          +  2*touchDuration(HEAD_SENSOR) > 30000;
 }
 
 int privateTouches = 0;
@@ -121,6 +122,15 @@ void updateState(unsigned long now) {
              combinedTouchDuration(LEFT_SENSOR),
              combinedTouchDuration(RIGHT_SENSOR),
              combinedTouchDuration(RUMP_SENSOR));
+    if (maybeRiding()) Serial.println("maybe riding");
+    if (definitivelyRiding()) Serial.println("definitely riding");
+    if (isIgnored()) Serial.println("is ignored");
+    if (qualityTouch()) Serial.println("quality touched");
+    else if (isTouched()) Serial.println("is touched");
+    if (privateTouches > 0)
+      myprintf(Serial, "%d private touches\n", privateTouches);
+
+
     if (!musicPlayer.playingMusic ||
         newState->sounds.priority >= currentSoundPriority) {
       newState->sounds.playSound(now, false);

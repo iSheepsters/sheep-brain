@@ -191,8 +191,9 @@ SoundFile * SoundCollection::leastRecentlyPlayed(unsigned long now,
 
 SoundFile * SoundCollection::chooseSound(unsigned long now,  boolean ambientSound) {
   if (count == 0) return NULL;
+  if (this == & violatedSounds)
+    ambientSound = false;
   if (random(3) <= 1) {
-    // otherwise, examine in random order
     // return first eligable sound
     int firstChoice = random(count);
     if (count > 1)
