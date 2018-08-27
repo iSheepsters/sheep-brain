@@ -3,5 +3,7 @@
 
 void setupComm();
 
+extern volatile boolean receivedMsg;
+
 
 

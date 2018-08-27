@@ -6,7 +6,7 @@
 #include <Time.h>
 
 double ANIMATION_FEET_PER_SECOND = 5.0;
-const int ANIMATION_EPOC_SECONDS = 30;
+const int ANIMATION_EPOC_SECONDS = 120;
 
 const time_t BEFORE_BURN = 1535000000;
 
@@ -16,18 +16,53 @@ double fractionalTime() {
   return (millis() % 1000) / 1000.0;
 }
 
+double lastManTime;
+unsigned long lastManTimeAt = 0;
 double manTime() {
+  if (!receivedMsg) {
+    return millis() / 1000.0;
+  }
+  unsigned long ms = millis();
   double result = (now() - BEFORE_BURN) + fractionalTime();
-  return result - commData.feetFromMan / ANIMATION_FEET_PER_SECOND;
+  result = result - commData.feetFromMan / ANIMATION_FEET_PER_SECOND;
+  unsigned interval = ms - lastManTimeAt;
+  if (lastManTimeAt != 0 && interval < 2000
+      && commData.haveFix && ms > 10000) {
+    double walkingDistance = interval / 100.0;
+    double expected = lastManTime + interval / 1000.0;
+    double expectedLow = expected - walkingDistance / ANIMATION_FEET_PER_SECOND - 1;
+    double expectedHigh = expected + walkingDistance / ANIMATION_FEET_PER_SECOND + 1;
+    if (result < expectedLow) {
+      Serial.println("result < expectedLow");
+      Serial.println(lastManTime);
+      Serial.println(result);
+      Serial.println(expectedLow);
+      Serial.println(commData.feetFromMan);
+      Serial.println(now() - BEFORE_BURN);
+
+      result = (expectedLow + result) / 2;
+    } else if (result > expectedHigh) {
+      Serial.println("result > expectedHigh");
+      Serial.println(lastManTime);
+      Serial.println(result);
+      Serial.println(expectedHigh);
+      Serial.println(commData.feetFromMan);
+      Serial.println(now());
+      result = (result + expectedHigh) / 2;
+    }
+  }
+  lastManTime = result;
+  lastManTimeAt = ms;
+  return result;
 }
 
 long millisToNextEpoc() {
   if (!scheduleSetUp) return ANIMATION_EPOC_SECONDS;
   double timeRemaining = (animationEPOC + 1)  * ANIMATION_EPOC_SECONDS
                          - manTime();
-  if (false) {
-    myprintf("current epoc started at: %8d\n", animationEPOC * ANIMATION_EPOC_SECONDS);
-    myprintf("next epoc starts at:     %8d\n", (animationEPOC + 1) * ANIMATION_EPOC_SECONDS);
+  if (true) {
+    myprintf("current epoc started at: % 8d\n", animationEPOC * ANIMATION_EPOC_SECONDS);
+    myprintf("next epoc starts at:     % 8d\n", (animationEPOC + 1) * ANIMATION_EPOC_SECONDS);
     Serial.print("distance to man: ");
     Serial.println(commData.feetFromMan);
     Serial.print("now time: ");
@@ -45,20 +80,25 @@ long millisToNextEpoc() {
 
 unsigned long updateAnimation(unsigned long now) {
   long remaining = millisToNextEpoc();
+  if (remaining >= 0)
+    return remaining;
+  int oldEpoc = animationEPOC;
   while (remaining < 0) {
-
     animationEPOC++;
-    myprintf("Advancing to animation epoc %d\n", animationEPOC);
-    nextAnimation();
+
     remaining += 1000 * ANIMATION_EPOC_SECONDS;
   }
+  myprintf("Advanced % d animations to animation epoc % d\n",
+           animationEPOC - oldEpoc,
+           animationEPOC);
+  nextAnimation();
   return remaining;
 };
 
 boolean scheduleSetUp = false;
 void setupSchedule() {
   Serial.println("Setting up schedule");
-  myprintf("BRC time %d:%02d:%02d\n", hour(), minute(), second());
+  myprintf("BRC time %d/%d %d:%02d:%02d\n", month(), day(), hour(), minute(), second());
   Serial.print("distance to man: ");
   Serial.println(commData.feetFromMan);
   myprintf("Man time: ");
@@ -91,12 +131,11 @@ int numberOfAnimations = 0;
 int numberOfOPCFiles = 0;
 
 boolean isGPS(int i) {
-  return false;
-  return i % 5 == 0;
+  return i % 11 == 0;
 }
 boolean isCustom(int i) {
-  return false;
-  return i % 8 == 0;
+  return i%2 == 0;
+  return i % 15 == 0;
 }
 boolean isBasic(int i) {
   return false;
@@ -150,12 +189,13 @@ void setupAnimations() {
   sd.begin();
   if (!customAnimations.open(sd.vwd(), "custom", O_READ)) {
     opcOK = false;
-    Serial.println("Open custom/ failed, ignoring animations");
+    Serial.println("Open custom / failed, ignoring animations");
     return;
   }
+  // customAnimations.ls(LS_SIZE);
   if (!dirFile.open(sd.vwd(), "opcFiles", O_READ)) {
     opcOK = false;
-    Serial.println("Open opcFiles/ failed, ignoring animations");
+    Serial.println("Open opcFiles / failed, ignoring animations");
     return;
   }
   FatFile file;
@@ -174,13 +214,15 @@ void setupAnimations() {
     if (isOPC(file)) {
 
       file.getName(animationFile[i].name, MAX_FILE_NAME_LENGTH);
+      //myprintf( "found %d %s\n", i, animationFile[i].name);
       i++;
     }
     file.close();
   }
   numberOfAnimations = countAnimations();
-  myprintf("%d opc files, %d total animations\n", numberOfOPCFiles,
+  myprintf(" %d opc files, %d total animations\n", numberOfOPCFiles,
            numberOfAnimations);
+  nextAnimation();
 
 }
 
@@ -193,6 +235,9 @@ class RotateRainbowUp : public Animation {
     };
     void initialize(int idx) {
       index = idx;
+    }
+    virtual void printName() {
+      myprintf("Rainbow up animation %d\n", index);
     }
     virtual void update(unsigned long now) {
       for (int x = 0; x < HALF_GRID_WIDTH; x++)
@@ -222,16 +267,25 @@ class GPSHue : public Animation {
       myprintf("gps hue animation %d\n", index);
     }
     virtual void update(unsigned long timeMillis) {
-      float hue = now() + (timeMillis % 1000) / 1000.0 - commData.feetFromMan / ANIMATION_FEET_PER_SECOND;
-      for (int x = 0; x < HALF_GRID_WIDTH; x++)
-        for (int y = 0; y < GRID_HEIGHT; y++) {
-          uint8_t v = 220;
-          CRGB led = CHSV(x + hue, 255, v);
-          getSheepLEDFor(HALF_GRID_WIDTH + x, y) = led;
-          getSheepLEDFor(HALF_GRID_WIDTH - 1 - x, y) = led;
+      float mTime = manTime();
+      uint8_t hue = (uint8_t) (mTime * 10);
+      for (int y = 0; y < GRID_HEIGHT; y++) {
+        uint16_t v = 150 + 150 * sin(
+                       (-y + millis() / 200.0 ) * 5.0 * PI / GRID_HEIGHT);
+        if (v < 0)
+          v = 0;
+        else if (v > 255)
+          v = 255;
+        uint8_t hue_y = hue - y;
+
+
+        for (int x = 0; x < GRID_WIDTH; x++) {
+          CRGB led = CHSV(hue_y, 255, v);
+
+          getSheepLEDFor(x, y) = led;
         }
-      hue++;
-    }
+      }
+    };
 };
 
 
@@ -245,12 +299,16 @@ class ShowOPC : public Animation {
     int frameRate;
     int bytesRead = 0;
     boolean ok;
+    boolean custom;
   public:
     ShowOPC()  {
       kind = OPC_KIND;
     };
     virtual void printName() {
-      myprintf("Opc animation %d\n", index);
+      if (custom)
+        myprintf("custom opc animation %d\n", index);
+      else
+        myprintf("Opc animation %d\n", index);
     }
     boolean readFirstHeader() {
       int count = file.read(header, 4);
@@ -273,9 +331,10 @@ class ShowOPC : public Animation {
       return true;
     }
     void initializeCustom(int idx) {
-      myprintf("Initialize custom %d\n", idx);
+      custom = true;
       index = idx;
       ok = false;
+      bytesRead = 0;
       char buffer[20];
       snprintf(buffer, 20, "%d.opc", idx);
       myprintf("Opening custom/%s\n",  buffer);
@@ -283,13 +342,22 @@ class ShowOPC : public Animation {
         myprintf("Could not open %s\n", buffer );
         return;
       }
-      if (readFirstHeader())
+      if (readFirstHeader()) {
         ok = true;
+        myprintf("Read first header for %s\n", buffer);
+      } else {
+        myprintf("Failed to read first header for %s\n", buffer);
+        file.close();
+        initialize(idx);
+      }
+
     }
     void initialize(int idx) {
-      int index = (idx+commData.sheepNum)%numberOfOPCFiles;
-      myprintf("Initialize opc. index= %d, sheepNum = %d, opc=%d\n", idx);
+      custom = false;
+      index = numberOfOPCFiles == 0 || !receivedMsg ? 0 : (idx + commData.sheepNum) %numberOfOPCFiles;
+      myprintf("Initialize opc. index = %d, sheepNum = %d, opc = %d\n", idx);
       ok = false;
+      bytesRead = 0;
       AnimationFile thisAnimation = animationFile[index];
       myprintf("Opening %s\n",  thisAnimation.name );
       if (!file.open(&dirFile, thisAnimation.name , O_READ)) {
@@ -328,7 +396,7 @@ class ShowOPC : public Animation {
       count = file.read(buf, length);
       bytesRead += count;
       if (count != length) {
-        myprintf("%d frame bytes read, %d expected\n", count, length);
+        myprintf(" %d frame bytes read, %d expected\n", count, length);
 
         ok = false;
         return ;
@@ -361,24 +429,39 @@ Animation * getAnimation() {
   myprintf("get animation %d %d %d %d %d\n", numberOfAnimations, animationEPOC, index, k, kindIndex);
   Animation * result = NULL;
   switch (k) {
-    case GPS_KIND : result = &animationGPSHue;
+    case GPS_KIND :
+      result = &animationGPSHue;
       result->initialize(kindIndex);
-      break;
-    case OPC_KIND : result = & animationShowOPC;
+      Serial.println("initialized GPS animation");
+      return result;
+
+    case OPC_KIND :
+      result = & animationShowOPC;
+      myprintf("opc index = %d\n", kindIndex);
       result->initialize(kindIndex);
-      break;
-    case CUSTOM_KIND : result =  &animationShowOPC;
-      animationShowOPC.initializeCustom(commData.sheepNum);
-      break;
-    case BASIC_KIND : result =  &animationRotateRainbowUp;
+      return result;
+
+    case CUSTOM_KIND :
+      result =  &animationShowOPC;
+      if (false)
+        animationShowOPC.initializeCustom(5);
+      else if (commData.sheepNum == 0)
+        animationShowOPC.initializeCustom(1);
+      else
+        animationShowOPC.initializeCustom(commData.sheepNum);
+      return result;
+    case BASIC_KIND :
+      result =  &animationRotateRainbowUp;
       result->initialize(kindIndex);
-      break;
+      return result;
     default:
       myprintf("Unknown kind %d\n", k);
       result =  &animationRotateRainbowUp;
       result->initialize(0);
-      break;
+      return result;
+
   }
+  Serial.println("Should not have gotten here");
   return result;
 }
 
@@ -389,8 +472,8 @@ void nextAnimation() {
   if (currentAnimation != NULL)
     currentAnimation->close();
 
-
   currentAnimation = getAnimation();
+
 
 }
 

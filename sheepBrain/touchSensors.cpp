@@ -161,7 +161,7 @@ uint8_t touchThreshold(uint8_t i) {
     case HEAD_SENSOR:
       return 5;
     case PRIVATES_SENSOR:
-      return 30;
+      return 20;
     case BACK_SENSOR:
     case RUMP_SENSOR:
     default:

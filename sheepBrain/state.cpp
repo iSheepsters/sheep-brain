@@ -105,7 +105,7 @@ void updateState(unsigned long now) {
     privateTouchFade = now + 2 * 60 * 1000;
   }
 
-  if (now > privateTouchDisabledUntil &&  touchDuration(PRIVATES_SENSOR) > 2000 && now > lastPrivateTouch + 3000
+  if (now > privateTouchDisabledUntil &&  touchDuration(PRIVATES_SENSOR) > 1500 && now > lastPrivateTouch + 3000
       && !(currentSoundPriority == 4 && currentSoundFile != NULL)) {
     privateTouchLoad++;
     if (privateTouchLoad > 6) {

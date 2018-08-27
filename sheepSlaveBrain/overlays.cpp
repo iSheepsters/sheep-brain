@@ -91,9 +91,9 @@ void moveTracer(Tracer & t, int index) {
           t.x++;
         else if (t.x > HALF_GRID_WIDTH)
           t.x--;
-        if (t.y < midSaddle)
+        if (t.y < midSaddle-1)
           t.y++;
-        else if (t.y > midSaddle)
+        else if (t.y > midSaddle+1)
           t.y--;
         if (oldx == t.x && oldy == t.y) {
           // already at center
@@ -153,7 +153,10 @@ void applyAndFadeFlash() {
         else hsv.s = value;
       }
       led = hsv;
-      v = v * 0.9 - 3;
+      if (commData.state == ReadyToRide)
+        v = v * 0.95 - 2;
+      else
+        v = v * 0.9 - 3;
       if (v < 0)
         v = 0;
       flash[x][y] = v;
@@ -222,16 +225,18 @@ void backLights() {
 void headLights() {
   // head
   boolean flash = (millis() / 500) % 2 == 1;
-  int q =  commData.backTouchQuality / 2;
-  if (q > 7) q = 7;
-  if (q > 0)
-    myprintf("Setting %d extra head lights green\n", q);
-  for (int j = HEAD_BOTTOM - q; j < HEAD_BOTTOM; j++)
-    leds[ j] = CRGB::Green;
-  int startOfLeft = HEAD_HALF + HEAD_TOP + HEAD_EYES;
-  for (int j = startOfLeft;
-       j < startOfLeft + q; j++)
-    leds[ j] = CRGB::Green;
+  if (false) {
+    int q =  commData.backTouchQuality / 2;
+    if (q > 7) q = 7;
+    if (q > 0)
+      myprintf("Setting %d extra head lights green\n", q);
+    for (int j = HEAD_BOTTOM - q; j < HEAD_BOTTOM; j++)
+      leds[ j] = CRGB::Green;
+    int startOfLeft = HEAD_HALF + HEAD_TOP + HEAD_EYES;
+    for (int j = startOfLeft;
+         j < startOfLeft + q; j++)
+      leds[ j] = CRGB::Green;
+  }
   for (int j = HEAD_BOTTOM + HEAD_EYES; j < HEAD_BOTTOM + HEAD_EYES + 2 * HEAD_TOP; j++)
 
     leds[ j] = CRGB::Green;

@@ -59,7 +59,7 @@ void musicPlayerNoVolume() {
   ampOn = false;
   Serial.println("musicPlayerNoVolume");
   VS1053_volume = 0;
-  musicPlayer.setVolume(0, 0);
+  musicPlayer.setVolume(0xfe, 0xfe);
   setAmpVolume(0);
 }
 
@@ -72,7 +72,6 @@ void setupSound() {
       Serial.println("MAX9744 found");
   }
 
-  Serial.println("\n\nAdafruit VS1053 Musicmaker Feather Test");
 
   if (! musicPlayer.begin()) { // initialise the music player
     Serial.println(F("Couldn't find VS1053, do you have the right pins defined?"));
@@ -86,16 +85,16 @@ void setupSound() {
     Serial.println("MAX9744 found");
 
 
-  unsigned long start = millis();
-  musicPlayer.sineTest(0x44, 100);    // Make a tone to indicate VS1053 is working
-  unsigned long end = millis();
-  Serial.println(F("sineTest complete"));
-  Serial.println(end - start);
-  Serial.println();
-
-
-  // Set volume for left, right channels. lower numbers == louder volume!
   musicPlayerFullVolume();
+  if (ampOn)
+    Serial.println("amp on");
+  else
+    Serial.println("amp off");
+  myprintf(Serial, "VS1053_volume %d\n", VS1053_volume);
+
+  musicPlayer.sineTest(0x44, 100);    // Make a tone to indicate VS1053 is working
+  Serial.println(F("sineTest complete"));
+
 
   // musicPlayer.useInterrupt(VS1053_FILEPLAYER_PIN_INT);  // DREQ int
   wasPlayingMusic = false;
@@ -179,6 +178,7 @@ void noteEndOfMusic() {
   }
   if (!wasPlayingMusic)
     return;
+  Serial.println("note end of music");
   wasPlayingMusic = false;
   musicPlayerNoVolume();
 

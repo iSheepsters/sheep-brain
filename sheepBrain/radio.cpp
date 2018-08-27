@@ -216,43 +216,44 @@ void updateRadio() {
   time_t radioEpoc = trueTime / RADIO_EPOC;
   uint16_t radioWindow = (trueTime % RADIO_EPOC) / RADIO_WINDOW;
   if (radioEpoc != lastEpoc && radioWindow == sheepNumber) {
-    myprintf(Serial, "Sending out radio packet for epoc %d\n", radioEpoc);
-    if (ampOn)
-      Serial.println("amp on");
-    else
-      Serial.println("amp off");
     lastEpoc = radioEpoc;
-    hashInfo.sheepNumber = sheepNumber;
-    hashInfo.currentTime = trueTime;
-
-    radioInfo.sheepNumber = sheepNumber;
-    radioInfo.currentTime = hashInfo.currentTime;
-    radioInfo.hashValue = hashInfo.getHash();
-    radioInfo.currState = currentSheepState->state;
-    radioInfo.currTouched = currTouched;
-
-    memcpy(&(radioInfo.myInfo), &getSheep(), sizeof(SheepInfo));
-    Serial.println("Looking for wayward sheep");
-    boolean waywardSheep = findNextWaywardSheep();
-
-    size_t length = sizeof(radioInfo);
-    if (waywardSheep) {
-      myprintf(Serial, "Found wayward sheep %d\n", lastWaywardSheep );
-
-      radioInfo.waywardSheepNumber = lastWaywardSheep;
-      memcpy(&(radioInfo.waywardSheep), &getSheep(lastWaywardSheep), sizeof(SheepInfo));
+    myprintf(Serial, "Sending out radio packet for epoc %d\n", radioEpoc);
+    if (ampOn) {
+      Serial.println("Amplifier is on, skipping radio packet");
     } else {
-      Serial.println("No wayward sheep found");
-      radioInfo.waywardSheepNumber = 0;
-      length -= sizeof(SheepInfo);
-    }
-    uint8_t * data = (uint8_t *)&radioInfo;
-    myprintf(Serial, "Sending radio packet of size %d\n", length);
 
-    if (rf95.send(data,  length)) {
-      // rf95.waitPacketSent();
-    } else
-      Serial.println("Radio packet send failed");
+      hashInfo.sheepNumber = sheepNumber;
+      hashInfo.currentTime = trueTime;
+
+      radioInfo.sheepNumber = sheepNumber;
+      radioInfo.currentTime = hashInfo.currentTime;
+      radioInfo.hashValue = hashInfo.getHash();
+      radioInfo.currState = currentSheepState->state;
+      radioInfo.currTouched = currTouched;
+
+      memcpy(&(radioInfo.myInfo), &getSheep(), sizeof(SheepInfo));
+      Serial.println("Looking for wayward sheep");
+      boolean waywardSheep = findNextWaywardSheep();
+
+      size_t length = sizeof(radioInfo);
+      if (waywardSheep) {
+        myprintf(Serial, "Found wayward sheep %d\n", lastWaywardSheep );
+
+        radioInfo.waywardSheepNumber = lastWaywardSheep;
+        memcpy(&(radioInfo.waywardSheep), &getSheep(lastWaywardSheep), sizeof(SheepInfo));
+      } else {
+        Serial.println("No wayward sheep found");
+        radioInfo.waywardSheepNumber = 0;
+        length -= sizeof(SheepInfo);
+      }
+      uint8_t * data = (uint8_t *)&radioInfo;
+      myprintf(Serial, "Sending radio packet of size %d\n", length);
+
+      if (rf95.send(data,  length)) {
+        // rf95.waitPacketSent();
+      } else
+        Serial.println("Radio packet send failed");
+    }
   }
 }
 

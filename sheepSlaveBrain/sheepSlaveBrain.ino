@@ -67,13 +67,13 @@ void setup() {
       delay(20);
 
   if (true) {
-    int countdownMS = Watchdog.enable(4000);
+    int countdownMS = Watchdog.enable(14000);
     Serial.print("Enabled the watchdog with max countdown of ");
     Serial.print(countdownMS, DEC);
     Serial.println(" milliseconds!");
     Serial.println();
   }
-  for (int i = 0; i < 20; i++) {
+  for (int i = 0; i < 5; i++) {
     digitalWrite(led, HIGH);   // turn the LED on (HIGH is the voltage level)
     delay(50);               // wait for a second
     digitalWrite(led, LOW);    // turn the LED off by making the voltage LOW
@@ -81,12 +81,19 @@ void setup() {
     Serial.println(i);
   }
 
-  setupComm();
-  Serial.println("comm set up");
   setupAnimations();
   Serial.println("animations set up");
+  setupComm();
+
+  Serial.println("comm set up");
+  for (int i = 0; !receivedMsg && i < 100; i++) {
+    delay(50);
+    Serial.println(i);
+  }
+
 
   LEDS.setBrightness(BRIGHTNESS_BORED);
+
 
 }
 
@@ -95,8 +102,17 @@ unsigned long nextUpdate = 0;
 int counter = 0;
 
 boolean isDaytime() {
+  if (!receivedMsg)
+    return false;
   int h = hour();
   return h >= 7 && h <= 18;
+}
+
+boolean isPreview() {
+  if (!receivedMsg)
+    return true;
+  int d = day();
+  return d <= 27;
 }
 
 void loop() {
@@ -122,15 +138,23 @@ void loop() {
   if (nextUpdate < now) {
     unsigned long millisToChange =  updateAnimation(now);
 
-    myprintf( "sheepSlaveBrain state %d, %d:%02d:%02d\n",
-              currState, hour(), minute(), second());
-
+    myprintf( "sheepSlaveBrain  sheep %d, state %d, %d/%d, %d:%02d:%02d\n",
+              commData.sheepNum,
+              currState, month(), day(), hour(), minute(), second());
+    if (!receivedMsg)
+      Serial.println("Have not received any messages");
+    if (isPreview())
+      Serial.println("is preview");
+    if (isDaytime())
+      Serial.println("is daytime");
     myprintf(" currentEpoc %d, %dms to next epoc, %d feet to the man", animationEPOC,
              millisToChange,  (int) commData.feetFromMan);
     if (commData.haveFix)
-      Serial.println(", fix current");
+      Serial.println(", gps fix current");
     else
       Serial.println();
+    Serial.print("  animation: ");
+    currentAnimation->printName();
     myprintf(" touched %02x, quality head = %d, quality back = %d\n",
              commData.currTouched, commData.headTouchQuality, commData.backTouchQuality);
     nextUpdate = now + 5000;
@@ -138,13 +162,24 @@ void loop() {
 
   LEDS.clear();
 
-  if (true || !isDaytime())
+  if (false) Serial.println("updating animation");
+  if (isPreview() ||  !isDaytime()) {
     currentAnimation->update(now);
+    overlays();
 
-  overlays();
+    copyLEDs();
+    LEDS.show();
+  } else {
+    Serial.println("daytime; LEDs off");
+    for (int x = 0; x < GRID_WIDTH; x++)
+      for (int y = 0; y < GRID_HEIGHT; y++)
+        getSheepLEDFor(x, y) = CRGB::Black;
+    LEDS.show();
+    delay(10000);
+  }
 
-  copyLEDs();
-  LEDS.show();
+  if (false) Serial.println("updated animation");
+
   unsigned long timeUsed = millis() - now;
 
   long timeToWait = 33 - timeUsed;

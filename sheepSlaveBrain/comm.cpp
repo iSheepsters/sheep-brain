@@ -8,7 +8,7 @@
 void receiveEvent(size_t len);
 void requestEvent(void);
 
-boolean receivedMsg = false;
+volatile boolean receivedMsg = false;
 
 
 CommData commData;
@@ -31,7 +31,7 @@ void setupComm() {
 void receiveEvent(size_t len)
 {
   int bytes = Wire.available();
-  if (!bytes) return;
+  //if (!bytes) return;
   State oldState = commData.state;
 
   uint8_t * p = (uint8_t *)&commData;
@@ -43,13 +43,15 @@ void receiveEvent(size_t len)
   setTime(commData.BRC_time);
   if (!receivedMsg && year() == 2018) {
     receivedMsg = true;
-    myprintf("Received message, %d bytes available\n");
+    myprintf("Received message\n");
     setupSchedule();
   }
-  Serial.print("Received: ");
-  for (unsigned int i = 0; i < sizeof(CommData); i++)
-    myprintf("%02x ", p[i]);
-  Serial.println();
+  if (false) {
+    Serial.print("Received: ");
+    for (unsigned int i = 0; i < sizeof(CommData); i++)
+      myprintf("%02x ", p[i]);
+    Serial.println();
+  }
 }
 
 //
