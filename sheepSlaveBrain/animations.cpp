@@ -251,6 +251,7 @@ class RotateRainbowUp : public Animation {
     }
 };
 
+RotateRainbowUp animationRotateRainbowUp;
 
 
 
@@ -375,8 +376,11 @@ class ShowOPC : public Animation {
     }
     void update(unsigned long now) {
 
-      if (!ok)
-        return ;
+      if (!ok) {
+        animationRotateRainbowUp.update(now);
+        return;
+      }
+        
       int count = file.read(header, 4);
       if (count == 0 && bytesRead > 10000) {
         myprintf("Rewinding after reading %d bytes\n", bytesRead);
@@ -414,7 +418,7 @@ class ShowOPC : public Animation {
 };
 
 int nextOPC = 0;
-RotateRainbowUp animationRotateRainbowUp;
+
 GPSHue animationGPSHue;
 ShowOPC animationShowOPC;
 
