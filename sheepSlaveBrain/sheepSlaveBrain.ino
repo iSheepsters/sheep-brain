@@ -1,5 +1,6 @@
 #include <Adafruit_SleepyDog.h>
 
+const char * VERSION = "version as of Tuesday, 9:00am";
 
 #include<FastLED.h>
 
@@ -93,7 +94,8 @@ void setup() {
 
 
   LEDS.setBrightness(BRIGHTNESS_BORED);
-
+  Serial.println("setup complete");
+  Serial.println(VERSION);
 
 }
 
@@ -115,12 +117,21 @@ boolean isPreview() {
   return d <= 27;
 }
 
+void turnOffLEDs() {
+  for (int x = 0; x < GRID_WIDTH; x++)
+    for (int y = 0; y < GRID_HEIGHT; y++)
+      getSheepLEDFor(x, y) = CRGB::Black;
+  for (int j = 0; j < 50; j++)
+    leds[j] = CRGB::Black;
+}
+
 void loop() {
   Watchdog.reset();
   unsigned long now = millis();
 
   State currState = commData.state;
   digitalWrite(led, (now / 1000) % 2 == 1);
+
 
   if (isDaytime())
     LEDS.setBrightness(255);
@@ -161,6 +172,7 @@ void loop() {
   }
 
   LEDS.clear();
+  turnOffLEDs();
 
   if (false) Serial.println("updating animation");
   if (isPreview() ||  !isDaytime()) {
@@ -171,9 +183,7 @@ void loop() {
     LEDS.show();
   } else {
     Serial.println("daytime; LEDs off");
-    for (int x = 0; x < GRID_WIDTH; x++)
-      for (int y = 0; y < GRID_HEIGHT; y++)
-        getSheepLEDFor(x, y) = CRGB::Black;
+
     LEDS.show();
     delay(10000);
   }
