@@ -27,6 +27,15 @@ Adafruit_GPS GPS(&Serial1);
 
 boolean setupGPS() {
   // 9600 NMEA is the default baud rate for Adafruit MTK GPS's- some use 4800
+  GPS.begin(9600);
+  GPS.sendCommand("$PMTK251,115200*1F");
+  unsigned long finish = 200 + millis();
+  while (millis() < finish) {
+    char c = GPS.read();
+    if (c) Serial.print(c);
+  }
+  Serial1.end();
+  delay(200);
   GPS.begin(115200);
 
   if (getGPSFixQuality)
@@ -97,11 +106,14 @@ boolean haveFixNow() {
   return haveFix;
 }
 
-boolean inCorral(int sheep) {
+float distanceFromCorral(int sheep) {
   float corralEW = FEET_PER_DEGREE_LONGITUDE * (getSheep(sheep).longitude - CORRAL_LONGITUDE);
   float corralNS = FEET_PER_DEGREE_LATITUDE * (getSheep(sheep).latitude  - CORRAL_LATITUDE);
-  float distanceFromCorral = sqrt(corralEW * corralEW + corralNS * corralNS);
-  return distanceFromCorral < 80;
+  return sqrt(corralEW * corralEW + corralNS * corralNS);
+}
+
+boolean inCorral(int sheep) {
+  return distanceFromCorral(sheep) < 100;
 }
 
 float distanceToSheep(int sheep) {
@@ -118,7 +130,7 @@ boolean isClose(int sheep) {
 boolean isRecent(int sheep) {
   if (sheep == sheepNumber) return true;
   if (getSheep(sheep).time == 0) return false;
-  if (getSheep(sheep).time + 5*RADIO_EPOC > now()) return true;
+  if (getSheep(sheep).time + 5 * RADIO_EPOC > now()) return true;
   return false;
 }
 boolean isInFriendlyTerritory() {
@@ -127,8 +139,26 @@ boolean isInFriendlyTerritory() {
   if (inCorral(sheepNumber))
     return true;
   for (int s = 1; s <= NUMBER_OF_SHEEP; s++)
-    if (s != sheepNumber && isRecent(s) && isClose(s))
+    if (s != sheepNumber && isRecent(s) && isClose(s)) {
+      myprintf(Serial, "%d feet from corral, but sheep %d is nearby\n",
+               (int) distanceFromCorral(sheepNumber), s);
       return true;
+    }
+  myprintf(Serial, "Not in friendly terriorty, %d feet from corral\n",
+           (int) distanceFromCorral(sheepNumber));
+  int h = hour(BRC_now());
+  int m = minute(BRC_now());
+  if (h < 2) {
+    myprintf(Serial, "Time is %d:%02d, assuming we are shepherded\n", h, m);
+    return true;
+  }
+  if (h > 16) {
+    myprintf(Serial, "Time is %d:%02d, assuming we are shepherded\n", h, m);
+    return true;
+  }
+
+
+
   return false;
 };
 
@@ -140,7 +170,7 @@ float howCrowded() {
     return 2.0;
   float answer = 1.0;
   for (int s = 1; s <= NUMBER_OF_SHEEP; s++)
-    if (s != sheepNumber && isRecent(s)) { 
+    if (s != sheepNumber && isRecent(s)) {
       float distance = distanceToSheep(s);
       myprintf(Serial, "Sheep %d at distance ", s);
       Serial.println(distance);

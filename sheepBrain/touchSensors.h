@@ -8,7 +8,7 @@ const uint8_t  ELEPROX_EN = 0; // 0b10; // 0; // 0b10;
 const uint8_t  lastTouchSensor = ELEPROX_EN == 0 ? 5 : 12;
 const uint8_t  numTouchSensors = lastTouchSensor+1;
 extern uint16_t stableValue[numTouchSensors];
-
+extern uint8_t swapLeftRightSensors(uint8_t touched);
 enum TouchSensor {
   PRIVATES_SENSOR, 
   RUMP_SENSOR,

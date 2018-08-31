@@ -1,6 +1,6 @@
 #include <Adafruit_SleepyDog.h>
 
-const char * VERSION = "version as of Tuesday, 9:00am";
+const char * VERSION = "version as of Friday, 4pm";
 
 #include<FastLED.h>
 
@@ -64,7 +64,7 @@ void setup() {
   .setCorrection(TypicalLEDStrip);
   LEDS.show();
   Serial.begin(115200);
-  if (false) while (!Serial)
+  if (false) while (!Serial && millis() < 10000)
       delay(20);
 
   if (true) {
@@ -111,17 +111,16 @@ boolean isDaytime() {
 }
 
 boolean isPreview() {
+  return false;
+ // return true;
   if (!receivedMsg)
     return true;
-  int d = day();
-  return d <= 27;
+  int h = month();
+  return h == 8;
 }
 
-void turnOffLEDs() {
-  for (int x = 0; x < GRID_WIDTH; x++)
-    for (int y = 0; y < GRID_HEIGHT; y++)
-      getSheepLEDFor(x, y) = CRGB::Black;
-  for (int j = 0; j < 50; j++)
+void setLEDsToBlack() {
+  for (int j = 0; j < NUM_STRIPS*NUM_LEDS_PER_STRIP; j++)
     leds[j] = CRGB::Black;
 }
 
@@ -172,7 +171,7 @@ void loop() {
   }
 
   LEDS.clear();
-  turnOffLEDs();
+  setLEDsToBlack();
 
   if (false) Serial.println("updating animation");
   if (isPreview() ||  !isDaytime()) {
@@ -185,7 +184,12 @@ void loop() {
     Serial.println("daytime; LEDs off");
 
     LEDS.show();
-    delay(10000);
+    for(int i = 0; i < 20; i++) {
+      digitalWrite(led, HIGH);   // turn the LED on (HIGH is the voltage level)
+    delay(200);               // wait for a second
+    digitalWrite(led, LOW);    // turn the LED off by making the voltage LOW
+    delay(200);
+    }
   }
 
   if (false) Serial.println("updated animation");

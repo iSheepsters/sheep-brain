@@ -32,7 +32,7 @@ Adafruit_VS1053_FilePlayer musicPlayer =
 #define MAX9744_I2CADDR 0x4B
 
 // We'll track the volume level in this variable.
-int8_t thevol = 55;
+int8_t thevol = 58;
 uint8_t VS1053_volume = 0;
 unsigned long lastSoundStarted = 0;
 unsigned long lastSoundPlaying = 0;
@@ -42,31 +42,30 @@ boolean wasPlayingMusic;
 
 // note: 0 is full volume
 void musicPlayerSetVolume(uint8_t v) {
-  ampOn = true;
+
   VS1053_volume = v;
   // right channel is always silent, we don't use it
   musicPlayer.setVolume(v, 0xfe);
-  setAmpVolume(thevol);
+  turnAmpOn();
 }
 void musicPlayerFullVolume() {
-  ampOn = true;
+
   Serial.println("musicPlayerFullVolume");
   VS1053_volume = 0;
   musicPlayer.setVolume(0, 0xfe);
-  setAmpVolume(thevol);
+  turnAmpOn();
 }
 void musicPlayerNoVolume() {
-  ampOn = false;
   Serial.println("musicPlayerNoVolume");
   VS1053_volume = 0;
   musicPlayer.setVolume(0xfe, 0xfe);
-  setAmpVolume(0);
+  turnAmpOff();
 }
 
 volatile boolean musicPlayerReady = false;
 void setupSound() {
   if (true) {
-    if (! setAmpVolume(0))
+    if (! turnAmpOff())
       Serial.println("Failed to set volume, MAX9744 not found!");
     else
       Serial.println("MAX9744 found");
@@ -79,11 +78,6 @@ void setupSound() {
   }
 
   Serial.println(F("VS1053 found"));
-  if (! setAmpVolume(thevol))
-    Serial.println("Failed to set volume, MAX9744 not found!");
-  else
-    Serial.println("MAX9744 found");
-
 
   musicPlayerFullVolume();
   if (ampOn)
@@ -117,6 +111,8 @@ void updateSound(unsigned long now) {
 
 // Setting the volume is very simple! Just write the 6-bit
 // volume to the i2c bus. That's it!
+
+uint8_t lastAmpVol = 100;
 boolean setAmpVolume(int8_t v) {
   if (!USE_AMPLIFIER) {
     Serial.println("Skipping amplifier");
@@ -125,16 +121,27 @@ boolean setAmpVolume(int8_t v) {
   // cant be higher than 63 or lower than 0
   if (v > 63) v = 63;
 
-  Serial.print("Setting volume to ");
-  Serial.println(v);
+  if (v != lastAmpVol) {
+    Serial.print("Setting volume to ");
+    Serial.println(v);
+  }
   Wire.beginTransmission(MAX9744_I2CADDR);
   Wire.write(v);
+  lastAmpVol = v;
   if (Wire.endTransmission() == 0)
     return true;
   else
     return false;
 }
 
+boolean turnAmpOn() {
+  ampOn = true;
+  return setAmpVolume(thevol);
+}
+boolean turnAmpOff() {
+  ampOn = false;
+  return setAmpVolume(0);
+}
 
 void slowlyStopMusic() {
   if (musicPlayer.playingMusic) {

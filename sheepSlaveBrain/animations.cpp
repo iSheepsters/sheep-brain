@@ -134,7 +134,6 @@ boolean isGPS(int i) {
   return i % 11 == 0;
 }
 boolean isCustom(int i) {
-  return i%2 == 0;
   return i % 15 == 0;
 }
 boolean isBasic(int i) {

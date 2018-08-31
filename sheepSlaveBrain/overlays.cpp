@@ -196,6 +196,7 @@ void rumpLights() {
 }
 
 void leftLights() {
+  Serial.println("left lights");
 
   // left side
   for (int y = 4; y < 12; y++)
@@ -203,6 +204,7 @@ void leftLights() {
       = pettingOnly() ? CRGB::Pink : CRGB::LightGrey;
 }
 void rightLights() {
+   Serial.println("right lights");
   // right side
   for (int y = 4; y < 12; y++)
     getSheepLEDFor( QUARTER_GRID_WIDTH + HALF_GRID_WIDTH - 1, y)

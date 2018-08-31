@@ -53,6 +53,7 @@ boolean SoundCollection::load(File dir) {
     Serial.println(" is not a directory");
     return false;
   }
+
   while (true) {
     File entry =  dir.openNextFile();
     if (!entry) break;
@@ -60,6 +61,7 @@ boolean SoundCollection::load(File dir) {
       count++;
     }
   }
+  if (count > 16) count = 16;
   dir.rewindDirectory();
   files = new SoundFile[count];
   uint16_t i = 0;
@@ -125,7 +127,7 @@ boolean SoundCollection::playSound(unsigned long now, boolean ambientSound) {
     return false;
   }
   SoundFile *s  = chooseSound(now, ambientSound);
-  if (nextVerboseList < now && s == NULL) {
+  if (s == NULL) {
     if (ambientSound)
       Serial.print("No ambient sound found for ");
     else
@@ -134,8 +136,10 @@ boolean SoundCollection::playSound(unsigned long now, boolean ambientSound) {
 
 
     myprintf(Serial, "Last sound %d\n", ago(lastSoundPlaying, now));
-    verboseList(now, ambientSound);
-    nextVerboseList = now + 30000;
+    if (nextVerboseList < now) {
+      verboseList(now, ambientSound);
+      nextVerboseList = now + 30000;
+    }
     return false;
   };
   slowlyStopMusic();

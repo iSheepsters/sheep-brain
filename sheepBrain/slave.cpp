@@ -17,6 +17,7 @@ void setupComm() {
   commData.sheepNum = sheepNumber;
 }
 
+
 uint8_t sendComm(unsigned long now) {
   if (  commData.state != currentSheepState->state
         || commData.currTouched != currTouched
@@ -28,8 +29,14 @@ uint8_t sendComm(unsigned long now) {
     else
       commData.feetFromMan = (uint16_t) distanceFromMan;
     commData.state = currentSheepState->state;
-
-    commData.currTouched = currTouched;
+    uint8_t touched = currTouched;
+    if (sheepNumber == 9 || sheepNumber == 13) {
+      
+      uint8_t t = swapLeftRightSensors(touched);
+      //myprintf(Serial, "touch %02x -> %02x\n", touched, t);
+      touched = t;
+    }
+    commData.currTouched = touched;
     commData.backTouchQuality = millisToSecondsCapped(qualityTime(BACK_SENSOR));
     commData.headTouchQuality = millisToSecondsCapped(qualityTime(HEAD_SENSOR));
     commData. haveFix = haveFixNow();

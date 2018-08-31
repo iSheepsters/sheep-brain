@@ -1,6 +1,7 @@
 #include <Arduino.h>
 
 #include "touchSensors.h"
+#include "state.h"
 
 #include "Adafruit_ZeroFFT.h"
 #include "util.h"
@@ -26,8 +27,8 @@ uint16_t touchedThisInterval;
 unsigned long nextTouchInterval = 2000;
 unsigned long lastTouchInterval = 0;
 const uint16_t touchInterval = 1000;
-const uint16_t recentInterval = 15000;
-unsigned long nextRecentInterval = 2000;
+const uint16_t resetSensorsInterval = 15000;
+unsigned long nextSensorResetInterval = 0;
 
 unsigned long lastTouch[numTouchSensors];
 
@@ -57,6 +58,17 @@ boolean newTouch(enum TouchSensor sensor) {
   return (newTouched & _BV(sensor)) != 0;
 }
 
+
+uint8_t swapLeftRightSensors(uint8_t touched) {
+  boolean leftTouched = (touched & _BV(LEFT_SENSOR)) != 0;
+  boolean rightTouched = (touched & _BV(RIGHT_SENSOR)) != 0;
+  touched = touched & 0xf3;
+  if (leftTouched)
+    touched |= _BV(RIGHT_SENSOR);
+  if (rightTouched)
+    touched |= _BV(LEFT_SENSOR);
+  return touched;
+}
 
 uint8_t CDTx_value(uint8_t addr) {
   uint8_t value =  cap.readRegister8(0x6C + addr / 2);
@@ -109,10 +121,10 @@ void setupTouch() {
     if (!valid[i])
       myprintf(Serial, "sensor %d not connected\n", i);
     else if (value > 10)
-      stableValue[i] = value - 2;
+      stableValue[i] = value - 1;
     firstTouchThisInterval[i] = 0;
   }
-  nextRecentInterval = nextTouchInterval = millis() + 1000;
+  nextSensorResetInterval = nextTouchInterval = millis() + 1000;
   Serial.println("done with touch ");
 
 }
@@ -156,19 +168,18 @@ void wasTouchedInappropriately() {
 uint8_t touchThreshold(uint8_t i) {
   enum TouchSensor sensor = (TouchSensor) i;
   switch (sensor) {
+    case HEAD_SENSOR:
+      return 3;
     case LEFT_SENSOR:
     case RIGHT_SENSOR:
-    case HEAD_SENSOR:
       return 5;
     case PRIVATES_SENSOR:
-      return 20;
+      return 10;
     case BACK_SENSOR:
     case RUMP_SENSOR:
     default:
       return 10;
-
   }
-
 }
 
 int16_t sensorValue(enum TouchSensor sensor) {
@@ -177,6 +188,62 @@ int16_t sensorValue(enum TouchSensor sensor) {
   return value - ( stableValue[sensor] - touchThreshold((uint8_t)sensor));
 }
 
+unsigned long lastReset = 20000;
+
+boolean isStable(int sensor) {
+  if (minRecentValue[sensor] < 670)
+    return false;
+  int range = maxRecentValue[sensor] - minRecentValue[sensor];
+  int maxRange = 5;
+  unsigned long secondsSinceLastReset = (millis() - lastReset) / 1000;
+  if (lastReset > 5 * 60)
+    maxRange = 10;
+  return range <= maxRange;
+}
+
+void resetStableValue(int sensor) {
+  if (isStable(sensor))
+    stableValue[sensor] = minRecentValue[sensor] - 1;
+  else myprintf(Serial, "Asked to reset %d, but it isn't stable\n", sensor);
+}
+
+
+void advanceToNextTouchInterval() {
+  boolean allStable = true;
+  int potentialMaxChange = 0;
+
+  for (int i = 0; i < numTouchSensors; i++)
+    if (i != LEFT_SENSOR && i != RIGHT_SENSOR && !isStable(i)) {
+      allStable = false;
+      potentialMaxChange = max(potentialMaxChange, abs(stableValue[i] - (minRecentValue[i] - 1)));
+    }
+  if (allStable) {
+    if (potentialMaxChange > 0) {
+      lastReset = millis();
+      myprintf(Serial, "All stable, change of %d, resetting\n", potentialMaxChange);
+      for (int i = 0; i < numTouchSensors; i++) {
+        resetStableValue(i);
+      };
+    } else if  (potentialMaxChange == 0) {
+      Serial.println("Touch sensors stable and unchanged");
+    }
+  } else {
+    for (int i = 0; i < numTouchSensors; i++)  if (isStable(i)) {
+        int touchSeconds = touchDuration((enum TouchSensor) i);
+        if (touchSeconds > 5 * 60 && maxRecentValue[i] < stableValue[i]) {
+          myprintf(Serial, "Sensor %d stable, touched for %d seconds, recent values %d - %d, stableValue %d, resetting\n",
+                   i, touchSeconds, minRecentValue[i], maxRecentValue[i], stableValue[i]);
+          resetStableValue(i);
+        }
+      }
+  }
+
+
+  for (int i = 0; i < numTouchSensors; i++) {
+    minRecentValue[i] = maxRecentValue[i] = currentValue[i];
+  };
+
+}
 uint16_t currentValue[numTouchSensors];
 void updateTouchData(unsigned long now, boolean debug) {
   lastTouched = currTouched;
@@ -187,8 +254,8 @@ void updateTouchData(unsigned long now, boolean debug) {
         currentValue[i] = value;
         int16_t threshold = touchThreshold(i);
         if (lastTouched & _BV(i))
-          threshold = threshold / 2;
-        if (value < 750 && currentValue[i] < stableValue[i] - threshold || currentValue[i] < 670) {
+          threshold = threshold * 3 / 4;
+        if (value < 750 && value < stableValue[i] - threshold || value < 670) {
           currTouched |= 1 << i;
           if ( firstTouchThisInterval[i] == 0)
             firstTouchThisInterval[i] = now;
@@ -197,34 +264,9 @@ void updateTouchData(unsigned long now, boolean debug) {
     }
 
   newTouched = currTouched & ~lastTouched;
-  if (nextRecentInterval < now) {
-    boolean allStable = true;
-    int potentialMaxChange = 0;
-
-    int maxRange = 0;
-    for (int i = 0; i < numTouchSensors; i++) if (i != LEFT_SENSOR && i != RIGHT_SENSOR) {
-        int range = maxRecentValue[i] - minRecentValue[i];
-
-        if (range > 5 || minRecentValue[i] < 680)
-          allStable = false;
-        if (false)
-          myprintf(Serial, "Range of %d: %d\n", i, range);
-        maxRange = max(maxRange, range);
-        potentialMaxChange = max(potentialMaxChange, abs(stableValue[i] - (minRecentValue[i] - 1)));
-      }
-    myprintf(Serial, "Max range = %d\n", maxRange);
-    if (allStable && potentialMaxChange > 0) {
-      myprintf(Serial, "All stable, change of %d, resetting\n", potentialMaxChange);
-      for (int i = 0; i < numTouchSensors; i++) {
-        stableValue[i] = minRecentValue[i] - 1;
-      };
-    } else if  (allStable && potentialMaxChange == 0) {
-      Serial.println("Touch sensors stable and unchanged");
-    }
-    for (int i = 0; i < numTouchSensors; i++) {
-      minRecentValue[i] = maxRecentValue[i] = currentValue[i];
-    };
-    nextRecentInterval = now + recentInterval;
+  if (nextSensorResetInterval < now) {
+    advanceToNextTouchInterval();
+    nextSensorResetInterval = now + resetSensorsInterval;
   }
   else
     for (int i = 0; i < numTouchSensors; i++) {
@@ -267,6 +309,8 @@ void updateTouchData(unsigned long now, boolean debug) {
     }
     if (debug) Serial.println();
     Serial.print("Touch: ");
+    if (! privateSensorEnabled())
+      Serial.print("(private sensor disabled) ");
     for (int i = 0; i < numTouchSensors; i++) {
       myprintf(Serial, "%2d %2d %2d  ", timeTouched[i], qualityTimeIntervals[i], timeUntouched[i]);
     }

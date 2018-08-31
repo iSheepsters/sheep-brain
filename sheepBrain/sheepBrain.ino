@@ -1,5 +1,7 @@
 #include <Adafruit_SleepyDog.h>
 
+const char * VERSION = "version as of Friday, 10am";
+const boolean WAIT_FOR_SERIAL = false;
 
 #include <Wire.h>
 #include <TimeLib.h>
@@ -18,8 +20,12 @@
 
 extern  void checkForCommand(unsigned long now);
 
+// If the initial sheepNumber is anything other than 15, it will be
+// rewritten by what is on the SD card. 15 is a placeholder, there
+// shouldn't be a real sheep with that number.
+// sheepNumber 14 is for shepherd
 
-uint8_t sheepNumber = 14;
+uint8_t sheepNumber = 15;
 SheepInfo infoOnSheep[NUMBER_OF_SHEEP];
 
 SheepInfo & getSheep(int s) {
@@ -30,8 +36,6 @@ SheepInfo & getSheep(int s) {
   return infoOnSheep[s - 1];
 }
 
-
-//const uint8_t SHDN_MAX9744 = 10;
 
 unsigned long nextPettingReport;
 
@@ -105,16 +109,20 @@ void ISR_GPS(struct tc_module *const module_inst)
 
 SAMDtimer IRS_timer5 = SAMDtimer(5, ISR_GPS, 55000, 0);
 
+void testSwapLeftRight(uint8_t touched) {
+  myprintf(Serial, "testSwapLeftRight %02x -> %02x\n",
+           touched, swapLeftRightSensors(touched));
+}
 void setup() {
-  sheepNumber = 1;
   memset(&infoOnSheep, 0, sizeof (infoOnSheep));
   pinMode(LED_BUILTIN, OUTPUT);
   //  pinMode(SHDN_MAX9744, OUTPUT);
   //  digitalWrite(SHDN_MAX9744, LOW);
   Wire.begin();
   randomSeed(analogRead(0));
+  delay(100);
   Serial.begin(115200);
-  if (true) while (!Serial && millis() < 2000) {
+  if (WAIT_FOR_SERIAL) while (!Serial && millis() < 15000) {
       digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
       setupDelay(200);                     // wait for a second
       digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
@@ -122,6 +130,16 @@ void setup() {
     }
   int countdownMS = Watchdog.enable(14000);
   myprintf(Serial, "Watchdog set, %d ms timeout\n", countdownMS);
+
+  if (false) {
+    testSwapLeftRight(0);
+    testSwapLeftRight(0x04);
+    testSwapLeftRight(0x08);
+    testSwapLeftRight(0x0f);
+    testSwapLeftRight(0x37);
+    testSwapLeftRight(0x3B);
+  }
+
 
   if (setupRadio())
     Serial.println("radio found");
@@ -163,9 +181,23 @@ void setup() {
       }
     }
   }
-  sheepNumber = configFile.parseInt();
-  myprintf(Serial, "I am sheep %d\n", sheepNumber);
+  int s = configFile.parseInt();
   configFile.close();
+  myprintf(Serial, "config file contains %d\n", s);
+  if (s == 9) {
+    // On-playa swap: Larry replaced by Baarak
+    myprintf(Serial, "on playa swap; Larry replaced by Baarak");
+    s = 10;
+  }
+  if (sheepNumber == PLACEHOLDER_SHEEP) {
+    sheepNumber = s;
+    myprintf(Serial, "I am sheep %d\n", sheepNumber);
+  } else {
+    myprintf(Serial,
+             "Sheep number hard coded as %d, ignoring value of %d on sd card\n",
+             sheepNumber, s);
+  }
+
 
   setupLogging();
   myprintf(logFile, "Start of log for sheep %d\n", sheepNumber);
@@ -211,7 +243,7 @@ void setup() {
 
   //discardGPS();
   setupFinished = millis();
-  myprintf(Serial, "%dms set up time\n", setupFinished);
+  myprintf(Serial, " %dms set up time\n", setupFinished);
   myprintf(logFile, "sheep %d ready\n", sheepNumber);
 
   updateLog(setupFinished);
@@ -222,6 +254,10 @@ void setup() {
     IRS_timer5.enableInterrupt(1);
   }
   nextPettingReport = setupFinished + 2000;
+  myprintf(Serial, "setup complete, sheep %d\n",
+  sheepNumber);
+  Serial.println(VERSION);
+  randomSeed(analogRead(0));
 
 }
 
@@ -311,9 +347,9 @@ void loop() {
     if (prevLat != -1) {
       float speed = 1000 * distance_between_fixed_in_feet(latitudeDegreesAvg, longitudeDegreesAvg, prevLat, prevLong)
                     / (now - lastReport);
-      Serial.print("  Speed: ");
+      Serial.print("  Speed : ");
       Serial.print(speed, 2);
-      Serial.println(" ft/sec");
+      Serial.println(" ft / sec");
     }
     prevLat = latitudeDegreesAvg;
     prevLong = longitudeDegreesAvg;
@@ -325,7 +361,7 @@ void loop() {
     time_t BRC_time = BRC_now();
 
     if (false)
-      myprintf(Serial, "BRC time: %2d: %02d: %02d\n", hour(BRC_time), minute(BRC_time), second(BRC_time));
+      myprintf(Serial, "BRC time: %2d:%02d:%02d\n", hour(BRC_time), minute(BRC_time), second(BRC_time));
 
     lastReport = now;
     if (useLog) {
@@ -416,6 +452,15 @@ void checkForNextAmbientSound(unsigned long now) {
     return;
   }
   if (now > nextAmbientSound) {
+    if (!isInFriendlyTerritory() && random(2) == 0 && seperatedSounds.playSound(now, true))  {
+      unsigned long delay = 20000;
+      if (currentSoundFile -> duration > 0 && currentSoundFile -> duration < delay)
+        delay = currentSoundFile -> duration ;
+      delay = (delay + random(20000)) * howCrowded();
+      myprintf(Serial, "Started playing seperated sound, next in %dms\n", delay);
+      nextAmbientSound = now + delay;
+      return;
+    }
     if (currentSheepState -> playSound(now, true)) {
       unsigned long delay = 20000;
       if (currentSoundFile -> duration > 0 && currentSoundFile -> duration < delay)
@@ -424,8 +469,16 @@ void checkForNextAmbientSound(unsigned long now) {
       myprintf(Serial, "Started playing ambient sound, next in %dms\n", delay);
       nextAmbientSound = now + delay;
       return;
-    } else
+    } else  if (baaSounds.playSound(now, true)) {
+      myprintf(Serial, "No ambient sound available, baa-ing\n");
+
+      unsigned long delay = random(10000, 20000) * howCrowded();
+      nextAmbientSound = now + delay;
+      nextBaa = now + delay + 10000;
+    } else {
+      myprintf(Serial, "No ambient or baa sound available\n");
       nextAmbientSound = now + 5000;
+    }
   }
   if (now > nextBaa && nextBaa + 8000 < nextAmbientSound) {
     if (baaSounds.playSound(now, true)) {
@@ -496,7 +549,7 @@ void checkForCommand(unsigned long now) {
           if (thevol > 63) thevol = 63;
           if (thevol < 0) thevol = 0;
 
-          setAmpVolume(thevol);
+          turnAmpOn();
           break;
       }
     }

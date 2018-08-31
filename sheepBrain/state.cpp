@@ -23,6 +23,21 @@ ViolatedState violatedState;
 SheepState * currentSheepState = &boredState;
 
 
+unsigned long privateTouchDisabledUntil = 0;
+int privateTouchLoad = 0;
+unsigned long privateTouchFade = 0;
+
+boolean privateSensorEnabled() {
+  return millis() > privateTouchDisabledUntil;
+}
+
+int32_t untouchDurationPrivates() {
+  if (privateSensorEnabled())
+    return untouchDuration(PRIVATES_SENSOR);
+  return 5 * 60 * 1000;
+}
+
+
 uint16_t secondsSinceEnteredCurrentState() {
   return (millis() - timeEnteredCurrentState) / 1000;
 }
@@ -66,6 +81,7 @@ boolean qualityTouch() {
           +  2 * qualityTime(HEAD_SENSOR) > 30000;
 }
 
+
 boolean isIgnored() {
   if (qualityTouch() || isTouched())
     return false;
@@ -74,12 +90,11 @@ boolean isIgnored() {
          && untouchDuration(RUMP_SENSOR) > 10000
          && untouchDuration(LEFT_SENSOR) > 10000
          && untouchDuration(RIGHT_SENSOR) > 10000
-         && untouchDuration(PRIVATES_SENSOR) > 10000;
+         && untouchDurationPrivates() > 10000;
 }
 
 int privateTouches = 0;
 unsigned long lastPrivateTouch = 0;
-
 void becomeViolated() {
   notInTheMoodUntil = max(notInTheMoodUntil, millis() + 1000 * (30 + random(30, 60) + random(20, 100)));
 }
@@ -94,22 +109,23 @@ boolean wouldInterrupt() {
 
 
 
-unsigned long privateTouchDisabledUntil = 0;
-int privateTouchLoad = 0;
-unsigned long privateTouchFade = 0;
-
-
 void updateState(unsigned long now) {
   if (privateTouchFade < now) {
-    if (privateTouchLoad > 0) privateTouchLoad--;
+    if (privateTouchLoad > 0) {
+      privateTouchLoad--;
+      myprintf(Serial, "reducing private touch load to %d\n", privateTouchLoad);
+    
+    }
     privateTouchFade = now + 2 * 60 * 1000;
   }
 
-  if (now > privateTouchDisabledUntil &&  touchDuration(PRIVATES_SENSOR) > 1500 && now > lastPrivateTouch + 3000
+  if (privateSensorEnabled() &&  touchDuration(PRIVATES_SENSOR) > 1000 && now > lastPrivateTouch + 3000
       && !(currentSoundPriority == 4 && currentSoundFile != NULL)) {
     privateTouchLoad++;
+    myprintf(Serial, "new private touch, current load = %d\n", privateTouchLoad);
     if (privateTouchLoad > 6) {
-      privateTouchDisabledUntil = now + 15 * 60 * 1000;
+      privateTouchDisabledUntil = now + 10 * 60 * 1000;
+      Serial.println("private touch disabled");
     } else {
       lastPrivateTouch = now;
       privateTouches++;
@@ -266,12 +282,40 @@ SheepState * NotInTheMoodState::update() {
   return this;
 }
 
+const boolean debug_violation = true;
+unsigned long nextViolationDebug = 0;
 
 SheepState * ViolatedState::update() {
-  if (qualityTime(PRIVATES_SENSOR) == 0 && secondsSinceEnteredCurrentState() > 60 && !isTouched() && !wouldInterrupt())  {
-    return &boredState;
+  boolean debug = false;
+  if (debug_violation && nextViolationDebug < millis()) {
+    debug = true;
+    nextViolationDebug = nextViolationDebug + 2000;
   }
-  return this;
-}
+  int t = untouchDurationPrivates();
+  if (t < 10000) {
+    if (debug)
+      myprintf(Serial, "untouch duration %d, remain violated\n", t);
+    return this;
+  }
 
+
+  if (definitivelyRiding()) {
+    if (debug)
+      Serial.println("definitely riding, remain violated");
+    return this;
+  }
+  if (wouldInterrupt()) {
+    if (debug)
+      Serial.println("would interrupt, remain violated");
+    return this;
+  }
+  if (secondsSinceEnteredCurrentState() < 20) {
+    if (debug)
+      myprintf(Serial, "only %d seconds since violated, remain violated\n", secondsSinceEnteredCurrentState()  );
+    return this;
+  }
+  if (isTouched())
+    return &attentiveState;
+  else return &boredState;
+}
 
