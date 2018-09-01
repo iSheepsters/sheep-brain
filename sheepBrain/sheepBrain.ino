@@ -188,6 +188,10 @@ void setup() {
     // On-playa swap: Larry replaced by Baarak
     myprintf(Serial, "on playa swap; Larry replaced by Baarak");
     s = 10;
+  } else if (s == 4) {
+    // On-playa swap: Larry replaced by Baarak
+    myprintf(Serial, "on playa swap; Larry replaced by Baarak");
+    s = 9;
   }
   if (sheepNumber == PLACEHOLDER_SHEEP) {
     sheepNumber = s;
@@ -315,8 +319,8 @@ void loop() {
     quickGPSUpdate();
   }
   if (lastReport + REPORT_INTERVAL < now ) {
-    myprintf(Serial, "%d State %s, %f volts,  %d minutes uptime, %d GPS fixes, %2d:%02d:%02d\n",
-             now, currentSheepState->name,
+    myprintf(Serial, "%d/%d State %s, %f volts,  %d minutes uptime, %d GPS fixes, %2d:%02d:%02d\n",
+             sheepNumber, now, currentSheepState->name,
              batteryVoltage(),  minutesUptime(), fixCount,
              hour(), minute(), second());
     myprintf(Serial, "  %dms interrupt interval, %dus max interrupt time, %d max avail\n",
