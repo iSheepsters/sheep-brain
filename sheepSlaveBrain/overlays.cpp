@@ -21,14 +21,35 @@ struct Tracer {
   Tracer() {
     placeRandomly();
   };
-  int8_t x, y, dir;
+  float x, y;
+  uint8_t dir;
 
   void placeRandomly() {
-    x = random(GRID_WIDTH);
-    y = random(GRID_HEIGHT);
+    x = random(GRID_WIDTH) + 0.5;
+    y = random(GRID_HEIGHT) + 0.5;
     dir = random(4);
   }
+  
+  boolean inBounds() {
+    if (x < 0 || y < 0) return false;
+    if (x >= GRID_WIDTH) return false;
+    if (y >= GRID_HEIGHT) return false;
+    return true;
+  }
+  void placeRandomRadial();
+  void moveTowardsCenter() {
 
+      float dx = HALF_GRID_WIDTH - x;
+        float dy =  midSaddle - y;
+        float range = sqrt(dx*dx+dy*dy);
+        if (range < 1.0) {
+            placeRandomRadial();
+            return;
+        }
+        x += dx/range;
+        y += dy/range;
+  }
+ 
   void move() {
     switch (dir) {
       case 0:
@@ -54,9 +75,19 @@ struct Tracer {
   }
 };
 
+ void Tracer::placeRandomRadial() {
+    float distance = GRID_HEIGHT - midSaddle;
+    float angle = random(360)*PI/180;
+    x = HALF_GRID_WIDTH + 1 + cos(angle)*distance;
+    y = midSaddle + 0.5 + sin(angle)*distance;
+    while (!inBounds()) {
+      moveTowardsCenter();
+    }
+  }
 Tracer tracers[numTracers];
 
 boolean complainedAboutUnknownState = false;
+
 
 void moveTracer(Tracer & t, int index) {
   switch (commData.state) {
@@ -85,20 +116,7 @@ void moveTracer(Tracer & t, int index) {
       }
       break;
     case ReadyToRide: {
-        int oldx = t.x;
-        int oldy = t.y;
-        if (t.x < HALF_GRID_WIDTH - 1)
-          t.x++;
-        else if (t.x > HALF_GRID_WIDTH)
-          t.x--;
-        if (t.y < midSaddle-1)
-          t.y++;
-        else if (t.y > midSaddle+1)
-          t.y--;
-        if (oldx == t.x && oldy == t.y) {
-          // already at center
-          t.placeRandomly();
-        }
+      t.moveTowardsCenter();
       }
       break;
     case NotInTheMood:
@@ -126,9 +144,12 @@ void updateTracers() {
   for (int i = 0; i < numTracers; i++) {
     Tracer & t = tracers[i];
     moveTracer(t, i);
-    if ( flash[t.x][t.y] == 255)
+    int x = ((int) t.x) % GRID_WIDTH;
+    int y =  ((int) t.y) % GRID_HEIGHT;
+    
+    if (false &&  flash[x][y] == 255)
       moveTracer(t, i);
-    flash[t.x][t.y] = 255;
+    flash[x][y] = 255;
   }
 }
 
@@ -196,15 +217,12 @@ void rumpLights() {
 }
 
 void leftLights() {
-  Serial.println("left lights");
-
   // left side
   for (int y = 4; y < 12; y++)
     getSheepLEDFor( QUARTER_GRID_WIDTH + 1, y)
       = pettingOnly() ? CRGB::Pink : CRGB::LightGrey;
 }
 void rightLights() {
-   Serial.println("right lights");
   // right side
   for (int y = 4; y < 12; y++)
     getSheepLEDFor( QUARTER_GRID_WIDTH + HALF_GRID_WIDTH - 1, y)
@@ -212,15 +230,13 @@ void rightLights() {
 }
 void backLights() {
   // back side
-  int q = commData.backTouchQuality + commData.backTouchQuality / 4;
-
+  int q = commData.backTouchQuality + commData.headTouchQuality / 4;
+  myprintf("Back lights %d\n", q);
   for (int y = -4; y <=  4; y++) {
     int brightness = 250 - abs(y) * 130 + q * 25;
     brightness = max(0, min(255, brightness));
-    if (brightness > 200)
-      brightness = 255;
-    for (int x = HALF_GRID_WIDTH - 1; x <= HALF_GRID_WIDTH; x++)
 
+    for (int x = HALF_GRID_WIDTH - 1; x <= HALF_GRID_WIDTH; x++)
       getSheepLEDFor(x, y + midSaddle) = CRGB(brightness, brightness, brightness);
   }
 }

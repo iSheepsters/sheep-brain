@@ -1,16 +1,31 @@
 
 #include "util.h"
 #include "printf.h"
-  uint16_t totalYield;
+uint16_t totalYield;
 /* return voltage for 12v battery */
 uint16_t batteryVoltageRaw() {
   return analogRead(A2);
 }
 
- uint8_t millisToSecondsCapped(unsigned long ms) {
-  ms = ms/1000;
+void writeSheepNumber(int s) {
+  File configFile = SD.open("config.txt", O_WRITE | O_TRUNC );
+  configFile.println(s);
+  configFile.close();
+  myprintf(Serial, "Wrote %d to config.txt\n", sheepNumber);
+}
+uint8_t millisToSecondsCapped(unsigned long ms) {
+  ms = ms / 1000;
   if (ms < 255) return ms;
   return 255;
+}
+
+int sheepToSwitchTo(int s) {
+  if (minutesPerSheep == 0)
+    return s;
+  s = s + 1;
+  if (s > 12)
+    return s - 12;
+  return s;
 }
 
 SheepInfo & getSheep() {
@@ -25,7 +40,7 @@ void setupDelay(uint16_t ms) {
 
 void yield(uint16_t ms) {
   totalYield += ms;
-  
+
   delay(ms);
 }
 

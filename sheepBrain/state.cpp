@@ -43,11 +43,11 @@ uint16_t secondsSinceEnteredCurrentState() {
 }
 boolean maybeRiding() {
   int extra = 0;
-  if (touchDuration(LEFT_SENSOR) > 2550)
+  if (touchDuration(LEFT_SENSOR) > 1550)
     extra ++;
-  if (touchDuration(RIGHT_SENSOR) > 2550)
+  if (touchDuration(RIGHT_SENSOR) > 1550)
     extra ++;
-  if (touchDuration(RUMP_SENSOR) > 2550)
+  if (touchDuration(RUMP_SENSOR) > 1550)
     extra ++;
 
   return touchDuration(BACK_SENSOR) > 8200 && extra >= 2
@@ -75,12 +75,11 @@ boolean isTouched() {
 }
 
 boolean qualityTouch() {
-  return  qualityTime(BACK_SENSOR) > 17000
-          ||  qualityTime(HEAD_SENSOR) > 13000
+  return  qualityTime(BACK_SENSOR) > 15000
+          ||  qualityTime(HEAD_SENSOR) > 12000
           ||  qualityTime(BACK_SENSOR) + qualityTime(RUMP_SENSOR) / 2
           +  2 * qualityTime(HEAD_SENSOR) > 30000;
 }
-
 
 boolean isIgnored() {
   if (qualityTouch() || isTouched())
@@ -100,46 +99,56 @@ void becomeViolated() {
 }
 
 boolean wouldInterrupt() {
-  if (!musicPlayer.playingMusic)
-    return false;
-  if (millis() - lastSoundStarted < 30000)
-    return false;
-  return true;
+  unsigned long now = millis();
+
+  if (now - lastSoundStarted < 30000)
+    return false; // last started more than 30 seconds ago.
+
+  if (musicPlayer.playingMusic)
+    return true;
+
+  if (now - lastSoundPlaying < 5000)
+    return true;  // been silent for less than 5 seconds
+    
+  return false;
 }
 
+unsigned long next_sheep_switch = minutesPerSheep * 60 * 1000L;
+
+void updateState(unsigned long ms) {
 
 
-void updateState(unsigned long now) {
-  if (privateTouchFade < now) {
+
+  if (privateTouchFade < ms) {
     if (privateTouchLoad > 0) {
       privateTouchLoad--;
       myprintf(Serial, "reducing private touch load to %d\n", privateTouchLoad);
-    
+
     }
-    privateTouchFade = now + 2 * 60 * 1000;
+    privateTouchFade = ms + 2 * 60 * 1000;
   }
 
-  if (privateSensorEnabled() &&  touchDuration(PRIVATES_SENSOR) > 1000 && now > lastPrivateTouch + 3000
+  if (privateSensorEnabled() &&  touchDuration(PRIVATES_SENSOR) > 1000 && ms > lastPrivateTouch + 3000
       && !(currentSoundPriority == 4 && currentSoundFile != NULL)) {
     privateTouchLoad++;
     myprintf(Serial, "new private touch, current load = %d\n", privateTouchLoad);
     if (privateTouchLoad > 6) {
-      privateTouchDisabledUntil = now + 10 * 60 * 1000;
+      privateTouchDisabledUntil = ms + 10 * 60 * 1000;
       Serial.println("private touch disabled");
     } else {
-      lastPrivateTouch = now;
+      lastPrivateTouch = ms;
       privateTouches++;
 
       myprintf(Serial, "inappropriate touch duration %d, num inappropriate touches = %d\n",
                touchDuration(PRIVATES_SENSOR), privateTouches);
       myprintf(Serial, "current value = %d, stable value = %d\n",
                cap.filteredData((uint8_t) PRIVATES_SENSOR), stableValue[PRIVATES_SENSOR]);
-      inappropriateTouchSounds.playSound(now, false);
+      inappropriateTouchSounds.playSound(ms, false);
 
       if (privateTouches >= 2 && currentSheepState != &violatedState) {
         becomeViolated();
         currentSheepState = &violatedState;
-        timeEnteredCurrentState = now;
+        timeEnteredCurrentState = ms;
         return;
       }
     }
@@ -171,14 +180,28 @@ void updateState(unsigned long now) {
 
     if (!musicPlayer.playingMusic ||
         newState->sounds.priority >= currentSoundPriority) {
-      newState->sounds.playSound(now, false);
+      newState->sounds.playSound(ms, false);
       if (newState == &violatedState)
-        nextAmbientSound = now + 12000;
+        nextAmbientSound = ms + 12000;
       else
-        nextAmbientSound = now + 12000 + random(1, 15000);
+        nextAmbientSound = ms + 12000 + random(1, 15000);
     }
     currentSheepState = newState;
-    timeEnteredCurrentState = now;
+    timeEnteredCurrentState = ms;
+  } else if (minutesPerSheep > 0 && next_sheep_switch < ms && !musicPlayer.playingMusic && !wouldInterrupt()) {
+    sheepNumber = sheepToSwitchTo(sheepNumber);
+    next_sheep_switch = ms + minutesPerSheep * 60 * 1000;
+    if (!resetSD()) {
+      Serial.println("reset SD failed");
+    } else
+      loadPerSheepSounds();
+    myprintf(Serial, "switching to sheep %d\n", sheepNumber);
+    myprintf(logFile, "Switching to sheep %d\n", sheepNumber);
+    writeSheepNumber(sheepNumber);
+    myprintf(Serial, "Wrote %d to config.txt\n", sheepNumber);
+
+    changeSounds.playSound(ms, false);
+
   }
   //Serial.println("update state finished");
 }
@@ -219,13 +242,14 @@ SheepState * AttentiveState::update() {
   if (secondsSinceEnteredCurrentState() > 40 && !wouldInterrupt()
       && millis() < notInTheMoodUntil)
     return &notInTheMoodState;
-  if (qualityTouch() && secondsSinceEnteredCurrentState() > 15 && !wouldInterrupt()) {
+  if (qualityTouch() && secondsSinceEnteredCurrentState() > 12 && !wouldInterrupt()) {
     if (millis() < notInTheMoodUntil)
       return &notInTheMoodState;
     return &readyToRideState;
   }
   return this;
 }
+
 
 SheepState * ReadyToRideState::update() {
   lastReadyToRide = millis();

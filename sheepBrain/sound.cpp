@@ -3,6 +3,7 @@
 #include "gps.h"
 #include "state.h"
 #include "printf.h"
+#include <MemoryFree.h>
 #include <Adafruit_SleepyDog.h>
 
 const boolean USE_AMPLIFIER = true;
@@ -32,7 +33,7 @@ Adafruit_VS1053_FilePlayer musicPlayer =
 #define MAX9744_I2CADDR 0x4B
 
 // We'll track the volume level in this variable.
-int8_t thevol = 58;
+int8_t thevol = INITIAL_AMP_VOL;
 uint8_t VS1053_volume = 0;
 unsigned long lastSoundStarted = 0;
 unsigned long lastSoundPlaying = 0;
@@ -50,13 +51,13 @@ void musicPlayerSetVolume(uint8_t v) {
 }
 void musicPlayerFullVolume() {
 
-  Serial.println("musicPlayerFullVolume");
+  //Serial.println("musicPlayerFullVolume");
   VS1053_volume = 0;
   musicPlayer.setVolume(0, 0xfe);
   turnAmpOn();
 }
 void musicPlayerNoVolume() {
-  Serial.println("musicPlayerNoVolume");
+  //Serial.println("musicPlayerNoVolume");
   VS1053_volume = 0;
   musicPlayer.setVolume(0xfe, 0xfe);
   turnAmpOff();
@@ -66,9 +67,9 @@ volatile boolean musicPlayerReady = false;
 void setupSound() {
   if (true) {
     if (! turnAmpOff())
-      Serial.println("Failed to set volume, MAX9744 not found!");
+      Serial.println(F("Failed to set volume, MAX9744 not found!"));
     else
-      Serial.println("MAX9744 found");
+      Serial.println(F("MAX9744 found"));
   }
 
 
@@ -121,10 +122,11 @@ boolean setAmpVolume(int8_t v) {
   // cant be higher than 63 or lower than 0
   if (v > 63) v = 63;
 
-  if (v != lastAmpVol) {
-    Serial.print("Setting volume to ");
-    Serial.println(v);
-  }
+  if (v == lastAmpVol)
+    return true;
+
+  Serial.print("Setting volume to ");
+  Serial.println(v);
   Wire.beginTransmission(MAX9744_I2CADDR);
   Wire.write(v);
   lastAmpVol = v;
@@ -132,6 +134,13 @@ boolean setAmpVolume(int8_t v) {
     return true;
   else
     return false;
+
+}
+
+void changeAmpVol(int8_t v) {
+  if (v < 0) v = 0;
+  else if (v > 63) v = 63;
+  thevol = v;
 }
 
 boolean turnAmpOn() {
@@ -169,8 +178,11 @@ void setNextAmbientSound(unsigned long durationOfLastSound) {
   if (durationOfLastSound < 6000) durationOfLastSound = 6000;
   else if (durationOfLastSound > 30000) durationOfLastSound = 30000;
   float crowded = howCrowded();
-  Serial.print("Crowding: ");
-  Serial.println(crowded);
+  if (crowded > 1.1) {
+    Serial.print("Crowding: ");
+    Serial.println(crowded);
+  }
+
 
   unsigned long result = durationOfLastSound / 2 + (unsigned long)(random(20000, 40000) * crowded);
   myprintf(Serial, "next ambient sound in %d ms\n", result);
@@ -194,10 +206,10 @@ void noteEndOfMusic() {
     currentSoundFile->lastPlaying = now;
     if (currentSoundFile->duration == 0) {
       currentSoundFile->duration = currentSoundFile->lastPlaying - currentSoundFile->lastStarted;
-      myprintf(Serial, "%d ms for %s/%s\n",
+      myprintf(Serial, "%d ms for %s/%d.mp3\n",
                currentSoundFile->duration,
                currentSoundFile->collection->name,
-               currentSoundFile->name);
+               currentSoundFile->num);
       isBaa = currentSoundFile->collection == &baaSounds;
       currentSoundFile = NULL;
     }

@@ -3,19 +3,19 @@
 #include "sound.h"
 #include "printf.h"
 #include "util.h"
+#include <MemoryFree.h>
 #include <SPI.h>
 #include <SD.h>
 
 #define CARDCS          5     // Card chip select pin
+
 
 int currentSoundPriority = 0;
 
 const int PATH_BUFFER_LENGTH = 100;
 char pathBuffer[PATH_BUFFER_LENGTH];
 
-boolean isMusicFile(File f) {
-  if (f.isDirectory()) return false;
-  const char *name = f.name();
+boolean isMusicFile(const char * name) {
   const char *suffix = strrchr(name, '.');
   if (name[0] == '_')
     return false;
@@ -27,19 +27,22 @@ boolean isMusicFile(File f) {
 SoundCollection::SoundCollection(uint8_t pri) : priority (pri) {
   strncpy(name, "", 13);
   count = 0;
-  files = NULL;
 }
 
 boolean SoundCollection::loadCommon(const char * s) {
   strncpy(name, s, 13);
+  myprintf(Serial, "opening %s\n", name);
+
   File dir = SD.open(name);
+  myprintf(Serial, "opened %s\n", name);
+
   common = true;
   return load(dir);
 }
+char buf[30];
 
 boolean SoundCollection::load(const char * s) {
   strncpy(name, s, 13);
-  char buf[30];
   snprintf(buf, 30, "%d/%s", sheepNumber, name);
   myprintf(Serial, "opening %s\n", buf);
   File dir = SD.open(buf);
@@ -48,51 +51,42 @@ boolean SoundCollection::load(const char * s) {
 boolean SoundCollection::load(File dir) {
   count = 0;
   if (!dir.isDirectory()) {
-    files = NULL;
     Serial.print(name);
     Serial.println(" is not a directory");
+    dir.close();
     return false;
   }
 
-  while (true) {
-    File entry =  dir.openNextFile();
-    if (!entry) break;
-    if (isMusicFile(entry)) {
-      count++;
-    }
-  }
-  if (count > 16) count = 16;
-  dir.rewindDirectory();
-  files = new SoundFile[count];
+
   uint16_t i = 0;
-  while (i < count) {
+  while (i < MAX_SOUND_FILES) {
     File entry =  dir.openNextFile();
-    if (!entry)
+    if (!entry) {
       break;
-    if (isMusicFile(entry)) {
-      strncpy(files[i].name,  entry.name(), 13);
+    }
+    const char * nm = entry.name();
+    if (!entry.isDirectory() && isMusicFile(nm)) {
+      files[i].num = atoi(nm);
       files[i].collection = this;
+      files[i].lastPlaying = 0;
+      files[i].duration = 0;
+      files[i].lastStarted = 0;
       i++;
     }
+    entry.close();
   }
-  if (i < count) {
-    Serial.println("Ran short of music files!");
-    myprintf(Serial, "Expected %d, found %d\n", count, i);
-    for (; i < count; i++) {
-      strncpy(files[i].name,  "", 13);
-      files[i].lastPlaying = 0;
-      files[i].lastStarted = 0;
-    }
-  } else {
-    myprintf(Serial, "Found %d files for %s\n", count, name);
-  }
+  count = i;
+
+  myprintf(Serial, "Found %d files for %s\n", count, name);
+  myprintf(Serial, "Free memory = %d\n", freeMemory());
+  dir.close();
   return true;
 }
 
 void SoundCollection::list() {
 
   for (int i = 0; i < count; i++) {
-    Serial.println(files[i].name);
+    myprintf(Serial, "%d.mp3\n", files[i].num);
   }
 }
 
@@ -106,10 +100,10 @@ void SoundCollection::verboseList(unsigned long now, boolean ambientSound) {
 
   Serial.println( "  duration   started   playing  eligable name");
   for (int i = 0; i < count; i++) {
-    myprintf(Serial, "%10d%10d%10d     %s %s\n", files[i].duration, ago(files[i].lastStarted, now),
+    myprintf(Serial, "%10d%10d%10d     %s %d.mp3\n", files[i].duration, ago(files[i].lastStarted, now),
              ago(files[i].lastPlaying,  now),
              files[i].eligibleToPlay(now, ambientSound) ? " true" : "false",
-             files[i].name);
+             i);
 
   }
 }
@@ -126,7 +120,7 @@ boolean SoundCollection::playSound(unsigned long now, boolean ambientSound) {
     Serial.println(name);
     return false;
   }
-  SoundFile *s  = chooseSound(now, ambientSound);
+  SoundFile *s = chooseSound(now, ambientSound);
   if (s == NULL) {
     if (ambientSound)
       Serial.print("No ambient sound found for ");
@@ -147,15 +141,15 @@ boolean SoundCollection::playSound(unsigned long now, boolean ambientSound) {
 
   boolean result = false;
   if (common)
-    result = playFile("%s/%s", name, s->name );
+    result = playFile("%s/%d.mp3", name, s->num  );
   else
-    result = playFile("%d/%s/%s", sheepNumber, name, s->name);
+    result = playFile("%d/%s/%d.mp3", sheepNumber, name, s->num  );
   if (!result) {
-    myprintf(Serial, "Could not start %s/%s\n", name, s->name);
+    myprintf(Serial, "Could not start %s/%d.mp3\n", name, s->num  );
     musicPlayerNoVolume();
     return false;
   } else {
-    myprintf(Serial, "Starting %s/%s at %d\n", name, s->name, now);
+    myprintf(Serial, "Starting %s/%d.mp3 at %d\n", name, s->num, now);
     s->lastStarted = s->lastPlaying = now;
     currentSoundFile = s;
     currentSoundPriority = priority;
@@ -206,14 +200,10 @@ SoundFile * SoundCollection::chooseSound(unsigned long now,  boolean ambientSoun
   if (random(3) <= 1) {
     // return first eligable sound
     int firstChoice = random(count);
-    if (count > 1)
-      while (firstChoice == lastChoice)
-        firstChoice = random(count);
 
     int i = firstChoice;
     while (true) {
       SoundFile *s = &(files[i]);
-      lastChoice = i;
       if (s->eligibleToPlay(now, ambientSound))
         return s;
 
@@ -229,7 +219,7 @@ SoundFile * SoundCollection::chooseSound(unsigned long now,  boolean ambientSoun
 const boolean debug_eligible = false;
 boolean SoundFile::eligibleToPlay(unsigned long now, boolean ambientSound) {
   if (now == 0) {
-    if (debug_eligible) myprintf(Serial, "%s eligable, not played before\n", name);
+    if (debug_eligible) myprintf(Serial, "%d.mp3 eligable, not played before\n", num);
     return true;
   }
   uint32_t minimumQuietTime = 10000;
@@ -245,15 +235,15 @@ boolean SoundFile::eligibleToPlay(unsigned long now, boolean ambientSound) {
   if (debug_eligible) { // list reasons
     if (result) {
       if (lastPlaying == 0)
-        myprintf(Serial, "%s eligable: not played before\n",  name);
+        myprintf(Serial, "%d.mp3 eligable: not played before\n",  num);
       else
-        myprintf(Serial, "%s eligable: Last playing %d seconds ago; %d minimum\n",
-                 name, (now - lastPlaying) / 1000, minimumRepeatTime / 1000);
+        myprintf(Serial, "%d.mp3 eligable: Last playing %d seconds ago; %d minimum\n",
+                 num, (now - lastPlaying) / 1000, minimumRepeatTime / 1000);
       if (ambientSound) myprintf(Serial, "  last sound %d seconds ago, minimum quiet %d seconds\n",
                                    (now - lastSoundPlaying) / 1000, minimumQuietTime / 1000);
     } else if (false) {
-      myprintf(Serial, "%s not eligable: Last playing %d seconds ago; %d minimum\n",
-               name, (now - lastPlaying) / 1000, minimumRepeatTime / 1000);
+      myprintf(Serial, "%d.mp3 not eligable: Last playing %d seconds ago; %d minimum\n",
+               num, (now - lastPlaying) / 1000, minimumRepeatTime / 1000);
       if (ambientSound) myprintf(Serial, "  last sound %d seconds ago, minimum quiet %d seconds\n",
                                    (now - lastSoundPlaying) / 1000, minimumQuietTime / 1000);
 
@@ -271,6 +261,7 @@ boolean setupSD() {
     return false;
   }
   Serial.println("SD OK!");
+  myprintf(Serial, "size of SoundFile is %d\n", sizeof(SoundFile));
 
 
   // list files
@@ -278,6 +269,21 @@ boolean setupSD() {
   return true;
 }
 
+
+boolean resetSD() {
+  SD.end();
+  delay(100);
+  if (!SD.begin(5 /* CARDCS */)) {
+    Serial.println(F("SD failed, or not present"));
+    return false;
+  }
+  Serial.println("SD OK!");
+  
+
+  // list files
+  // printDirectory(SD.open("/"), 0);
+  return true;
+}
 
 
 /// File listing helper
@@ -306,6 +312,17 @@ void printDirectory(File dir, int numTabs) {
   }
 }
 
-
-
+void loadPerSheepSounds() {
+  Serial.println("Loading sound files");
+  myprintf(Serial, "Free memory = %d\n", freeMemory());
+  boredSounds.load("BORED");
+  ridingSounds.load("RIDNG");
+  readyToRideSounds.load("RDRID");
+  endOfRideSounds.load("EORID");
+  attentiveSounds.load("ATTNT");
+  notInTheMoodSounds.load("NMOOD");
+  violatedSounds.load("VIOLT");
+  inappropriateTouchSounds.load("INAPP");
+  seperatedSounds.load("SEPRT");
+}
 

@@ -131,9 +131,11 @@ int numberOfAnimations = 0;
 int numberOfOPCFiles = 0;
 
 boolean isGPS(int i) {
+  return false;
   return i % 11 == 0;
 }
 boolean isCustom(int i) {
+  return false;
   return i % 15 == 0;
 }
 boolean isBasic(int i) {
@@ -354,7 +356,7 @@ class ShowOPC : public Animation {
     }
     void initialize(int idx) {
       custom = false;
-      index = numberOfOPCFiles == 0 || !receivedMsg ? 0 : (idx + commData.sheepNum) %numberOfOPCFiles;
+      index = numberOfOPCFiles == 0 || !receivedMsg ? 0 : (idx + commData.sheepNum) % numberOfOPCFiles;
       myprintf("Initialize opc. index = %d, sheepNum = %d, opc = %d\n", idx);
       ok = false;
       bytesRead = 0;
@@ -379,7 +381,7 @@ class ShowOPC : public Animation {
         animationRotateRainbowUp.update(now);
         return;
       }
-        
+
       int count = file.read(header, 4);
       if (count == 0 && bytesRead > 10000) {
         myprintf("Rewinding after reading %d bytes\n", bytesRead);

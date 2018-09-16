@@ -4,11 +4,13 @@
 extern uint8_t sheepNumber;
 const uint8_t NUMBER_OF_SHEEP = 16;
 const uint8_t PLACEHOLDER_SHEEP = 15;
+const uint8_t INITIAL_AMP_VOL = 47;
 extern File logFile;
 extern uint16_t batteryVoltageRaw();
 extern float batteryVoltage();
 extern uint8_t batteryCharge();
 extern uint16_t minutesUptime();
+extern void writeSheepNumber(int s);
 extern uint16_t totalYield;
 
 extern void setupDelay(uint16_t ms);
@@ -18,7 +20,7 @@ extern uint8_t millisToSecondsCapped(unsigned long ms);
 
 extern unsigned long updateGPSLatency();
 
-
+const int minutesPerSheep = 10; // use 0 to not switch sheep
 const boolean useSound = true;
 const boolean playSound = true;
 const boolean useTouch = true;
@@ -27,6 +29,7 @@ const boolean useGPSinterrupts = true;
 const boolean useSlave = true;
 const boolean useRadio = true;
 const boolean useLog = true;
+const boolean useCommands = false;
 const boolean doUpdateState = true;
 const boolean getGPSFixQuality = false;
 
@@ -47,12 +50,15 @@ enum PacketKind {
   DistressPacket,
   RadioInfoPacket,
   RadioDistressPacket,
+  CommandPacket,
 };
 
 
 extern SheepInfo & getSheep(int s);
 
 extern SheepInfo & getSheep();
+
+extern int sheepToSwitchTo(int s);
 
 #endif
 

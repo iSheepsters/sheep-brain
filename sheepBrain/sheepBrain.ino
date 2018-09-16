@@ -1,7 +1,7 @@
 #include <Adafruit_SleepyDog.h>
-
-const char * VERSION = "version as of Friday, 10am";
-const boolean WAIT_FOR_SERIAL = false;
+#include <MemoryFree.h>
+const char * VERSION = "version as of 9/4, 7pm";
+const boolean WAIT_FOR_SERIAL = true;
 
 #include <Wire.h>
 #include <TimeLib.h>
@@ -49,10 +49,12 @@ SoundCollection notInTheMoodSounds(1);
 SoundCollection violatedSounds(1);
 SoundCollection baaSounds(0);
 
+
 // not a state
 SoundCollection endOfRideSounds(3);
 SoundCollection inappropriateTouchSounds(4);
 SoundCollection seperatedSounds(1);
+SoundCollection changeSounds(0);
 
 
 
@@ -116,30 +118,20 @@ void testSwapLeftRight(uint8_t touched) {
 void setup() {
   memset(&infoOnSheep, 0, sizeof (infoOnSheep));
   pinMode(LED_BUILTIN, OUTPUT);
-  //  pinMode(SHDN_MAX9744, OUTPUT);
-  //  digitalWrite(SHDN_MAX9744, LOW);
   Wire.begin();
   randomSeed(analogRead(0));
   delay(100);
   Serial.begin(115200);
-  if (WAIT_FOR_SERIAL) while (!Serial && millis() < 15000) {
+  if (WAIT_FOR_SERIAL) while (!Serial && millis() < 2000) {
       digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
       setupDelay(200);                     // wait for a second
       digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
       setupDelay(200);
     }
-  int countdownMS = Watchdog.enable(14000);
+  int countdownMS = Watchdog.enable(8000);
   myprintf(Serial, "Watchdog set, %d ms timeout\n", countdownMS);
 
-  if (false) {
-    testSwapLeftRight(0);
-    testSwapLeftRight(0x04);
-    testSwapLeftRight(0x08);
-    testSwapLeftRight(0x0f);
-    testSwapLeftRight(0x37);
-    testSwapLeftRight(0x3B);
-  }
-
+  myprintf(Serial, "Free memory = %d\n", freeMemory());
 
   if (setupRadio())
     Serial.println("radio found");
@@ -168,41 +160,34 @@ void setup() {
 
     }
   }
-
+  myprintf(Serial, "Free memory = %d\n", freeMemory());
+  int s = 1;
   File configFile = SD.open("config.txt");
   if (!configFile) {
-    while (true) {
-      logDistress("no config.txt file");
-      while (true) {
-        digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
-        setupDelay(1000);                     // wait for a second
-        digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
-        setupDelay(1000);
-      }
-    }
+
+    logDistress("no config.txt file");
+
+  } else {
+    s = configFile.parseInt();
+    myprintf(Serial, "config file contains %d\n", s);
+    configFile.close();
   }
-  int s = configFile.parseInt();
-  configFile.close();
-  myprintf(Serial, "config file contains %d\n", s);
-  if (s == 9) {
-    // On-playa swap: Larry replaced by Baarak
-    myprintf(Serial, "on playa swap; Larry replaced by Baarak");
-    s = 10;
-  } else if (s == 4) {
-    // On-playa swap: Larry replaced by Baarak
-    myprintf(Serial, "on playa swap; Larry replaced by Baarak");
-    s = 9;
-  }
+
+  if (s < 0 || s >= NUMBER_OF_SHEEP)
+    s = 1;
+
   if (sheepNumber == PLACEHOLDER_SHEEP) {
     sheepNumber = s;
     myprintf(Serial, "I am sheep %d\n", sheepNumber);
+
   } else {
+
     myprintf(Serial,
              "Sheep number hard coded as %d, ignoring value of %d on sd card\n",
              sheepNumber, s);
   }
 
-
+  writeSheepNumber(sheepToSwitchTo(sheepNumber));
   setupLogging();
   myprintf(logFile, "Start of log for sheep %d\n", sheepNumber);
 
@@ -214,21 +199,15 @@ void setup() {
     //    pinMode(SHDN_MAX9744, INPUT);
     //    setupDelay(100);
     setupSound();
+    myprintf(Serial, "Free memory = %d\n", freeMemory());
     Serial.println("Sound set up, examining sound files");
 
-    boredSounds.load("BORED");
-    ridingSounds.load("RIDNG");
-    readyToRideSounds.load("RDRID");
-    endOfRideSounds.load("EORID");
-    attentiveSounds.load("ATTNT");
-    notInTheMoodSounds.load("NMOOD");
-    violatedSounds.load("VIOLT");
-    inappropriateTouchSounds.load("INAPP");
-    seperatedSounds.load("SEPRT");
+    loadPerSheepSounds();
 
+    changeSounds.loadCommon("change");
     baaSounds.loadCommon("baa");
     baaSounds.playSound(millis(), false);
-
+    myprintf(Serial, "Free memory = %d\n", freeMemory());
   } else
     Serial.println("Skipping sound");
 
@@ -258,8 +237,9 @@ void setup() {
     IRS_timer5.enableInterrupt(1);
   }
   nextPettingReport = setupFinished + 2000;
+  myprintf(Serial, "Free memory = %d\n", freeMemory());
   myprintf(Serial, "setup complete, sheep %d\n",
-  sheepNumber);
+           sheepNumber);
   Serial.println(VERSION);
   randomSeed(analogRead(0));
 
@@ -275,17 +255,17 @@ unsigned long lastLoop = 0;
 
 int32_t prevLat = -1;
 int32_t prevLong = -1;
-const uint16_t REPORT_INTERVAL = 15000;
+const uint16_t REPORT_INTERVAL = 10000;
 void loop() {
   Watchdog.reset();
   interrupts();
   SheepInfo & me = getSheep();
   me.time = now();
-  if (totalYield > 0) {
+  if (totalYield > 20) {
     myprintf(Serial, "total yield %dms\n", totalYield);
-    totalYield = 0;
-  }
 
+  }
+  totalYield = 0;
   me.uptimeMinutes = minutesUptime();
   me.batteryVoltageRaw =  batteryVoltageRaw();
   me.errorCodes = 0;
@@ -302,7 +282,8 @@ void loop() {
                 sheepNumber, (nextTestDistress - now) / 1000);
   }
   if (useGPS) {
-    quickGPSUpdate();
+    if (!useGPSinterrupts)
+      quickGPSUpdate();
     updateGPS(now);
   }
 
@@ -326,17 +307,18 @@ void loop() {
     myprintf(Serial, "  %dms interrupt interval, %dus max interrupt time, %d max avail\n",
              longestInterval, maxInterruptTime, maxAvail);
 
+    myprintf(Serial, "Free memory = %d\n", freeMemory());
 
+    if (thevol != INITIAL_AMP_VOL)
+      myprintf(Serial, "  amplifier volume %d\n", thevol);
     if (currentSoundFile != NULL)
-      myprintf(Serial, "  playing %s\n", currentSoundFile -> name);
+      myprintf(Serial, "  playing %s/%d.mp3\n", currentSoundFile->collection->name, currentSoundFile -> num);
     else if (musicPlayer.playingMusic)
       Serial.println("  Playing unknown sound");
     else {
       myprintf(Serial, "next ambient sound in %d ms\n", nextAmbientSound - now);
       myprintf(Serial, "next baa in %d ms\n", nextBaa - now);
     }
-    if (ampOn)
-      Serial.println("  Amplifier on");
 
     myprintf(Serial, "  GPS readings %d good, %d bad\n", total_good_GPS, total_bad_GPS);
     if (getGPSFixQuality)
@@ -348,7 +330,7 @@ void loop() {
       longestGPSvoid = 0;
 
 
-    if (prevLat != -1) {
+    if (false && prevLat != -1) {
       float speed = 1000 * distance_between_fixed_in_feet(latitudeDegreesAvg, longitudeDegreesAvg, prevLat, prevLong)
                     / (now - lastReport);
       Serial.print("  Speed : ");
@@ -430,22 +412,20 @@ void loop() {
     }
   }
 
-  if (useGPS && !useGPSinterrupts) {
-    quickGPSUpdate();
-  }
-
   if (useSound && playSound) {
-    if (TRACE) Serial.println("checkForNextAmbientSound");
     checkForNextAmbientSound(now);
   }
 
   if (useGPS && !useGPSinterrupts) {
+    if (TRACE) Serial.println("quickGPS update");
     quickGPSUpdate();
   }
-  if (TRACE) Serial.println("checkForCommand");
-  checkForCommand(now);
+  if (useCommands) {
+    if (TRACE) Serial.println("checkForCommand");
+    checkForCommand(now);
+  }
 
-  //yield(10);
+  yield(10);
 }
 
 void checkForNextAmbientSound(unsigned long now) {
@@ -456,10 +436,11 @@ void checkForNextAmbientSound(unsigned long now) {
     return;
   }
   if (now > nextAmbientSound) {
+    if (TRACE) Serial.println("play ambient sound");
     if (!isInFriendlyTerritory() && random(2) == 0 && seperatedSounds.playSound(now, true))  {
       unsigned long delay = 20000;
-      if (currentSoundFile -> duration > 0 && currentSoundFile -> duration < delay)
-        delay = currentSoundFile -> duration ;
+      if (false && currentSoundFile -> duration > 0 && currentSoundFile -> duration < delay)
+        delay = currentSoundFile -> duration;
       delay = (delay + random(20000)) * howCrowded();
       myprintf(Serial, "Started playing seperated sound, next in %dms\n", delay);
       nextAmbientSound = now + delay;
@@ -474,6 +455,7 @@ void checkForNextAmbientSound(unsigned long now) {
       nextAmbientSound = now + delay;
       return;
     } else  if (baaSounds.playSound(now, true)) {
+
       myprintf(Serial, "No ambient sound available, baa-ing\n");
 
       unsigned long delay = random(10000, 20000) * howCrowded();
@@ -485,6 +467,7 @@ void checkForNextAmbientSound(unsigned long now) {
     }
   }
   if (now > nextBaa && nextBaa + 8000 < nextAmbientSound) {
+    if (TRACE) Serial.println("play baa sound");
     if (baaSounds.playSound(now, true)) {
       unsigned long delay = random(10000, 20000) * howCrowded();
       Serial.println("Started playing baa");
@@ -543,17 +526,11 @@ void checkForCommand(unsigned long now) {
             musicPlayer.pausePlaying(false);
           }
           break;
-
         case '+':
+          changeAmpVol(thevol + 1);
+          break;
         case '-':
-          if (c == '+')
-            thevol++;
-          else
-            thevol--;
-          if (thevol > 63) thevol = 63;
-          if (thevol < 0) thevol = 0;
-
-          turnAmpOn();
+          changeAmpVol(thevol - 1);
           break;
       }
     }

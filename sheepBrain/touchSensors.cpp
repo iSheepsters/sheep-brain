@@ -308,6 +308,7 @@ void updateTouchData(unsigned long now, boolean debug) {
 
     }
     if (debug) Serial.println();
+    if (false) {
     Serial.print("Touch: ");
     if (! privateSensorEnabled())
       Serial.print("(private sensor disabled) ");
@@ -315,6 +316,7 @@ void updateTouchData(unsigned long now, boolean debug) {
       myprintf(Serial, "%2d %2d %2d  ", timeTouched[i], qualityTimeIntervals[i], timeUntouched[i]);
     }
     Serial.println();
+    }
 
     touchedThisInterval = currTouched;
     lastTouchInterval = nextTouchInterval;

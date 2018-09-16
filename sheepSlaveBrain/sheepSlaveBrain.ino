@@ -88,7 +88,10 @@ void setup() {
 
   Serial.println("comm set up");
   for (int i = 0; !receivedMsg && i < 100; i++) {
-    delay(50);
+    digitalWrite(led, HIGH);   // turn the LED on (HIGH is the voltage level)
+    delay(25);               // wait for a second
+    digitalWrite(led, LOW);    // turn the LED off by making the voltage LOW
+    delay(25);
     Serial.println(i);
   }
 
@@ -112,15 +115,20 @@ boolean isDaytime() {
 
 boolean isPreview() {
   return false;
- // return true;
+  // return true;
   if (!receivedMsg)
     return true;
   int h = month();
   return h == 8;
 }
 
+boolean useLEDs() {
+  return true;
+  return  isPreview() ||  !isDaytime();
+}
+
 void setLEDsToBlack() {
-  for (int j = 0; j < NUM_STRIPS*NUM_LEDS_PER_STRIP; j++)
+  for (int j = 0; j < NUM_STRIPS * NUM_LEDS_PER_STRIP; j++)
     leds[j] = CRGB::Black;
 }
 
@@ -132,7 +140,7 @@ void loop() {
   digitalWrite(led, (now / 1000) % 2 == 1);
 
 
-  if (isDaytime())
+  if (false && isDaytime())
     LEDS.setBrightness(255);
   else
     switch (currState) {
@@ -144,7 +152,8 @@ void loop() {
         LEDS.setBrightness(BRIGHTNESS_NORMAL);
         break;
     }
-
+    
+  //LEDS.setBrightness(BRIGHTNESS_NORMAL);
   if (nextUpdate < now) {
     unsigned long millisToChange =  updateAnimation(now);
 
@@ -174,7 +183,7 @@ void loop() {
   setLEDsToBlack();
 
   if (false) Serial.println("updating animation");
-  if (isPreview() ||  !isDaytime()) {
+  if (useLEDs()) {
     currentAnimation->update(now);
     overlays();
 
@@ -184,11 +193,11 @@ void loop() {
     Serial.println("daytime; LEDs off");
 
     LEDS.show();
-    for(int i = 0; i < 20; i++) {
+    for (int i = 0; i < 20; i++) {
       digitalWrite(led, HIGH);   // turn the LED on (HIGH is the voltage level)
-    delay(200);               // wait for a second
-    digitalWrite(led, LOW);    // turn the LED off by making the voltage LOW
-    delay(200);
+      delay(200);               // wait for a second
+      digitalWrite(led, LOW);    // turn the LED off by making the voltage LOW
+      delay(200);
     }
   }
 

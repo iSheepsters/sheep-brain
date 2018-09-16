@@ -49,6 +49,7 @@ extern void wasTouchedInappropriately();
 extern uint8_t calculateBaseline(uint16_t value);
 extern uint8_t CDTx_value(enum TouchSensor sensor);
 
+
 extern uint8_t CDCx_value(enum TouchSensor sensor);
 
 

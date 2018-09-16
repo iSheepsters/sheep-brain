@@ -21,6 +21,7 @@ extern boolean ampOn;
 extern void noteEndOfMusic();
 
 extern boolean playFile(const char *fmt, ... );
+extern void changeAmpVol(int8_t v);
 
 
 

@@ -31,7 +31,6 @@ struct __attribute__ ((packed)) HashInfo {
   hash_t getHash() {
     return sheepNumber + secret + currentTime;
   }
-
 };
 
 
@@ -55,6 +54,14 @@ struct  __attribute__ ((packed)) DistressInfo {
   time_t currentTime;
 
   char msg[200];
+};
+
+struct  __attribute__ ((packed)) CommandInfo {
+  enum PacketKind packetKind = CommandPacket;
+  hash_t hashValue;
+  uint8_t ampVol;
+  boolean reboot;
+
 };
 
 DistressInfo distressInfo;
@@ -160,7 +167,8 @@ void updateRadio() {
     if (rf95.recv(buf, &len)) {
       HashInfo hashInfo;
 
-
+      myprintf(Serial, "Received radio packet, length %d, RSSI %d, SNR %d, kind %d\n",
+      len, rf95.lastRssi(), rf95.lastSNR(), (enum PacketKind) buf[0]);
 
       switch ((enum PacketKind) buf[0]) {
         case InfoPacket: {
@@ -200,6 +208,18 @@ void updateRadio() {
             myprintf(Serial, "msg: %s\n",  received->msg);
             logRadioDistress(fromNum, distressInfo.currentTime, getSheep(fromNum), received->msg);
             break;
+          }
+        case CommandPacket: {
+            CommandInfo * received = (CommandInfo *)buf;
+            myprintf(Serial, "Received command packet of length %d\n", len);
+            if (received->hashValue != SECRET_SALT)  {
+              Serial.println("Radio Command packet with bad hash value, rejecting");
+              badPackets++;
+              break;
+            }
+             myprintf(Serial, "command packet sets volume to %d\n", received->ampVol);
+           
+            changeAmpVol(received->ampVol);
           }
         default: {
             //myprintf(Serial, "Received unknown packet of length %d of type %d\n", len, buf[0]);
