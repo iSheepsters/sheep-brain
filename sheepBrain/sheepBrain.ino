@@ -270,6 +270,7 @@ void loop() {
   me.batteryVoltageRaw =  batteryVoltageRaw();
   me.errorCodes = 0;
   unsigned long now = millis();
+  unsigned long nowMicros = micros();
   if ((now / 500) % 2 == 1)
     digitalWrite(LED_BUILTIN, HIGH);
   else
@@ -282,23 +283,15 @@ void loop() {
                 sheepNumber, (nextTestDistress - now) / 1000);
   }
   if (useGPS) {
-    if (!useGPSinterrupts)
-      quickGPSUpdate();
     updateGPS(now);
   }
 
   if (useSound && playSound)
     updateSound(now);
 
-  if (useGPS && !useGPSinterrupts) {
-    quickGPSUpdate();
-  }
   if (useRadio)
     updateRadio();
 
-  if (useGPS && !useGPSinterrupts) {
-    quickGPSUpdate();
-  }
   if (lastReport + REPORT_INTERVAL < now ) {
     myprintf(Serial, "%d/%d State %s, %f volts,  %d minutes uptime, %d GPS fixes, %2d:%02d:%02d\n",
              sheepNumber, now, currentSheepState->name,
@@ -360,9 +353,7 @@ void loop() {
   }
 
 
-  if (useGPS && !useGPSinterrupts) {
-    quickGPSUpdate();
-  }
+ 
   if (useTouch) {
 
     if (TRACE)
@@ -378,16 +369,12 @@ void loop() {
     }
   }
 
-  if (useGPS && !useGPSinterrupts) {
-    quickGPSUpdate();
-  }
 
   if (doUpdateState && now > 10000 && useTouch) {
     if (TRACE) Serial.println("updateState");
     updateState(now);
     if (useSlave)
       sendComm(now);
-
 
     for (int i = 0; i < numTouchSensors; i++) {
       if (((newTouched >> i) & 1 ) != 0) {
@@ -416,14 +403,15 @@ void loop() {
     checkForNextAmbientSound(now);
   }
 
-  if (useGPS && !useGPSinterrupts) {
-    if (TRACE) Serial.println("quickGPS update");
-    quickGPSUpdate();
-  }
   if (useCommands) {
     if (TRACE) Serial.println("checkForCommand");
     checkForCommand(now);
   }
+  unsigned long duractionMicros = micros() - nowMicros;
+  if (duractionMicros > 10000) {
+  Serial.print("time: " );
+  Serial.println(micros() - nowMicros);
+  } else 
 
   yield(10);
 }
@@ -536,5 +524,3 @@ void checkForCommand(unsigned long now) {
     }
   }
 }
-
-
