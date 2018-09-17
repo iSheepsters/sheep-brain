@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include <Wire.h>
-#include "slave.h"
+#include "comm.h"
 #include "touchSensors.h"
 #include "printf.h"
 #include "Print.h"
@@ -8,7 +8,7 @@
 #include "GPS.h"
 #include "touchSensors.h"
 
-const uint8_t slaveAddress =  0x44;
+const uint8_t commAddress =  0x44;
 
 CommData commData;
 unsigned long nextComm = 0;
@@ -52,7 +52,8 @@ uint8_t sendComm() {
     }
 
     noInterrupts();
-    Wire.beginTransmission(slaveAddress);
+    Wire.beginTransmission(commAddress);
+
     //Wire.write(42); // check byte
     Wire.write(p, sizeof(CommData));
 

@@ -10,7 +10,7 @@ const boolean WAIT_FOR_SERIAL = true;
 #include "printf.h"
 #include "touchSensors.h"
 #include "soundFile.h"
-#include "slave.h"
+#include "comm.h"
 #include "state.h"
 #include "GPS.h"
 #include "radio.h"
