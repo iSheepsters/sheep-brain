@@ -12,7 +12,7 @@ extern unsigned long lastSoundPlaying;
 extern void musicPlayerNoVolume() ;
 extern void musicPlayerFullVolume() ;
 
-extern void updateSound(unsigned long now);
+extern void updateSound();
 extern void slowlyStopMusic();
 extern unsigned long lastSoundStarted;
 extern volatile boolean musicPlayerReady;
@@ -22,6 +22,3 @@ extern void noteEndOfMusic();
 
 extern boolean playFile(const char *fmt, ... );
 extern void changeAmpVol(int8_t v);
-
-
-

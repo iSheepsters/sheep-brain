@@ -12,7 +12,7 @@ extern boolean haveFixNow();
 extern boolean setupGPS();
 extern boolean discardGPS();
 extern void quickGPSUpdate();
-extern boolean updateGPS(unsigned long now);
+extern boolean updateGPS();
 extern void logGPS(unsigned long now);
 extern time_t BRC_now();
 
@@ -31,5 +31,3 @@ extern long longestGPSvoid;
 extern uint16_t total_good_GPS;
 extern uint16_t total_bad_GPS;
 #endif
-
-

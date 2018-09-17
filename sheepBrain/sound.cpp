@@ -98,8 +98,9 @@ void setupSound() {
 
 
 
-void updateSound(unsigned long now) {
+void updateSound() {
   if (musicPlayer.playingMusic) {
+    unsigned long now = millis();
     wasPlayingMusic = true;
     if (currentSoundFile) {
       currentSoundFile->lastPlaying = now;
@@ -249,5 +250,3 @@ boolean playFile(const char *fmt, ... ) {
   return result;
 
 }
-
-

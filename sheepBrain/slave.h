@@ -18,8 +18,6 @@ struct __attribute__ ((packed)) CommData {
   enum DayState when;
 };
 
-extern uint8_t sendComm(unsigned long now);
+extern uint8_t sendComm();
 
 extern void setupComm();
-
-

@@ -52,7 +52,7 @@ boolean setupGPS() {
   unsigned long now = millis();
   while (year() < 2018 && millis() < now + 4000) {
     delay(1);
-    updateGPS(millis());
+    updateGPS();
   }
   total_good_GPS = total_bad_GPS = 0;
   GPS_ready = true;
@@ -376,7 +376,8 @@ void quickGPSUpdate() {
 
 
 
-boolean updateGPS(unsigned long now) {
+boolean updateGPS() {
+  unsigned long now = millis();
 
   quickGPSUpdate();
   if (!GPS.newNMEAreceived())
@@ -431,5 +432,3 @@ void logGPS(unsigned long now) {
     fixCount = 0;
   }
 }
-
-

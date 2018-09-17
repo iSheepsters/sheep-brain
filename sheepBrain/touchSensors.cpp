@@ -245,7 +245,9 @@ void advanceToNextTouchInterval() {
 
 }
 uint16_t currentValue[numTouchSensors];
-void updateTouchData(unsigned long now, boolean debug) {
+void updateTouchData() {
+  unsigned long now = millis();
+  boolean debug = false;
   lastTouched = currTouched;
   currTouched = 0;
   for (int i = 0; i < numTouchSensors; i++) if (valid[i]) {
@@ -558,6 +560,3 @@ float detectPetting(uint8_t touchSensor, uint16_t sampleSize, float * confidence
   *confidence = max / avg;
   return answer;
 }
-
-
-

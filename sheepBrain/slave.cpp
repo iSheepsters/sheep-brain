@@ -18,7 +18,8 @@ void setupComm() {
 }
 
 
-uint8_t sendComm(unsigned long now) {
+uint8_t sendComm() {
+  unsigned long now = millis();
   if (  commData.state != currentSheepState->state
         || commData.currTouched != currTouched
         || nextComm < now) {
@@ -62,6 +63,3 @@ uint8_t sendComm(unsigned long now) {
     return result;
   }
 }
-
-
-

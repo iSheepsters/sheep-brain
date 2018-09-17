@@ -37,7 +37,7 @@ extern void mySetup();
 
 
 
-extern void updateTouchData(unsigned long now, boolean debug);
+extern void updateTouchData();
 extern int16_t sensorValue(enum TouchSensor sensor);
 extern boolean isTouched(enum TouchSensor sensor);
 extern int32_t touchDuration(enum TouchSensor sensor);

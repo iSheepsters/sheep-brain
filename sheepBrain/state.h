@@ -14,7 +14,7 @@ enum State {
 
 extern unsigned long timeEnteredCurrentState;
 
-extern void updateState(unsigned long now);
+extern void updateState();
 extern boolean privateSensorEnabled();
 class SheepState {
   public:
@@ -70,4 +70,3 @@ class ViolatedState : public SheepState {
 };
 
 #endif
-

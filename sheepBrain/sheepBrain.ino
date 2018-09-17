@@ -246,15 +246,80 @@ void setup() {
 }
 
 
-unsigned long lastReport = 0;
-
-
 const boolean TRACE = false;
 
-unsigned long lastLoop = 0;
+unsigned long lastReport = 0;
 
 int32_t prevLat = -1;
 int32_t prevLong = -1;
+
+void generateReport() {
+  unsigned long now = millis();
+  myprintf(Serial, "%d/%d State %s, %f volts,  %d minutes uptime, %d GPS fixes, %2d:%02d:%02d\n",
+           sheepNumber, now, currentSheepState->name,
+           batteryVoltage(),  minutesUptime(), fixCount,
+           hour(), minute(), second());
+  myprintf(Serial, "  %dms interrupt interval, %dus max interrupt time, %d max avail\n",
+           longestInterval, maxInterruptTime, maxAvail);
+
+  myprintf(Serial, "Free memory = %d\n", freeMemory());
+
+  if (thevol != INITIAL_AMP_VOL)
+    myprintf(Serial, "  amplifier volume %d\n", thevol);
+  if (currentSoundFile != NULL)
+    myprintf(Serial, "  playing %s/%d.mp3\n", currentSoundFile->collection->name, currentSoundFile -> num);
+  else if (musicPlayer.playingMusic)
+    Serial.println("  Playing unknown sound");
+  else {
+    myprintf(Serial, "next ambient sound in %d ms\n", nextAmbientSound - now);
+    myprintf(Serial, "next baa in %d ms\n", nextBaa - now);
+  }
+
+  myprintf(Serial, "  GPS readings %d good, %d bad\n", total_good_GPS, total_bad_GPS);
+  if (getGPSFixQuality)
+    myprintf(Serial, "  Fix quality = %d, Satellites = %d\n", GPS.fixquality, GPS.satellites);
+  myprintf(Serial, "  Location = %d, %d; longest gps void = %dms,  Feet from man = ",
+           latitudeDegreesAvg, longitudeDegreesAvg, longestGPSvoid);
+  Serial.println(distanceFromMan);
+  if (now < 10000)
+    longestGPSvoid = 0;
+
+
+  if (false && prevLat != -1) {
+    float speed = 1000 * distance_between_fixed_in_feet(latitudeDegreesAvg, longitudeDegreesAvg, prevLat, prevLong)
+                  / (now - lastReport);
+    Serial.print("  Speed : ");
+    Serial.print(speed, 2);
+    Serial.println(" ft / sec");
+  }
+  prevLat = latitudeDegreesAvg;
+  prevLong = longitudeDegreesAvg;
+
+
+  longestInterval = 0;
+  maxAvail = 0;
+  maxInterruptTime = 0;
+  time_t BRC_time = BRC_now();
+
+  if (false)
+    myprintf(Serial, "BRC time: %2d:%02d:%02d\n", hour(BRC_time), minute(BRC_time), second(BRC_time));
+
+  lastReport = now;
+  if (useLog) {
+    if (TRACE)
+      Serial.println("Updating log");
+    updateLog(now);
+    if (TRACE)
+      Serial.println("Log updated");
+  }
+}
+
+
+
+
+unsigned long lastLoop = 0;
+
+
 const uint16_t REPORT_INTERVAL = 10000;
 void loop() {
   Watchdog.reset();
@@ -283,83 +348,24 @@ void loop() {
                 sheepNumber, (nextTestDistress - now) / 1000);
   }
   if (useGPS) {
-    updateGPS(now);
+    updateGPS();
   }
 
   if (useSound && playSound)
-    updateSound(now);
+    updateSound();
 
   if (useRadio)
     updateRadio();
 
-  if (lastReport + REPORT_INTERVAL < now ) {
-    myprintf(Serial, "%d/%d State %s, %f volts,  %d minutes uptime, %d GPS fixes, %2d:%02d:%02d\n",
-             sheepNumber, now, currentSheepState->name,
-             batteryVoltage(),  minutesUptime(), fixCount,
-             hour(), minute(), second());
-    myprintf(Serial, "  %dms interrupt interval, %dus max interrupt time, %d max avail\n",
-             longestInterval, maxInterruptTime, maxAvail);
+  if (lastReport + REPORT_INTERVAL < now )
+    generateReport();
 
-    myprintf(Serial, "Free memory = %d\n", freeMemory());
-
-    if (thevol != INITIAL_AMP_VOL)
-      myprintf(Serial, "  amplifier volume %d\n", thevol);
-    if (currentSoundFile != NULL)
-      myprintf(Serial, "  playing %s/%d.mp3\n", currentSoundFile->collection->name, currentSoundFile -> num);
-    else if (musicPlayer.playingMusic)
-      Serial.println("  Playing unknown sound");
-    else {
-      myprintf(Serial, "next ambient sound in %d ms\n", nextAmbientSound - now);
-      myprintf(Serial, "next baa in %d ms\n", nextBaa - now);
-    }
-
-    myprintf(Serial, "  GPS readings %d good, %d bad\n", total_good_GPS, total_bad_GPS);
-    if (getGPSFixQuality)
-      myprintf(Serial, "  Fix quality = %d, Satellites = %d\n", GPS.fixquality, GPS.satellites);
-    myprintf(Serial, "  Location = %d, %d; longest gps void = %dms,  Feet from man = ",
-             latitudeDegreesAvg, longitudeDegreesAvg, longestGPSvoid);
-    Serial.println(distanceFromMan);
-    if (now < 10000)
-      longestGPSvoid = 0;
-
-
-    if (false && prevLat != -1) {
-      float speed = 1000 * distance_between_fixed_in_feet(latitudeDegreesAvg, longitudeDegreesAvg, prevLat, prevLong)
-                    / (now - lastReport);
-      Serial.print("  Speed : ");
-      Serial.print(speed, 2);
-      Serial.println(" ft / sec");
-    }
-    prevLat = latitudeDegreesAvg;
-    prevLong = longitudeDegreesAvg;
-
-
-    longestInterval = 0;
-    maxAvail = 0;
-    maxInterruptTime = 0;
-    time_t BRC_time = BRC_now();
-
-    if (false)
-      myprintf(Serial, "BRC time: %2d:%02d:%02d\n", hour(BRC_time), minute(BRC_time), second(BRC_time));
-
-    lastReport = now;
-    if (useLog) {
-      if (TRACE)
-        Serial.println("Updating log");
-      updateLog(now);
-      if (TRACE)
-        Serial.println("Log updated");
-    }
-  }
-
-
- 
   if (useTouch) {
 
     if (TRACE)
       Serial.println("updateTouchData");
     unsigned long startTouch = micros();
-    updateTouchData(now, false);
+    updateTouchData();
     //Serial.println(micros()-startTouch);
     if (debugTouch) {
       Serial.print("TD ");
@@ -372,9 +378,9 @@ void loop() {
 
   if (doUpdateState && now > 10000 && useTouch) {
     if (TRACE) Serial.println("updateState");
-    updateState(now);
+    updateState();
     if (useSlave)
-      sendComm(now);
+      sendComm();
 
     for (int i = 0; i < numTouchSensors; i++) {
       if (((newTouched >> i) & 1 ) != 0) {
@@ -400,23 +406,24 @@ void loop() {
   }
 
   if (useSound && playSound) {
-    checkForNextAmbientSound(now);
+    checkForNextAmbientSound();
   }
 
   if (useCommands) {
     if (TRACE) Serial.println("checkForCommand");
-    checkForCommand(now);
+    checkForCommand();
   }
   unsigned long duractionMicros = micros() - nowMicros;
   if (duractionMicros > 10000) {
-  Serial.print("time: " );
-  Serial.println(micros() - nowMicros);
-  } else 
+    Serial.print("time: " );
+    Serial.println(micros() - nowMicros);
+  } else
 
-  yield(10);
+    yield(10);
 }
 
-void checkForNextAmbientSound(unsigned long now) {
+void checkForNextAmbientSound() {
+  unsigned long now = millis();
   if (!useSound || !playSound)
     return;
 
@@ -469,7 +476,8 @@ void checkForNextAmbientSound(unsigned long now) {
 }
 
 unsigned long nextCommandCheck = 0;
-void checkForCommand(unsigned long now) {
+void checkForCommand() {
+  unsigned long now = millis();
   if (nextCommandCheck > now)
     return;
   nextCommandCheck = now + 200;

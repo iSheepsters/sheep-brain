@@ -115,9 +115,9 @@ boolean wouldInterrupt() {
 
 unsigned long next_sheep_switch = minutesPerSheep * 60 * 1000L;
 
-void updateState(unsigned long ms) {
+void updateState() {
 
-
+unsigned long ms = millis();
 
   if (privateTouchFade < ms) {
     if (privateTouchLoad > 0) {
@@ -342,4 +342,3 @@ SheepState * ViolatedState::update() {
     return &attentiveState;
   else return &boredState;
 }
-
