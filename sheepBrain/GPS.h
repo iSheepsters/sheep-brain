@@ -12,7 +12,7 @@ extern boolean haveFixNow();
 extern boolean setupGPS();
 extern boolean discardGPS();
 extern void quickGPSUpdate();
-extern boolean updateGPS();
+extern void updateGPS();
 extern void logGPS(unsigned long now);
 extern time_t BRC_now();
 

@@ -57,7 +57,7 @@ void requiredFlush() {
 }
 
 void myLogStart(enum PacketKind kind) {
-  myprintf(logFile, "%d,%d, ", sheepNumber, kind);
+  myprintf(logFile, "L, %d,%d, ", sheepNumber, kind);
 
   myprintf(logFile, "%d/%d/%02d %d:%02d:%02d,%d, ",
            month(), day(), year() % 100, hour(), minute(), second(),
@@ -66,7 +66,6 @@ void myLogStart(enum PacketKind kind) {
   logFile.print(GPS.latitudeDegrees, 7);
   logFile.print(",");
   logFile.print(GPS.longitudeDegrees, 7);
-
 }
 
 
@@ -87,7 +86,7 @@ void updateLog(unsigned long timeNow) {
 
 void radioLogStart(uint8_t sheepNum, SheepInfo & info, enum PacketKind kind) {
   time_t when = info.time;
-  myprintf(logFile, "%d,%d, ", sheepNum, kind);
+  myprintf(logFile, "R, %d,%d, ", sheepNum, kind);
 
   myprintf(logFile, "%d/%d/%02d %d:%02d:%02d,%d, ",
            month(when), day(when), year(when) % 100,  hour(when), minute(when), second(when),
@@ -134,6 +133,3 @@ void logDistress(const char *fmt, ... ) {
   }
 
 }
-
-
-

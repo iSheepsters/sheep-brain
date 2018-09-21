@@ -2,6 +2,7 @@
 #include "touchSensors.h"
 #include "sound.h"
 #include "soundFile.h"
+#include "scheduler.h"
 #include "state.h"
 #include "printf.h"
 
@@ -26,6 +27,10 @@ SheepState * currentSheepState = &boredState;
 unsigned long privateTouchDisabledUntil = 0;
 int privateTouchLoad = 0;
 unsigned long privateTouchFade = 0;
+
+void setupState() {
+   addScheduledActivity(100, updateState, "state");
+}
 
 boolean privateSensorEnabled() {
   return millis() > privateTouchDisabledUntil;

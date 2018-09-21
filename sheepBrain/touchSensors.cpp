@@ -1,7 +1,9 @@
 #include <Arduino.h>
 
 #include "touchSensors.h"
+#include "logging.h"
 #include "state.h"
+#include "scheduler.h"
 
 #include "Adafruit_ZeroFFT.h"
 #include "util.h"
@@ -15,6 +17,11 @@ Adafruit_MPR121 cap = Adafruit_MPR121();
 const uint16_t pettingBufferSize = 512;
 uint16_t pettingData[numPettingSensors][pettingBufferSize];
 uint16_t pettingDataPosition = 0;
+
+unsigned long nextPettingReport;
+
+
+boolean debugTouch = false;
 
 uint16_t minRecentValue[numTouchSensors];
 uint16_t maxRecentValue[numTouchSensors];
@@ -125,6 +132,8 @@ void setupTouch() {
     firstTouchThisInterval[i] = 0;
   }
   nextSensorResetInterval = nextTouchInterval = millis() + 1000;
+  nextPettingReport =  millis() + 2000;
+  addScheduledActivity(20, updateTouchData, "touch");
   Serial.println("done with touch ");
 
 }
@@ -208,15 +217,28 @@ void resetStableValue(int sensor) {
 }
 
 
-void advanceToNextTouchInterval() {
+void considerResettingTouchSensors() {
   boolean allStable = true;
   int potentialMaxChange = 0;
+
 
   for (int i = 0; i < numTouchSensors; i++)
     if (i != LEFT_SENSOR && i != RIGHT_SENSOR && !isStable(i)) {
       allStable = false;
       potentialMaxChange = max(potentialMaxChange, abs(stableValue[i] - (minRecentValue[i] - 1)));
     }
+
+  if (allStable)
+    logFile.print("S, ");
+  else
+    logFile.print("U, ");
+  for (int i = 0; i < numTouchSensors; i++) {
+    myprintf(logFile, "%4d,%4d,%4d,%4d, ",
+             minRecentValue[i], maxRecentValue[i], stableValue[i], combinedTouchDuration((enum TouchSensor)i) / 1000);
+  }
+  logFile.println();
+  optionalFlush();
+
   if (allStable) {
     if (potentialMaxChange > 0) {
       lastReset = millis();
@@ -245,6 +267,7 @@ void advanceToNextTouchInterval() {
 
 }
 uint16_t currentValue[numTouchSensors];
+
 void updateTouchData() {
   unsigned long now = millis();
   boolean debug = false;
@@ -267,10 +290,9 @@ void updateTouchData() {
 
   newTouched = currTouched & ~lastTouched;
   if (nextSensorResetInterval < now) {
-    advanceToNextTouchInterval();
+    considerResettingTouchSensors();
     nextSensorResetInterval = now + resetSensorsInterval;
-  }
-  else
+  } else
     for (int i = 0; i < numTouchSensors; i++) {
       if (minRecentValue[i] == 0 )
         minRecentValue[i] = currentValue[i];
@@ -311,13 +333,13 @@ void updateTouchData() {
     }
     if (debug) Serial.println();
     if (false) {
-    Serial.print("Touch: ");
-    if (! privateSensorEnabled())
-      Serial.print("(private sensor disabled) ");
-    for (int i = 0; i < numTouchSensors; i++) {
-      myprintf(Serial, "%2d %2d %2d  ", timeTouched[i], qualityTimeIntervals[i], timeUntouched[i]);
-    }
-    Serial.println();
+      Serial.print("Touch: ");
+      if (! privateSensorEnabled())
+        Serial.print("(private sensor disabled) ");
+      for (int i = 0; i < numTouchSensors; i++) {
+        myprintf(Serial, "%2d %2d %2d  ", timeTouched[i], qualityTimeIntervals[i], timeUntouched[i]);
+      }
+      Serial.println();
     }
 
     touchedThisInterval = currTouched;
@@ -346,6 +368,28 @@ void updateTouchData() {
       }
 
     }
+  }
+
+  if (false && nextPettingReport < now) {
+    nextPettingReport = now + 250;
+    for (int i = 0; i < numPettingSensors; i++) {
+
+      float confidence = 0.0;
+      /// int i = 7;
+      float hz = detectPetting(i, 64, &confidence);
+      digitalWrite(LED_BUILTIN, hz > 0.0);
+      Serial.print(hz);
+      Serial.print(" ");
+      //       Serial.print(confidence);
+      //      Serial.print(" ");
+    }
+    Serial.println();
+  }
+  if (debugTouch) {
+    Serial.print("TD ");
+    for (int i = 0; i < numTouchSensors; i++)
+      myprintf(Serial, " %3d %3d %3d  ", stableValue[i],  currentValue[i], sensorValue((TouchSensor)i));
+    Serial.println();
   }
 }
 

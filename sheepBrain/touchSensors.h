@@ -21,6 +21,7 @@ enum TouchSensor {
 
 extern uint16_t currentValue[numTouchSensors];
 extern uint16_t pettingDataPosition; 
+extern boolean debugTouch;
 
 const uint8_t numPettingSensors = numTouchSensors;
 

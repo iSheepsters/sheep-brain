@@ -7,6 +7,7 @@
 #include "util.h"
 #include "GPS.h"
 #include "touchSensors.h"
+#include "scheduler.h"
 
 const uint8_t commAddress =  0x44;
 
@@ -15,10 +16,25 @@ unsigned long nextComm = 0;
 
 void setupComm() {
   commData.sheepNum = sheepNumber;
+  addScheduledActivity(100, sendComm, "comm");
 }
 
 
-uint8_t sendComm() {
+
+
+void sendState(uint8_t activity) {
+    noInterrupts();
+    Wire.beginTransmission(commAddress);
+     Wire.write(57);
+     Wire.write(activity);
+     Wire.flush();
+     uint8_t result =  Wire.endTransmission();
+    interrupts();
+    delay(1);
+    return;
+
+}
+void sendComm() {
   unsigned long now = millis();
   if (  commData.state != currentSheepState->state
         || commData.currTouched != currTouched
@@ -54,13 +70,13 @@ uint8_t sendComm() {
     noInterrupts();
     Wire.beginTransmission(commAddress);
 
-    //Wire.write(42); // check byte
+    Wire.write(42); // check byte
     Wire.write(p, sizeof(CommData));
 
     Wire.flush();
     uint8_t result =  Wire.endTransmission();
     interrupts();
     delay(1);
-    return result;
+    return;
   }
 }

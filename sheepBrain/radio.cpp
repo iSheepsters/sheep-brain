@@ -8,6 +8,7 @@
 #include "printf.h"
 #include "secret.h"
 #include "touchSensors.h"
+#include "scheduler.h"
 #include "state.h"
 #include "GPS.h"
 #include "logging.h"
@@ -114,6 +115,7 @@ boolean setupRadio() {
   // you can set transmitter powers from 5 to 23 dBm:
   rf95.setTxPower(23, false);
   radioAvailable = true;
+  addScheduledActivity(50, updateRadio, "radio");
   return true;
 }
 
@@ -308,5 +310,3 @@ void distressPacket(char * msg) {
 
   rf95.waitPacketSent();
 }
-
-

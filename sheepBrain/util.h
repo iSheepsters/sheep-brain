@@ -26,7 +26,7 @@ const boolean playSound = true;
 const boolean useTouch = true;
 const boolean useGPS = true;
 const boolean useGPSinterrupts = true;
-const boolean useSlave = true;
+const boolean useSlave = false;
 const boolean useRadio = true;
 const boolean useLog = true;
 const boolean useCommands = false;
@@ -61,4 +61,3 @@ extern SheepInfo & getSheep();
 extern int sheepToSwitchTo(int s);
 
 #endif
-

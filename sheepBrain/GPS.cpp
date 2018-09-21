@@ -4,6 +4,7 @@
 #include "radio.h"
 #include "util.h"
 #include "printf.h"
+#include "scheduler.h"
 
 #include <math.h>
 
@@ -56,6 +57,7 @@ boolean setupGPS() {
   }
   total_good_GPS = total_bad_GPS = 0;
   GPS_ready = true;
+  addScheduledActivity(1000, updateGPS, "gps");
   return year() >= 2018;
 }
 
@@ -376,12 +378,12 @@ void quickGPSUpdate() {
 
 
 
-boolean updateGPS() {
+void updateGPS() {
   unsigned long now = millis();
 
   quickGPSUpdate();
   if (!GPS.newNMEAreceived())
-    return false;
+    return ;
 
   if (!parseGPS(now)) {
     total_bad_GPS++;

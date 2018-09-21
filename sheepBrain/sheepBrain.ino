@@ -16,9 +16,10 @@ const boolean WAIT_FOR_SERIAL = true;
 #include "radio.h"
 #include "logging.h"
 #include "avdweb_SAMDtimer.h"
+#include "scheduler.h"
 
 
-extern  void checkForCommand(unsigned long now);
+extern  void checkForCommand();
 
 // If the initial sheepNumber is anything other than 15, it will be
 // rewritten by what is on the SD card. 15 is a placeholder, there
@@ -37,9 +38,6 @@ SheepInfo & getSheep(int s) {
 }
 
 
-unsigned long nextPettingReport;
-
-boolean debugTouch = false;
 SoundCollection boredSounds(0);
 SoundCollection ridingSounds(2);
 SoundCollection readyToRideSounds(2);
@@ -70,6 +68,8 @@ volatile unsigned long lastInterrupt = 0;
 volatile  long longestInterval = 0;
 volatile unsigned int maxAvail = 0;
 volatile int maxInterruptTime = 0;
+
+void checkForNextAmbientSound();
 
 unsigned long updateGPSLatency() {
   unsigned long now_us = millis();
@@ -122,7 +122,7 @@ void setup() {
   randomSeed(analogRead(0));
   delay(100);
   Serial.begin(115200);
-  if (WAIT_FOR_SERIAL) while (!Serial && millis() < 2000) {
+  if (WAIT_FOR_SERIAL) while (!Serial && millis() < 10000) {
       digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
       setupDelay(200);                     // wait for a second
       digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
@@ -224,11 +224,13 @@ void setup() {
   } else
     Serial.println("Skipping comm");
 
-  //discardGPS();
-  setupFinished = millis();
-  myprintf(Serial, " %dms set up time\n", setupFinished);
-  myprintf(logFile, "sheep %d ready\n", sheepNumber);
-
+  addScheduledActivity(10000, generateReport, "report");
+  if (useSound && playSound)
+    addScheduledActivity(500, checkForNextAmbientSound, "ambient sound");
+  setupState();
+  if (useCommands) {
+    addScheduledActivity(500, checkForCommand, "commands");
+  }
   updateLog(setupFinished);
   quickGPSUpdate();
   if (useGPSinterrupts) {
@@ -236,8 +238,14 @@ void setup() {
     read_gps_in_interrupt = true;
     IRS_timer5.enableInterrupt(1);
   }
-  nextPettingReport = setupFinished + 2000;
-  myprintf(Serial, "Free memory = %d\n", freeMemory());
+  startSchedule();
+
+  setupFinished = millis();
+  myprintf(Serial, " %dms set up time\n", setupFinished);
+  myprintf(logFile, "sheep %d ready\n", sheepNumber);
+  listScheduledActivities();
+
+  myprintf(Serial, "  Free memory = %d\n", freeMemory());
   myprintf(Serial, "setup complete, sheep %d\n",
            sheepNumber);
   Serial.println(VERSION);
@@ -262,7 +270,7 @@ void generateReport() {
   myprintf(Serial, "  %dms interrupt interval, %dus max interrupt time, %d max avail\n",
            longestInterval, maxInterruptTime, maxAvail);
 
-  myprintf(Serial, "Free memory = %d\n", freeMemory());
+  myprintf(Serial, "  Free memory = %d\n", freeMemory());
 
   if (thevol != INITIAL_AMP_VOL)
     myprintf(Serial, "  amplifier volume %d\n", thevol);
@@ -341,85 +349,9 @@ void loop() {
   else
     digitalWrite(LED_BUILTIN, LOW);
 
+  runScheduledActivities();
 
-  if (false && nextTestDistress < now) {
-    nextTestDistress = now + random(150000, 170000);
-    logDistress("This is a test distress message from sheep %d, next test in %d seconds",
-                sheepNumber, (nextTestDistress - now) / 1000);
-  }
-  if (useGPS) {
-    updateGPS();
-  }
-
-  if (useSound && playSound)
-    updateSound();
-
-  if (useRadio)
-    updateRadio();
-
-  if (lastReport + REPORT_INTERVAL < now )
-    generateReport();
-
-  if (useTouch) {
-
-    if (TRACE)
-      Serial.println("updateTouchData");
-    unsigned long startTouch = micros();
-    updateTouchData();
-    //Serial.println(micros()-startTouch);
-    if (debugTouch) {
-      Serial.print("TD ");
-      for (int i = 0; i < numTouchSensors; i++)
-        myprintf(Serial, " %3d %3d %3d  ", stableValue[i],  currentValue[i], sensorValue((TouchSensor)i));
-      Serial.println();
-    }
-  }
-
-
-  if (doUpdateState && now > 10000 && useTouch) {
-    if (TRACE) Serial.println("updateState");
-    updateState();
-    if (useSlave)
-      sendComm();
-
-    for (int i = 0; i < numTouchSensors; i++) {
-      if (((newTouched >> i) & 1 ) != 0) {
-        myprintf(Serial, "touched %d - %d\n", i, sensorValue((enum TouchSensor)i));
-        //playFile(" %d.mp3", i);
-      }
-    }
-    if (false && nextPettingReport < now) {
-      nextPettingReport = now + 250;
-      for (int i = 0; i < numPettingSensors; i++) {
-
-        float confidence = 0.0;
-        /// int i = 7;
-        float hz = detectPetting(i, 64, &confidence);
-        digitalWrite(LED_BUILTIN, hz > 0.0);
-        Serial.print(hz);
-        Serial.print(" ");
-        //       Serial.print(confidence);
-        //      Serial.print(" ");
-      }
-      Serial.println();
-    }
-  }
-
-  if (useSound && playSound) {
-    checkForNextAmbientSound();
-  }
-
-  if (useCommands) {
-    if (TRACE) Serial.println("checkForCommand");
-    checkForCommand();
-  }
-  unsigned long duractionMicros = micros() - nowMicros;
-  if (duractionMicros > 10000) {
-    Serial.print("time: " );
-    Serial.println(micros() - nowMicros);
-  } else
-
-    yield(10);
+  yield(10);
 }
 
 void checkForNextAmbientSound() {

@@ -3,6 +3,7 @@
 #include "gps.h"
 #include "state.h"
 #include "printf.h"
+#include "scheduler.h"
 #include <MemoryFree.h>
 #include <Adafruit_SleepyDog.h>
 
@@ -94,6 +95,8 @@ void setupSound() {
   // musicPlayer.useInterrupt(VS1053_FILEPLAYER_PIN_INT);  // DREQ int
   wasPlayingMusic = false;
   musicPlayerReady = true;
+  if (playSound)
+    addScheduledActivity(100, updateSound, "sound");
 }
 
 
@@ -232,6 +235,7 @@ void noteEndOfMusic() {
 
 
 boolean playFile(const char *fmt, ... ) {
+  unsigned long start = micros();
   slowlyStopMusic();
 
   char buf[256]; // resulting string limited to 256 chars
@@ -247,6 +251,9 @@ boolean playFile(const char *fmt, ... ) {
   if (result)
     currentSoundPriority = 0;
 
+  unsigned long duration = micros() - start;
+  if (duration > 10000)
+    myprintf(Serial, "%5dus to start %s\n", duration, buf);
   return result;
 
 }
