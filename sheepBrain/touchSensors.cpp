@@ -4,6 +4,7 @@
 #include "logging.h"
 #include "state.h"
 #include "scheduler.h"
+#include "comm.h"
 
 #include "Adafruit_ZeroFFT.h"
 #include "util.h"
@@ -133,7 +134,7 @@ void setupTouch() {
   }
   nextSensorResetInterval = nextTouchInterval = millis() + 1000;
   nextPettingReport =  millis() + 2000;
-  addScheduledActivity(20, updateTouchData, "touch");
+  addScheduledActivity(50, updateTouchData, "touch");
   Serial.println("done with touch ");
 
 }
@@ -221,25 +222,40 @@ void considerResettingTouchSensors() {
   boolean allStable = true;
   int potentialMaxChange = 0;
 
-
+  sendSubActivity(10);
   for (int i = 0; i < numTouchSensors; i++)
     if (i != LEFT_SENSOR && i != RIGHT_SENSOR && !isStable(i)) {
       allStable = false;
       potentialMaxChange = max(potentialMaxChange, abs(stableValue[i] - (minRecentValue[i] - 1)));
     }
 
+  sendSubActivity(11);
   if (allStable)
     logFile.print("S, ");
   else
     logFile.print("U, ");
+  sendSubActivity(21);
   for (int i = 0; i < numTouchSensors; i++) {
-    myprintf(logFile, "%4d,%4d,%4d,%4d, ",
-             minRecentValue[i], maxRecentValue[i], stableValue[i], combinedTouchDuration((enum TouchSensor)i) / 1000);
+    logFile.print(minRecentValue[i]);
+    logFile.print(",");
+
+    logFile.print(maxRecentValue[i]);
+    logFile.print(",");
+    logFile.print(stableValue[i]);
+    logFile.print(",");
+    logFile.print(combinedTouchDuration((enum TouchSensor)i) / 1000);
+    logFile.print(", ");
   }
+  sendSubActivity(22);
   logFile.println();
-  optionalFlush();
+  if (false) {
+    sendSubActivity(12);
+      optionalFlush();
+  }
+
 
   if (allStable) {
+    sendSubActivity(13);
     if (potentialMaxChange > 0) {
       lastReset = millis();
       myprintf(Serial, "All stable, change of %d, resetting\n", potentialMaxChange);
@@ -250,6 +266,7 @@ void considerResettingTouchSensors() {
       Serial.println("Touch sensors stable and unchanged");
     }
   } else {
+    sendSubActivity(14);
     for (int i = 0; i < numTouchSensors; i++)  if (isStable(i)) {
         int touchSeconds = touchDuration((enum TouchSensor) i);
         if (touchSeconds > 5 * 60 && maxRecentValue[i] < stableValue[i]) {
@@ -260,7 +277,7 @@ void considerResettingTouchSensors() {
       }
   }
 
-
+  sendSubActivity(15);
   for (int i = 0; i < numTouchSensors; i++) {
     minRecentValue[i] = maxRecentValue[i] = currentValue[i];
   };
@@ -290,9 +307,12 @@ void updateTouchData() {
 
   newTouched = currTouched & ~lastTouched;
   if (nextSensorResetInterval < now) {
+    sendSubActivity(1);
+
     considerResettingTouchSensors();
     nextSensorResetInterval = now + resetSensorsInterval;
-  } else
+  } else {
+    sendSubActivity(2);
     for (int i = 0; i < numTouchSensors; i++) {
       if (minRecentValue[i] == 0 )
         minRecentValue[i] = currentValue[i];
@@ -303,8 +323,9 @@ void updateTouchData() {
       else if (maxRecentValue[i] < currentValue[i] )
         maxRecentValue[i] = currentValue[i] ;
     }
-
+  }
   if (nextTouchInterval < now) {
+    sendSubActivity(3);
     // advance to next touch interval
     for (int i = 0; i < numTouchSensors; i++) {
 
@@ -352,7 +373,7 @@ void updateTouchData() {
   }
 
 
-
+  sendSubActivity(4);
   if (nextTouchSample <= now) {
     nextTouchSample = now + 15;
     pettingDataPosition = pettingDataPosition + 1;
@@ -369,7 +390,7 @@ void updateTouchData() {
 
     }
   }
-
+  sendSubActivity(5);
   if (false && nextPettingReport < now) {
     nextPettingReport = now + 250;
     for (int i = 0; i < numPettingSensors; i++) {

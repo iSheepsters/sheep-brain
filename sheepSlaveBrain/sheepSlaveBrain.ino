@@ -64,8 +64,9 @@ void setup() {
   .setCorrection(TypicalLEDStrip);
   LEDS.show();
   Serial.begin(115200);
-  if (false) while (!Serial && millis() < 10000)
+  if (true) while (!Serial && millis() < 10000)
       delay(20);
+  Serial.println("Starting sheep LED brain");
 
   if (true) {
     int countdownMS = Watchdog.enable(14000);
@@ -209,5 +210,3 @@ void loop() {
   if (timeToWait > 0)
     delay(timeToWait);
 }
-
-

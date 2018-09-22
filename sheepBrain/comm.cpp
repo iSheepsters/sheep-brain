@@ -11,8 +11,12 @@
 
 const uint8_t commAddress =  0x44;
 
+const uint8_t rebootActivity = 255;
+
 CommData commData;
+ActivityData activityData;
 unsigned long nextComm = 0;
+uint8_t lastActivity = rebootActivity;
 
 void setupComm() {
   commData.sheepNum = sheepNumber;
@@ -20,21 +24,59 @@ void setupComm() {
 }
 
 
-
-
-void sendState(uint8_t activity) {
-    noInterrupts();
-    Wire.beginTransmission(commAddress);
-     Wire.write(57);
-     Wire.write(activity);
-     Wire.flush();
-     uint8_t result =  Wire.endTransmission();
-    interrupts();
-    delay(1);
-    return;
-
+void getLastActivity() {
+  int received = Wire.requestFrom(commAddress, sizeof(ActivityData), true);
+  myprintf(Serial, "Requesting last activity, received %d bytes\n", received);
+  uint8_t * p = (uint8_t *) & activityData;
+  for (int i = 0; i < received; i++)
+    *(p++) = Wire.read();
+  myprintf(Serial, "%d reboots, %d lastActivity, %d lastSubActivity\n",
+           activityData. reboots,
+           activityData.lastActivity,
+           activityData. subActivity);
+  myprintf(Serial, "%d seconds since last activity, %d seconds since slave reboot\n",
+           activityData. secondsSinceLastActivity,
+           activityData. secondsSinceBoot);
 }
+
+void sendBoot() {
+  Serial.println("Sending boot");
+  sendActivity(rebootActivity);
+}
+
+volatile uint8_t currentSubActivity;
+void sendActivity(uint8_t activity) {
+  lastActivity = activity;
+  noInterrupts();
+  Wire.beginTransmission(commAddress);
+  Wire.write(57);
+  Wire.write(activity);
+  currentSubActivity = 0;
+  Wire.write(0);
+  Wire.flush();
+  uint8_t result =  Wire.endTransmission();
+  interrupts();
+  delay(1);
+  return;
+}
+
+
+
+void sendSubActivity(uint8_t subActivity) {
+  noInterrupts();
+  Wire.beginTransmission(commAddress);
+  Wire.write(57);
+  Wire.write(lastActivity);
+  currentSubActivity = subActivity;
+  Wire.write(subActivity);
+  uint8_t result =  Wire.endTransmission();
+  interrupts();
+  delay(1);
+  return;
+}
+
 void sendComm() {
+
   unsigned long now = millis();
   if (  commData.state != currentSheepState->state
         || commData.currTouched != currTouched
@@ -48,7 +90,7 @@ void sendComm() {
     commData.state = currentSheepState->state;
     uint8_t touched = currTouched;
     if (sheepNumber == 9 || sheepNumber == 13) {
-      
+
       uint8_t t = swapLeftRightSensors(touched);
       //myprintf(Serial, "touch %02x -> %02x\n", touched, t);
       touched = t;

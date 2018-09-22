@@ -3,8 +3,17 @@
 
 
 enum DayState {
-  Night, Dawn, Morning_twilight, Sunrise, Day, Sunset, Twilight, Dusk};
+  Night, Dawn, Morning_twilight, Sunrise, Day, Sunset, Twilight, Dusk
+};
 
+
+struct __attribute__ ((packed)) ActivityData {
+    uint16_t secondsSinceLastActivity;
+  uint16_t secondsSinceBoot;
+  uint8_t lastActivity;
+  uint8_t subActivity;
+  uint8_t reboots;
+};
 
 struct __attribute__ ((packed)) CommData {
   time_t BRC_time;
@@ -21,3 +30,10 @@ struct __attribute__ ((packed)) CommData {
 extern void sendComm();
 
 extern void setupComm();
+extern void getLastActivity();
+
+extern volatile uint8_t currentSubActivity;
+extern void sendBoot();
+extern void sendActivity(uint8_t activity);
+extern void sendSubActivity(uint8_t subActivity);
+extern ActivityData activityData;

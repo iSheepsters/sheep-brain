@@ -260,6 +260,7 @@ boolean setupSD() {
     Serial.println(F("SD failed, or not present"));
     return false;
   }
+  
   Serial.println("SD OK!");
   myprintf(Serial, "size of SoundFile is %d\n", sizeof(SoundFile));
 
@@ -325,4 +326,3 @@ void loadPerSheepSounds() {
   inappropriateTouchSounds.load("INAPP");
   seperatedSounds.load("SEPRT");
 }
-

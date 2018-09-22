@@ -1,6 +1,6 @@
 #include <Adafruit_SleepyDog.h>
 #include <MemoryFree.h>
-const char * VERSION = "version as of 9/4, 7pm";
+const char * VERSION = "version as of 9/21, 9:30pm";
 const boolean WAIT_FOR_SERIAL = true;
 
 #include <Wire.h>
@@ -85,9 +85,18 @@ unsigned long updateGPSLatency() {
     maxAvail = a;
   return now_us;
 }
+
+unsigned long nextActivityReport = 0;
 void ISR_GPS(struct tc_module *const module_inst)
 {
   unsigned long start = micros();
+  unsigned long ms = millis();
+  if (currentActivityStartedAt + 500 < ms && nextActivityReport < ms) {
+    myprintf(Serial, "activity %d.%d, started %dms ago\n",
+             currentActivity, currentSubActivity,
+             ms-currentActivityStartedAt);
+    nextActivityReport = ms + 1000;
+  }
   if (read_gps_in_interrupt) {
 
     updateGPSLatency();
@@ -128,10 +137,17 @@ void setup() {
       digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
       setupDelay(200);
     }
-  int countdownMS = Watchdog.enable(8000);
+  int countdownMS = Watchdog.enable(20000);
   myprintf(Serial, "Watchdog set, %d ms timeout\n", countdownMS);
 
   myprintf(Serial, "Free memory = %d\n", freeMemory());
+  if (useSlave) {
+    Serial.println("Setting up comm");
+    setupComm();
+    sendBoot();
+  } else
+    Serial.println("Skipping comm");
+
 
   if (setupRadio())
     Serial.println("radio found");
@@ -146,7 +162,12 @@ void setup() {
   } else
     Serial.println("Skipping GPS");
 
-
+  if (useSound) {
+    Serial.println("Setting up sound");
+    setupSound();
+    Serial.println("Sound setup");
+  } else
+    Serial.println("Skipping sound");
 
   if (!setupSD()) {
     Serial.println("setupSD failed");
@@ -198,7 +219,7 @@ void setup() {
     //    setupDelay(10);
     //    pinMode(SHDN_MAX9744, INPUT);
     //    setupDelay(100);
-    setupSound();
+
     myprintf(Serial, "Free memory = %d\n", freeMemory());
     Serial.println("Sound set up, examining sound files");
 
@@ -218,11 +239,7 @@ void setup() {
   } else
     Serial.println("Skipping touch");
 
-  if (useSlave) {
-    Serial.println("Setting up comm");
-    setupComm();
-  } else
-    Serial.println("Skipping comm");
+
 
   addScheduledActivity(10000, generateReport, "report");
   if (useSound && playSound)
@@ -238,8 +255,15 @@ void setup() {
     read_gps_in_interrupt = true;
     IRS_timer5.enableInterrupt(1);
   }
-  startSchedule();
 
+
+  if (useSlave) {
+    Serial.println("Getting last boot from teensy");
+    logBoot();
+  }
+
+  Serial.println();
+  sendActivity(101);
   setupFinished = millis();
   myprintf(Serial, " %dms set up time\n", setupFinished);
   myprintf(logFile, "sheep %d ready\n", sheepNumber);
@@ -250,6 +274,7 @@ void setup() {
            sheepNumber);
   Serial.println(VERSION);
   randomSeed(analogRead(0));
+  startSchedule();
 
 }
 

@@ -20,13 +20,13 @@ extern uint8_t millisToSecondsCapped(unsigned long ms);
 
 extern unsigned long updateGPSLatency();
 
-const int minutesPerSheep = 10; // use 0 to not switch sheep
+const int minutesPerSheep = 0; // use 0 to not switch sheep
 const boolean useSound = true;
 const boolean playSound = true;
 const boolean useTouch = true;
 const boolean useGPS = true;
 const boolean useGPSinterrupts = true;
-const boolean useSlave = false;
+const boolean useSlave = true;
 const boolean useRadio = true;
 const boolean useLog = true;
 const boolean useCommands = false;

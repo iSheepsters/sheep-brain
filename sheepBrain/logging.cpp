@@ -6,6 +6,7 @@
 #include "gps.h"
 #include "printf.h"
 #include "radio.h"
+#include "comm.h"
 
 File logFile;
 
@@ -45,10 +46,11 @@ void setupLogging() {
 unsigned long nextFlush = 0;
 void optionalFlush() {
   unsigned long now = millis();
-  if (nextFlush > millis())
+  if (nextFlush > now)
     return;
+  sendSubActivity(100);
   logFile.flush();
-  nextFlush = now + 15000;
+  nextFlush = now + 25000;
 }
 
 void requiredFlush() {
@@ -98,6 +100,18 @@ void radioLogStart(uint8_t sheepNum, SheepInfo & info, enum PacketKind kind) {
 
 }
 
+void logBoot() {
+
+  getLastActivity();
+  if (disableInterrupts)
+    noInterrupts();
+
+  myprintf(logFile, "B, %d,%d,%d,%d,%d\n", activityData.reboots, activityData.lastActivity,
+           activityData.subActivity, activityData.secondsSinceBoot,  activityData.secondsSinceLastActivity);
+  requiredFlush();
+  if (disableInterrupts)  interrupts();
+
+}
 void logRadioUpdate(uint8_t sheepNum, SheepInfo & info) {
   if (disableInterrupts) noInterrupts();
   radioLogStart(sheepNum, info, RadioInfoPacket);
