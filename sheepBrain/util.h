@@ -1,10 +1,10 @@
 #ifndef _UTIL_H
 #define _UTIL_H
-#include <SD.h>
+#include <SdFat.h>
 extern uint8_t sheepNumber;
 const uint8_t NUMBER_OF_SHEEP = 16;
 const uint8_t PLACEHOLDER_SHEEP = 15;
-const uint8_t INITIAL_AMP_VOL = 47;
+const uint8_t INITIAL_AMP_VOL = 40;
 extern File logFile;
 extern uint16_t batteryVoltageRaw();
 extern float batteryVoltage();
@@ -29,7 +29,7 @@ const boolean useGPSinterrupts = true;
 const boolean useSlave = true;
 const boolean useRadio = true;
 const boolean useLog = true;
-const boolean useCommands = false;
+const boolean useCommands = true;
 const boolean doUpdateState = true;
 const boolean getGPSFixQuality = false;
 
@@ -54,6 +54,7 @@ enum PacketKind {
 };
 
 
+extern SdFat SD;
 extern SheepInfo & getSheep(int s);
 
 extern SheepInfo & getSheep();

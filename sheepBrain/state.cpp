@@ -196,10 +196,8 @@ unsigned long ms = millis();
   } else if (minutesPerSheep > 0 && next_sheep_switch < ms && !musicPlayer.playingMusic && !wouldInterrupt()) {
     sheepNumber = sheepToSwitchTo(sheepNumber);
     next_sheep_switch = ms + minutesPerSheep * 60 * 1000;
-    if (!resetSD()) {
-      Serial.println("reset SD failed");
-    } else
-      loadPerSheepSounds();
+
+    loadPerSheepSounds();
     myprintf(Serial, "switching to sheep %d\n", sheepNumber);
     myprintf(logFile, "Switching to sheep %d\n", sheepNumber);
     writeSheepNumber(sheepNumber);

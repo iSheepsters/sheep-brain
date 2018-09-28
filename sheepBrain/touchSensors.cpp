@@ -4,6 +4,7 @@
 #include "logging.h"
 #include "state.h"
 #include "scheduler.h"
+#include "sound.h"
 #include "comm.h"
 
 #include "Adafruit_ZeroFFT.h"
@@ -117,12 +118,10 @@ void setupTouch() {
       pettingData[t][i] = 0;
     }
   }
-  dumpConfiguration();
   Serial.println("Applying configuration");
   mySetup();
-  dumpConfiguration();
-
   setupDelay(100);
+  dumpConfiguration();
   checkValid();
   for (int i = 0; i < numTouchSensors; i++) {
     uint16_t value = cap.filteredData(i);
@@ -156,7 +155,7 @@ void dumpTouchData() {
       Serial.print("  ");
       Serial.print(timeUntouched[i]);
       Serial.print("  ");
-      if (i % 2 == 1)
+      if (true || i % 2 == 1)
         Serial.println();
     }
 
@@ -230,27 +229,32 @@ void considerResettingTouchSensors() {
     }
 
   sendSubActivity(11);
-  if (allStable)
-    logFile.print("S, ");
-  else
-    logFile.print("U, ");
-  sendSubActivity(21);
-  for (int i = 0; i < numTouchSensors; i++) {
-    logFile.print(minRecentValue[i]);
-    logFile.print(",");
+  if (!musicPlayer.playingMusic) {
+    noInterrupts();
+    if (allStable)
+      logFile.print("S, ");
+    else
+      logFile.print("U, ");
+    sendSubActivity(21);
+    for (int i = 0; i < numTouchSensors; i++) {
+      logFile.print(minRecentValue[i]);
+      logFile.print(",");
 
-    logFile.print(maxRecentValue[i]);
-    logFile.print(",");
-    logFile.print(stableValue[i]);
-    logFile.print(",");
-    logFile.print(combinedTouchDuration((enum TouchSensor)i) / 1000);
-    logFile.print(", ");
-  }
-  sendSubActivity(22);
-  logFile.println();
-  if (false) {
-    sendSubActivity(12);
+      logFile.print(maxRecentValue[i]);
+      logFile.print(",");
+      logFile.print(stableValue[i]);
+      logFile.print(",");
+      logFile.print(combinedTouchDuration((enum TouchSensor)i) / 1000);
+      logFile.print(", ");
+    }
+    sendSubActivity(22);
+    logFile.println();
+    interrupts();
+
+    if (false) {
+      sendSubActivity(12);
       optionalFlush();
+    }
   }
 
 
@@ -510,6 +514,21 @@ void dumpConfiguration() {
   }
   Serial.println();
 
+}
+
+void logTouchConfiguration() {
+  noInterrupts();
+  logFile.print("TC, ");
+
+  sendSubActivity(42);
+  for (int i = 0; i < numTouchSensors; i++) {
+    logFile.print(CDCx_value(i));
+    logFile.print(",");
+    logFile.print(CDTx_value(i));
+    logFile.print(", ");
+  }
+  logFile.println();
+  interrupts();
 }
 void changeMode(uint8_t newMode) {
   cap.writeRegister(MPR121_ECR, 0);

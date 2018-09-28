@@ -1,8 +1,10 @@
 #include <Adafruit_SleepyDog.h>
 
-const char * VERSION = "version as of Friday, 4pm";
+const char * VERSION = "version as of 9/28, 4:30pm";
 
 #include<FastLED.h>
+
+//#define STANDARD_SHEEP
 
 #include "all.h"
 #include "comm.h"
@@ -12,8 +14,6 @@ const char * VERSION = "version as of Friday, 4pm";
 #include <TimeLib.h>
 
 const int led = 13;
-
-const uint16_t NUM_LEDS_PER_STRIP  = 400;
 const uint8_t NUM_STRIPS  = 8;
 
 const  uint8_t HEAD_STRIP = 0;
@@ -21,6 +21,11 @@ const  uint8_t LEFT_STRIP = 1;
 const  uint8_t RIGHT_STRIP = 2;
 
 CRGB unusedLED;
+
+#ifdef STANDARD_SHEEP
+
+const uint16_t NUM_LEDS_PER_STRIP  = 400;
+const enum EOrder LED_COLOR_ORDER = RGB;
 CRGB leds[NUM_STRIPS * NUM_LEDS_PER_STRIP];
 
 CRGB & getSheepLEDFor(uint8_t x, uint8_t y) {
@@ -46,6 +51,34 @@ CRGB & getSheepLEDFor(uint8_t x, uint8_t y) {
   return leds[strip * NUM_LEDS_PER_STRIP + pos];
 }
 
+const uint8_t BRIGHTNESS_NORMAL = 210;
+const uint8_t BRIGHTNESS_BORED = 100;
+
+#else
+const uint16_t NUM_LEDS_PER_STRIP  = 256;
+const enum EOrder LED_COLOR_ORDER = GRB;
+CRGB leds[NUM_STRIPS * NUM_LEDS_PER_STRIP];
+
+CRGB & getSheepLEDFor(uint8_t x, uint8_t y) {
+  uint8_t strip = y/8;
+  if (strip == 4)
+    return unusedLED;
+  uint8_t pos = 8*x;
+  y = y % 8;
+  if (x % 2 == 0)
+  pos += y;
+  else
+  pos += 7-y;
+  strip = strip+1;
+  return leds[strip * NUM_LEDS_PER_STRIP + pos];
+}
+
+const uint8_t BRIGHTNESS_NORMAL = 80;
+const uint8_t BRIGHTNESS_BORED = 40;
+
+#endif
+
+
 void copyLEDs() {
   uint16_t halfWay = 4 * NUM_LEDS_PER_STRIP;
   for (int i = 0; i < halfWay; i++) {
@@ -53,18 +86,15 @@ void copyLEDs() {
   }
 }
 
-const uint8_t BRIGHTNESS_NORMAL = 210;
-const uint8_t BRIGHTNESS_BORED = 100;
-
 
 void setup() {
   pinMode(led, OUTPUT);
   digitalWrite(led, HIGH);
-  LEDS.addLeds<WS2811_PORTD, NUM_STRIPS, RGB>(leds, NUM_LEDS_PER_STRIP)
+  LEDS.addLeds<WS2811_PORTD, NUM_STRIPS, LED_COLOR_ORDER>(leds, NUM_LEDS_PER_STRIP)
   .setCorrection(TypicalLEDStrip);
   LEDS.show();
   Serial.begin(115200);
-  if (true) while (!Serial && millis() < 10000)
+  if (false) while (!Serial && millis() < 10000)
       delay(20);
   Serial.println("Starting sheep LED brain");
 
@@ -85,9 +115,10 @@ void setup() {
 
   setupAnimations();
   Serial.println("animations set up");
+  
   setupComm();
-
   Serial.println("comm set up");
+  
   for (int i = 0; !receivedMsg && i < 100; i++) {
     digitalWrite(led, HIGH);   // turn the LED on (HIGH is the voltage level)
     delay(25);               // wait for a second

@@ -2,6 +2,7 @@
 
 #include "GPS.h"
 #include "radio.h"
+#include "comm.h"
 #include "util.h"
 #include "printf.h"
 #include "scheduler.h"
@@ -28,15 +29,18 @@ Adafruit_GPS GPS(&Serial1);
 
 boolean setupGPS() {
   // 9600 NMEA is the default baud rate for Adafruit MTK GPS's- some use 4800
-  GPS.begin(9600);
-  GPS.sendCommand("$PMTK251,115200*1F");
-  unsigned long finish = 200 + millis();
-  while (millis() < finish) {
-    char c = GPS.read();
-    if (c) Serial.print(c);
+  if (false) {
+    GPS.begin(9600);
+
+    GPS.sendCommand("$PMTK251,115200*1F");
+    unsigned long finish = 200 + millis();
+    while (millis() < finish) {
+      char c = GPS.read();
+      if (c) Serial.print(c);
+    }
+    Serial1.end();
+    delay(200);
   }
-  Serial1.end();
-  delay(200);
   GPS.begin(115200);
 
   if (getGPSFixQuality)
@@ -241,6 +245,7 @@ boolean parseGPS(unsigned long now) {
         if (GPS_DEBUG) myprintf(Serial, "bad character (%d:%x): \"%s\"\n", i, txt[i], (txt + 1));
         return false;
       }
+  sendSubActivity(3);
   if (!GPS.parse(txt)) {
     if (GPS_DEBUG) {
       myprintf(Serial, "Could not parse GPS string: \"%s\"\n", (txt + 1));
@@ -256,7 +261,7 @@ boolean parseGPS(unsigned long now) {
   time_t thisGPSTime = getGPSTime();
   boolean timeOK = true;
   time_t difference = thisGPSTime - lastGPSTime;
-
+  sendSubActivity(3);
   if (difference < 0)
     timeOK = false;
   int fastBy = difference * 1000 - (now - lastGPSTimeAt);
@@ -274,6 +279,7 @@ boolean parseGPS(unsigned long now) {
     setTime(thisGPSTime);
 
   if (GPS.fix) {
+    sendSubActivity(4);
     if (lastLatitudeDegreesFixed != -1000 && (abs( GPS.latitude_fixed  - lastLatitudeDegreesFixed) > 1000 ||
         abs( GPS.longitude_fixed  - lastLongitudeDegreesFixed) > 1000)) {
       // too much change
@@ -302,7 +308,7 @@ boolean parseGPS(unsigned long now) {
       return false;
     }
 
-
+    sendSubActivity(5);
     lastLatitudeDegreesFixed = GPS.latitude_fixed;
     lastLongitudeDegreesFixed = GPS.longitude_fixed;
     if (haveFix) {
@@ -382,9 +388,10 @@ void updateGPS() {
   unsigned long now = millis();
 
   quickGPSUpdate();
+  sendSubActivity(1);
   if (!GPS.newNMEAreceived())
     return ;
-
+  sendSubActivity(2);
   if (!parseGPS(now)) {
     total_bad_GPS++;
     badGPS++;

@@ -5,7 +5,7 @@
 #include "util.h"
 #include <MemoryFree.h>
 #include <SPI.h>
-#include <SD.h>
+#include <SdFat.h>
 
 #define CARDCS          5     // Card chip select pin
 
@@ -16,11 +16,14 @@ const int PATH_BUFFER_LENGTH = 100;
 char pathBuffer[PATH_BUFFER_LENGTH];
 
 boolean isMusicFile(const char * name) {
+
   const char *suffix = strrchr(name, '.');
   if (name[0] == '_')
     return false;
-  if ( strcmp(suffix, ".MP3") == 0)
+
+  if ( strcmp(suffix, ".MP3") == 0 || strcmp(suffix, ".mp3") == 0)
     return true;
+  Serial.println(suffix);
   return false;
 }
 
@@ -59,12 +62,14 @@ boolean SoundCollection::load(File dir) {
 
 
   uint16_t i = 0;
+  char nm[30];
   while (i < MAX_SOUND_FILES) {
     File entry =  dir.openNextFile();
     if (!entry) {
       break;
     }
-    const char * nm = entry.name();
+
+    entry.getName(nm, 30);
     if (!entry.isDirectory() && isMusicFile(nm)) {
       files[i].num = atoi(nm);
       files[i].collection = this;
@@ -260,7 +265,7 @@ boolean setupSD() {
     Serial.println(F("SD failed, or not present"));
     return false;
   }
-  
+
   Serial.println("SD OK!");
   myprintf(Serial, "size of SoundFile is %d\n", sizeof(SoundFile));
 
@@ -271,26 +276,12 @@ boolean setupSD() {
 }
 
 
-boolean resetSD() {
-  SD.end();
-  delay(100);
-  if (!SD.begin(5 /* CARDCS */)) {
-    Serial.println(F("SD failed, or not present"));
-    return false;
-  }
-  Serial.println("SD OK!");
-  
-
-  // list files
-  // printDirectory(SD.open("/"), 0);
-  return true;
-}
 
 
 /// File listing helper
 void printDirectory(File dir, int numTabs) {
   while (true) {
-
+    char buf[40];
     File entry =  dir.openNextFile();
     if (! entry) {
       // no more files
@@ -300,7 +291,8 @@ void printDirectory(File dir, int numTabs) {
     for (uint8_t i = 0; i < numTabs; i++) {
       Serial.print('\t');
     }
-    Serial.print(entry.name());
+    entry.getName(buf, 40);
+    Serial.print(buf);
     if (entry.isDirectory()) {
       Serial.println("/");
       printDirectory(entry, numTabs + 1);

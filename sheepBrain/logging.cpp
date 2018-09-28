@@ -1,5 +1,5 @@
 
-#include <SD.h>
+#include <SdFat.h>
 #include <TimeLib.h>
 
 #include "util.h"
@@ -7,6 +7,7 @@
 #include "printf.h"
 #include "radio.h"
 #include "comm.h"
+#include "sound.h"
 
 File logFile;
 
@@ -46,11 +47,11 @@ void setupLogging() {
 unsigned long nextFlush = 0;
 void optionalFlush() {
   unsigned long now = millis();
-  if (nextFlush > now)
+  if (nextFlush > now || musicPlayer.playingMusic)
     return;
   sendSubActivity(100);
   logFile.flush();
-  nextFlush = now + 25000;
+  nextFlush = now + 2*60000;
 }
 
 void requiredFlush() {

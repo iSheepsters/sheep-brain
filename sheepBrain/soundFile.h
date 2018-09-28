@@ -1,9 +1,8 @@
 #ifndef _SOUNDFILE_H
 #define _SOUNDFILE_H
-#include <SD.h>
+#include <SdFat.h>
 
 extern boolean setupSD();
-extern boolean resetSD();
 extern void printDirectory(File dir, int numTabs);
 extern boolean soundPlayedRecently(unsigned long now);
 
@@ -66,4 +65,3 @@ extern SoundCollection seperatedSounds;
 extern SoundCollection baaSounds;
 
 #endif
-

@@ -29,6 +29,7 @@ CommData commData;
 void setupComm() {
   // Setup for Slave mode, address 0x44, pins 18/19, external pullups, 400kHz
   Wire.begin(I2C_SLAVE, 0x44, I2C_PINS_18_19, I2C_PULLUP_EXT, I2C_RATE_400);
+  Wire.setDefaultTimeout(100); // 100 usecs timeout
   myprintf("i2c Slave address: 0x%02x\n", slaveAddress);
   // init vars
 
@@ -44,15 +45,15 @@ int activityReports = 0;
 //
 void receiveEvent(size_t len)
 {
-  int bytes = Wire.available();
-  //if (!bytes) return;
   uint8_t kind = Wire.read();
   if (kind == 42) {
     State oldState = commData.state;
 
     uint8_t * p = (uint8_t *)&commData;
-    for (unsigned int i = 0; i < sizeof(CommData); i++) {
-      p[i] =  Wire.read();
+    unsigned int bytesRead = Wire.read(p, sizeof(CommData));
+    if (bytesRead != sizeof(CommData)) {
+      myprintf("Only read %d bytes\n", bytesRead);
+      return;
     }
     if (oldState != commData.state)
       myprintf("commData.state = %d\n", commData.state);
@@ -90,8 +91,6 @@ void receiveEvent(size_t len)
   } else {
     myprintf("Got unknown i2c message, kind %d, %d bytes\n",
              kind, Wire.available());
-    while (Wire.available() > 0)
-      Wire.read();
   }
 }
 
@@ -112,8 +111,6 @@ void requestEvent(void)
   activityData.secondsSinceBoot = secondsBetween(0, now);
   uint8_t * p = (uint8_t *)&activityData;
   Wire.write(p, sizeof(ActivityData));
-  Wire.flush();
-  Wire.endTransmission();
 }
 
 

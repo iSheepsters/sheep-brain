@@ -34,6 +34,6 @@ extern void getLastActivity();
 
 extern volatile uint8_t currentSubActivity;
 extern void sendBoot();
-extern void sendActivity(uint8_t activity);
-extern void sendSubActivity(uint8_t subActivity);
+extern uint8_t sendActivity(uint8_t activity);
+extern uint8_t sendSubActivity(uint8_t subActivity);
 extern ActivityData activityData;

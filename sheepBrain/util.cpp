@@ -1,6 +1,9 @@
 
 #include "util.h"
 #include "printf.h"
+
+ SdFat SD;
+
 uint16_t totalYield;
 /* return voltage for 12v battery */
 uint16_t batteryVoltageRaw() {
@@ -55,4 +58,3 @@ uint8_t batteryCharge() {
   if (v < 0) v = 0;
   return (int) v;
 }
-

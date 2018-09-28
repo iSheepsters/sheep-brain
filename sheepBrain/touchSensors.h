@@ -37,6 +37,7 @@ extern void dumpData();
 extern void mySetup();
 
 
+extern void logTouchConfiguration();
 
 extern void updateTouchData();
 extern int16_t sensorValue(enum TouchSensor sensor);

@@ -157,6 +157,7 @@ void slowlyStopMusic() {
   if (musicPlayer.playingMusic) {
     for (int i = VS1053_volume + 8; musicPlayer.playingMusic && i < 256; i += 8) {
       musicPlayerSetVolume(i);
+      musicPlayer.feedBuffer();
       yield(10);
     }
     Serial.println("Music slowly stopped");

@@ -25,11 +25,17 @@ void setupComm() {
 
 
 void getLastActivity() {
-  int received = Wire.requestFrom(commAddress, sizeof(ActivityData), true);
+
+  int received = Wire.requestFrom(commAddress, sizeof(ActivityData));
   myprintf(Serial, "Requesting last activity, received %d bytes\n", received);
+
   uint8_t * p = (uint8_t *) & activityData;
+  if (received != sizeof(sizeof(ActivityData))) {
+    Serial.println("Wrong number of bytes");
+    return;
+  }
   for (int i = 0; i < received; i++)
-    *(p++) = Wire.read();
+    * (p++) = Wire.read();
   myprintf(Serial, "%d reboots, %d lastActivity, %d lastSubActivity\n",
            activityData. reboots,
            activityData.lastActivity,
@@ -45,34 +51,25 @@ void sendBoot() {
 }
 
 volatile uint8_t currentSubActivity;
-void sendActivity(uint8_t activity) {
+uint8_t sendActivity(uint8_t activity) {
   lastActivity = activity;
-  noInterrupts();
+  currentSubActivity = 0;
   Wire.beginTransmission(commAddress);
   Wire.write(57);
   Wire.write(activity);
-  currentSubActivity = 0;
   Wire.write(0);
-  Wire.flush();
-  uint8_t result =  Wire.endTransmission();
-  interrupts();
-  delay(1);
-  return;
+  uint8_t result = Wire.endTransmission();
+  return result;
 }
 
-
-
-void sendSubActivity(uint8_t subActivity) {
-  noInterrupts();
+uint8_t sendSubActivity(uint8_t subActivity) {
+  currentSubActivity = subActivity;
   Wire.beginTransmission(commAddress);
   Wire.write(57);
   Wire.write(lastActivity);
-  currentSubActivity = subActivity;
   Wire.write(subActivity);
   uint8_t result =  Wire.endTransmission();
-  interrupts();
-  delay(1);
-  return;
+  return result;
 }
 
 void sendComm() {

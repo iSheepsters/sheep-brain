@@ -1,6 +1,6 @@
 #include <Adafruit_SleepyDog.h>
 #include <MemoryFree.h>
-const char * VERSION = "version as of 9/21, 9:30pm";
+const char * VERSION = "version as of 9/28, 4:30pm";
 const boolean WAIT_FOR_SERIAL = true;
 
 #include <Wire.h>
@@ -103,13 +103,9 @@ void ISR_GPS(struct tc_module *const module_inst)
     while (true) {
       char c = GPS.read();
       if (!c) break;
-      c = GPS.read();
-      if (!c) break;
-      c = GPS.read();
-      if (!c) break;
     }
   }
-  if (musicPlayerReady)
+  if (musicPlayerReady && musicPlayer.playingMusic)
     musicPlayer.feedBuffer();
   unsigned long end = micros();
   long diff = end - start;
@@ -137,7 +133,7 @@ void setup() {
       digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
       setupDelay(200);
     }
-  int countdownMS = Watchdog.enable(20000);
+  int countdownMS = Watchdog.enable(10000);
   myprintf(Serial, "Watchdog set, %d ms timeout\n", countdownMS);
 
   myprintf(Serial, "Free memory = %d\n", freeMemory());
@@ -214,12 +210,6 @@ void setup() {
 
   if (useSound) {
 
-
-    //    digitalWrite(SHDN_MAX9744, HIGH);
-    //    setupDelay(10);
-    //    pinMode(SHDN_MAX9744, INPUT);
-    //    setupDelay(100);
-
     myprintf(Serial, "Free memory = %d\n", freeMemory());
     Serial.println("Sound set up, examining sound files");
 
@@ -248,6 +238,7 @@ void setup() {
   if (useCommands) {
     addScheduledActivity(500, checkForCommand, "commands");
   }
+  logTouchConfiguration();
   updateLog(setupFinished);
   quickGPSUpdate();
   if (useGPSinterrupts) {
@@ -338,6 +329,7 @@ void generateReport() {
     myprintf(Serial, "BRC time: %2d:%02d:%02d\n", hour(BRC_time), minute(BRC_time), second(BRC_time));
 
   lastReport = now;
+  sendSubActivity(10);
   if (useLog) {
     if (TRACE)
       Serial.println("Updating log");
@@ -465,6 +457,7 @@ void checkForCommand() {
           musicPlayer.stopPlaying();
           break;
         case 't':
+        dumpConfiguration();
           dumpTouchData();
           debugTouch = !debugTouch;
           break;
