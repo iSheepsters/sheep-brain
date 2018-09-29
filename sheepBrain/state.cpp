@@ -33,6 +33,7 @@ void setupState() {
 }
 
 boolean privateSensorEnabled() {
+  return false;
   return millis() > privateTouchDisabledUntil;
 }
 
@@ -133,7 +134,7 @@ unsigned long ms = millis();
     privateTouchFade = ms + 2 * 60 * 1000;
   }
 
-  if (privateSensorEnabled() &&  touchDuration(PRIVATES_SENSOR) > 1000 && ms > lastPrivateTouch + 3000
+  if (privateSensorEnabled() && touchDuration(PRIVATES_SENSOR) > 1000 && ms > lastPrivateTouch + 3000
       && !(currentSoundPriority == 4 && currentSoundFile != NULL)) {
     privateTouchLoad++;
     myprintf(Serial, "new private touch, current load = %d\n", privateTouchLoad);
