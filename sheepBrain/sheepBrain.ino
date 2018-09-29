@@ -1,6 +1,6 @@
 #include <Adafruit_SleepyDog.h>
 #include <MemoryFree.h>
-const char * VERSION = "version as of 9/28, 4:30pm";
+const char * VERSION = "version as of 9/29, 11am";
 const boolean WAIT_FOR_SERIAL = true;
 
 #include <Wire.h>
@@ -94,7 +94,7 @@ void ISR_GPS(struct tc_module *const module_inst)
   if (currentActivityStartedAt + 500 < ms && nextActivityReport < ms) {
     myprintf(Serial, "activity %d.%d, started %dms ago\n",
              currentActivity, currentSubActivity,
-             ms-currentActivityStartedAt);
+             ms - currentActivityStartedAt);
     nextActivityReport = ms + 1000;
   }
   if (read_gps_in_interrupt) {
@@ -123,17 +123,36 @@ void testSwapLeftRight(uint8_t touched) {
 void setup() {
   memset(&infoOnSheep, 0, sizeof (infoOnSheep));
   pinMode(LED_BUILTIN, OUTPUT);
-  Wire.begin();
-  randomSeed(analogRead(0));
+  int countdownMS = Watchdog.enable(10000);
+  myprintf(Serial, "Watchdog set, %d ms timeout\n", countdownMS);
+
   delay(100);
   Serial.begin(115200);
-  if (WAIT_FOR_SERIAL) while (!Serial && millis() < 10000) {
+  int clearBus = I2C_ClearBus();
+  if (clearBus != 0)
+    while (true) {
+      Serial.println(F("I2C bus error. Could not clear"));
+      if (clearBus == 1) {
+        Serial.println(F("SCL clock line held low"));
+      } else if (clearBus == 2) {
+        Serial.println(F("SCL clock line held low by slave clock stretch"));
+      } else if (clearBus == 3) {
+        Serial.println(F("SDA data line held low"));
+      } else
+        Serial.println(F("Unknown return value from I2C_ClearBus"));
+      delay(500);
+    }
+
+  Wire.begin();
+
+  if (WAIT_FOR_SERIAL) while (!Serial && millis() < 8000) {
       digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
       setupDelay(200);                     // wait for a second
       digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
       setupDelay(200);
     }
-  int countdownMS = Watchdog.enable(10000);
+  randomSeed(analogRead(0));
+  countdownMS = Watchdog.enable(10000);
   myprintf(Serial, "Watchdog set, %d ms timeout\n", countdownMS);
 
   myprintf(Serial, "Free memory = %d\n", freeMemory());
@@ -457,7 +476,7 @@ void checkForCommand() {
           musicPlayer.stopPlaying();
           break;
         case 't':
-        dumpConfiguration();
+          dumpConfiguration();
           dumpTouchData();
           debugTouch = !debugTouch;
           break;

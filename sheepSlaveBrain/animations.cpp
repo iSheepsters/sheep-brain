@@ -185,6 +185,7 @@ boolean isOPC(FatFile f) {
   return false;
 }
 
+volatile boolean animationsSetUp = false;
 void setupAnimations() {
   Serial.println("setupAnimations");
   sd.begin();
@@ -224,7 +225,7 @@ void setupAnimations() {
   myprintf(" %d opc files, %d total animations\n", numberOfOPCFiles,
            numberOfAnimations);
   nextAnimation();
-
+  animationsSetUp = true;
 }
 
 class RotateRainbowUp : public Animation {
@@ -481,6 +482,3 @@ void nextAnimation() {
 
 
 }
-
-
-

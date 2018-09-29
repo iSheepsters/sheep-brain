@@ -4,8 +4,10 @@
 #include <TimeLib.h>
 
 const uint8_t slaveAddress =  0x44;
-const uint8_t rebootActivity = 255;
-const uint8_t slaveRebootActivity = 254;
+
+const uint8_t rebootStarted = 255;
+const uint8_t rebootActivity = 254;
+const uint8_t slaveRebootStarted = 253;
 
 void receiveEvent(size_t len);
 void requestEvent(void);
@@ -17,7 +19,7 @@ unsigned long lastActivityAt = 0;
 struct __attribute__ ((packed)) ActivityData {
   uint16_t secondsSinceLastActivity;
   uint16_t secondsSinceBoot;
-  uint8_t lastActivity = slaveRebootActivity;
+  uint8_t lastActivity = slaveRebootStarted;
   uint8_t subActivity = 0;
   uint8_t reboots = 0;
 };
@@ -39,7 +41,7 @@ void setupComm() {
 
 
 }
-int activityReports = 0;
+unsigned long activityReports = 0;
 //
 // handle Rx Event (incoming I2C request/data)
 //
@@ -58,9 +60,9 @@ void receiveEvent(size_t len)
     if (oldState != commData.state)
       myprintf("commData.state = %d\n", commData.state);
     setTime(commData.BRC_time);
-    if (!receivedMsg && year() == 2018) {
+    if (!receivedMsg && year() == 2018 && animationsSetUp) {
       receivedMsg = true;
-      myprintf("Received message\n");
+      myprintf("Received message and animations setup\n");
       setupSchedule();
     }
     if (false) {
@@ -70,24 +72,25 @@ void receiveEvent(size_t len)
       Serial.println();
     }
   } else if (kind == 57) {
-    if (activityReports < 10)
-      Serial.println("Got activity report\n");
 
     uint8_t thisActivity = Wire.read();
     uint8_t thisSubActivity = Wire.read();
-    if (activityReports < 10)
-      myprintf( "activity %d.%d\n", thisActivity, thisSubActivity);
+
     activityReports++;
-    if (activityData.lastActivity != slaveRebootActivity
-        && thisActivity == rebootActivity)  {
+    if (activityData.lastActivity != slaveRebootStarted
+        && thisActivity == rebootStarted)  {
       if (activityData.reboots < 255)
         activityData.reboots++;
     } else {
       activityData.lastActivity = thisActivity;
       activityData.subActivity = thisSubActivity;
-      activityData.reboots = 0;
+      if (thisActivity != rebootActivity)
+        activityData.reboots = 0;
       lastActivityAt = now();
     }
+    if (activityReports < 300)
+      myprintf( "activity %d.%d, %d reboots\n", activityData.lastActivity,
+                activityData.subActivity, activityData.reboots);
   } else {
     myprintf("Got unknown i2c message, kind %d, %d bytes\n",
              kind, Wire.available());

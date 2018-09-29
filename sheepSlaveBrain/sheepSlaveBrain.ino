@@ -1,6 +1,6 @@
 #include <Adafruit_SleepyDog.h>
 
-const char * VERSION = "version as of 9/28, 4:30pm";
+const char * VERSION = "version as of 9/29, 11am";
 
 #include<FastLED.h>
 
@@ -94,8 +94,6 @@ void setup() {
   .setCorrection(TypicalLEDStrip);
   LEDS.show();
   Serial.begin(115200);
-  if (false) while (!Serial && millis() < 10000)
-      delay(20);
   Serial.println("Starting sheep LED brain");
 
   if (true) {
@@ -113,12 +111,14 @@ void setup() {
     Serial.println(i);
   }
 
-  setupAnimations();
-  Serial.println("animations set up");
-  
   setupComm();
   Serial.println("comm set up");
   
+  setupAnimations();
+  Serial.println("animations set up");
+  
+
+ 
   for (int i = 0; !receivedMsg && i < 100; i++) {
     digitalWrite(led, HIGH);   // turn the LED on (HIGH is the voltage level)
     delay(25);               // wait for a second
@@ -193,7 +193,9 @@ void loop() {
               commData.sheepNum,
               currState, month(), day(), hour(), minute(), second());
     if (!receivedMsg)
-      Serial.println("Have not received any messages");
+      Serial.println(" Have not received any messages");
+      else
+      myprintf(" Received %d activity messages\n", activityReports);
     if (isPreview())
       Serial.println("is preview");
     if (isDaytime())

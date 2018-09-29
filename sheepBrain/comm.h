@@ -27,6 +27,7 @@ struct __attribute__ ((packed)) CommData {
   enum DayState when;
 };
 
+extern int I2C_ClearBus();
 extern void sendComm();
 
 extern void setupComm();

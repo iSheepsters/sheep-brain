@@ -21,12 +21,9 @@ class Animation {
 extern void nextAnimation();
 
 extern boolean scheduleSetUp;
- 
 
 extern Animation * currentAnimation;
 extern void setupAnimations();
 extern unsigned long updateAnimation(unsigned long now);
 extern int animationEPOC;
 extern long millisToNextEpoc() ;
-
-

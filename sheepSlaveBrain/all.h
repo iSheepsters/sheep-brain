@@ -8,8 +8,6 @@ const uint8_t QUARTER_GRID_WIDTH = 8;
 const uint8_t HALF_GRID_WIDTH = 16;
 const uint8_t GRID_WIDTH = 2 * HALF_GRID_WIDTH;
 
-
-
 enum State {
   Bored,
   Attentive,
@@ -43,7 +41,7 @@ extern CommData commData;
 extern CRGB & getSheepLEDFor(uint8_t x, uint8_t y);
 
 extern CRGB leds[];
+extern volatile boolean animationsSetUp;
 extern void setupSchedule();
 
 #endif
-

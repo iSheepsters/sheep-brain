@@ -200,8 +200,6 @@ int16_t sensorValue(enum TouchSensor sensor) {
 unsigned long lastReset = 20000;
 
 boolean isStable(int sensor) {
-  if (minRecentValue[sensor] < 670)
-    return false;
   int range = maxRecentValue[sensor] - minRecentValue[sensor];
   int maxRange = 5;
   unsigned long secondsSinceLastReset = (millis() - lastReset) / 1000;
@@ -373,9 +371,11 @@ void updateTouchData() {
 
   } else {
     touchedThisInterval |= currTouched;
-
+     for (int i = 0; i < numTouchSensors; i++) 
+      if ((currTouched & _BV(i)) != 0 && firstTouchThisInterval[i] == 0) {
+        firstTouchThisInterval[i] = now;
+      }
   }
-
 
   sendSubActivity(4);
   if (nextTouchSample <= now) {
@@ -501,14 +501,14 @@ void dumpConfiguration() {
 
   // 5f 60 61 62 63 64 65 66 67 68 69 6a 6b
   Serial.print("CDC: ");
-  for (int i = 0; i <= 12; i++) {
+  for (int i = 0; i < numTouchSensors; i++) {
     Serial.print(CDCx_value(i));
     Serial.print(" ");
   }
   Serial.println();
   // 6c 6d 6e 6f 70 71 72
   Serial.print("CDT: ");
-  for (int i = 0; i <= 12; i++) {
+  for (int i = 0; i < numTouchSensors; i++) {
     Serial.print(CDTx_value(i));
     Serial.print(" ");
   }
