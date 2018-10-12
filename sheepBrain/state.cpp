@@ -29,11 +29,10 @@ int privateTouchLoad = 0;
 unsigned long privateTouchFade = 0;
 
 void setupState() {
-   addScheduledActivity(100, updateState, "state");
+  addScheduledActivity(100, updateState, "state");
 }
 
 boolean privateSensorEnabled() {
-  return false;
   return millis() > privateTouchDisabledUntil;
 }
 
@@ -55,7 +54,6 @@ boolean maybeRiding() {
     extra ++;
   if (touchDuration(RUMP_SENSOR) > 1550)
     extra ++;
-
   return touchDuration(BACK_SENSOR) > 8200 && extra >= 2
          ||  touchDuration(BACK_SENSOR) > 6200 && extra == 3;
 
@@ -76,8 +74,17 @@ boolean definitivelyRiding() {
 
 
 boolean isTouched() {
-  return  touchDuration(BACK_SENSOR) > 400
-          ||  touchDuration(RUMP_SENSOR) > 400  ||  touchDuration(HEAD_SENSOR) > 500;
+  boolean result =   touchDuration(BACK_SENSOR) > 400
+                     ||  touchDuration(RUMP_SENSOR) > 400  ||  touchDuration(HEAD_SENSOR) > 400;
+  if (false && result) {
+    myprintf(Serial, "touched: %4d %4d %4d\n", touchDuration(BACK_SENSOR) , touchDuration(RUMP_SENSOR) , touchDuration(HEAD_SENSOR));
+
+    myprintf(Serial, "recent: %4d %4d %4d\n", recentTouchDuration(BACK_SENSOR) ,
+             recentTouchDuration(RUMP_SENSOR) , recentTouchDuration(HEAD_SENSOR));
+    myprintf(Serial, "isTouchedThisInterval: %x\n", touchedThisInterval);
+
+  }
+  return result;
 }
 
 boolean qualityTouch() {
@@ -115,7 +122,7 @@ boolean wouldInterrupt() {
 
   if (now - lastSoundPlaying < 5000)
     return true;  // been silent for less than 5 seconds
-    
+
   return false;
 }
 
@@ -123,7 +130,7 @@ unsigned long next_sheep_switch = minutesPerSheep * 60 * 1000L;
 
 void updateState() {
 
-unsigned long ms = millis();
+  unsigned long ms = millis();
 
   if (privateTouchFade < ms) {
     if (privateTouchLoad > 0) {
@@ -259,7 +266,7 @@ SheepState * ReadyToRideState::update() {
   lastReadyToRide = millis();
   if (wouldInterrupt())
     return this;
-  if (maybeRiding() && secondsSinceEnteredCurrentState() > 15 )
+  if (maybeRiding() && secondsSinceEnteredCurrentState() > 10 )
     return &ridingState;
 
   if (!qualityTouch() && secondsSinceEnteredCurrentState() > 20) {

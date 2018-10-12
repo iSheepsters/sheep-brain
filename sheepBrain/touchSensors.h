@@ -19,6 +19,7 @@ enum TouchSensor {
 };
 
 
+extern uint16_t touchedThisInterval;
 extern uint16_t currentValue[numTouchSensors];
 extern uint16_t pettingDataPosition; 
 extern boolean debugTouch;
@@ -43,6 +44,7 @@ extern void updateTouchData();
 extern int16_t sensorValue(enum TouchSensor sensor);
 extern boolean isTouched(enum TouchSensor sensor);
 extern int32_t touchDuration(enum TouchSensor sensor);
+extern int32_t recentTouchDuration(enum TouchSensor sensor);
 extern int32_t qualityTime(enum TouchSensor sensor);
 extern int32_t combinedTouchDuration(enum TouchSensor sensor);
 extern int32_t untouchDuration(enum TouchSensor sensor);

@@ -1,7 +1,7 @@
 #include <Adafruit_SleepyDog.h>
 #include <MemoryFree.h>
-const char * VERSION = "version as of 9/29, 11am";
-const boolean WAIT_FOR_SERIAL = true;
+const char * VERSION = "version as of 10/3/2018, 12pm";
+const boolean WAIT_FOR_SERIAL = false;
 
 #include <Wire.h>
 #include <TimeLib.h>
@@ -234,7 +234,8 @@ void setup() {
 
     loadPerSheepSounds();
 
-    changeSounds.loadCommon("change");
+    if (minutesPerSheep > 0)
+      changeSounds.loadCommon("change");
     baaSounds.loadCommon("baa");
     baaSounds.playSound(millis(), false);
     myprintf(Serial, "Free memory = %d\n", freeMemory());
@@ -386,6 +387,12 @@ void loop() {
     digitalWrite(LED_BUILTIN, LOW);
 
   runScheduledActivities();
+
+  if (false) {
+    Serial.print(touchDuration(BACK_SENSOR));
+    Serial.print(" ");
+    Serial.println(now);
+  }
 
   yield(10);
 }

@@ -4,7 +4,7 @@
 extern uint8_t sheepNumber;
 const uint8_t NUMBER_OF_SHEEP = 16;
 const uint8_t PLACEHOLDER_SHEEP = 15;
-const uint8_t INITIAL_AMP_VOL = 40;
+const uint8_t INITIAL_AMP_VOL = 50;
 extern File logFile;
 extern uint16_t batteryVoltageRaw();
 extern float batteryVoltage();

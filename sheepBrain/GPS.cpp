@@ -253,7 +253,7 @@ boolean parseGPS(unsigned long now) {
     return false;
   }
 
-  if (GPS.year != 18 || GPS.month < 8 || GPS.month > 9 || GPS.day < 1 || GPS.day > 31) {
+  if (GPS.year <18) {
     if (GPS_DEBUG) myprintf(Serial, "Bad date from GPS string: \"%s\"\n", (txt + 1));
     return false;
   }

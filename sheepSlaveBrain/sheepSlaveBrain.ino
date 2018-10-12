@@ -4,7 +4,7 @@ const char * VERSION = "version as of 9/29, 11am";
 
 #include<FastLED.h>
 
-//#define STANDARD_SHEEP
+#define STANDARD_SHEEP
 
 #include "all.h"
 #include "comm.h"
@@ -60,7 +60,7 @@ const enum EOrder LED_COLOR_ORDER = GRB;
 CRGB leds[NUM_STRIPS * NUM_LEDS_PER_STRIP];
 
 CRGB & getSheepLEDFor(uint8_t x, uint8_t y) {
-  uint8_t strip = y/8;
+  uint8_t strip = 1+y/8;
   if (strip == 4)
     return unusedLED;
   uint8_t pos = 8*x;
@@ -69,7 +69,6 @@ CRGB & getSheepLEDFor(uint8_t x, uint8_t y) {
   pos += y;
   else
   pos += 7-y;
-  strip = strip+1;
   return leds[strip * NUM_LEDS_PER_STRIP + pos];
 }
 
@@ -88,11 +87,11 @@ void copyLEDs() {
 
 
 void setup() {
+  LEDS.addLeds<WS2811_PORTD, NUM_STRIPS, LED_COLOR_ORDER>(leds, NUM_LEDS_PER_STRIP);
+  LEDS.show();
+  LEDS.setCorrection(TypicalLEDStrip);
   pinMode(led, OUTPUT);
   digitalWrite(led, HIGH);
-  LEDS.addLeds<WS2811_PORTD, NUM_STRIPS, LED_COLOR_ORDER>(leds, NUM_LEDS_PER_STRIP)
-  .setCorrection(TypicalLEDStrip);
-  LEDS.show();
   Serial.begin(115200);
   Serial.println("Starting sheep LED brain");
 
@@ -146,8 +145,7 @@ boolean isDaytime() {
 }
 
 boolean isPreview() {
-  return false;
-  // return true;
+  return true;
   if (!receivedMsg)
     return true;
   int h = month();
