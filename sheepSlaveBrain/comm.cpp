@@ -3,83 +3,117 @@
 #include "comm.h"
 #include <TimeLib.h>
 
-#define slaveAddress  0x44
+const uint8_t slaveAddress =  0x44;
 
-//struct CommData {
-//  time_t time;
-//  uint8_t state;
-//  uint8_t ledMode;
-//
-//  //6 x Touch values (negative = touched)
-//  // Touched time
-//  //Untouched time
-//};
-
-size_t addr;
-// Memory
-uint8_t mem[MEM_LEN];
+const uint8_t rebootStarted = 255;
+const uint8_t rebootActivity = 254;
+const uint8_t slaveRebootStarted = 253;
 
 void receiveEvent(size_t len);
 void requestEvent(void);
 
+volatile boolean receivedMsg = false;
+
+unsigned long lastActivityAt = 0;
+
+struct __attribute__ ((packed)) ActivityData {
+  uint16_t secondsSinceLastActivity;
+  uint16_t secondsSinceBoot;
+  uint8_t lastActivity = slaveRebootStarted;
+  uint8_t subActivity = 0;
+  uint8_t reboots = 0;
+};
+
+ActivityData activityData;
+
+CommData commData;
 
 void setupComm() {
   // Setup for Slave mode, address 0x44, pins 18/19, external pullups, 400kHz
   Wire.begin(I2C_SLAVE, 0x44, I2C_PINS_18_19, I2C_PULLUP_EXT, I2C_RATE_400);
-  Serial.print("i2c Slave address: ");
-  Serial.println(slaveAddress, HEX);
+  Wire.setDefaultTimeout(100); // 100 usecs timeout
+  myprintf("i2c Slave address: 0x%02x\n", slaveAddress);
   // init vars
-  addr = 0;
-  for (int i = 0; i < MEM_LEN; i++)
-    mem[i] = 0;
+
   // register events
   Wire.onReceive(receiveEvent);
   Wire.onRequest(requestEvent);
 
 
 }
+unsigned long activityReports = 0;
 //
 // handle Rx Event (incoming I2C request/data)
 //
 void receiveEvent(size_t len)
 {
-  if (!Wire.available()) return;
-  // grab check byte
-  uint8_t check = Wire.read();
-  if (check != 42) {
-    myprintf(Serial, "got bad check byte of %d, discarding rest of data\n");
-    while (Wire.available()) {
-      myprintf(Serial, "discarding %d\n", Wire.read());
-    }
-    Serial.println();
-    return;
-  }
+  uint8_t kind = Wire.read();
+  if (kind == 42) {
+    State oldState = commData.state;
 
-  addr = Wire.read();
-  //myprintf(Serial, "addr of %d, %d bytes available\n", addr, Wire.available());
-  while (Wire.available()) {
-    uint8_t value =  Wire.read();
-    if (addr <= MEM_LEN) {
-      mem[addr] = value; // copy data to mem
-      addr++;
-      //myprintf(Serial, "mem[%d] = %d\n", addr, value);
+    uint8_t * p = (uint8_t *)&commData;
+    unsigned int bytesRead = Wire.read(p, sizeof(CommData));
+    if (bytesRead != sizeof(CommData)) {
+      myprintf("Only read %d bytes\n", bytesRead);
+      return;
     }
+    if (oldState != commData.state)
+      myprintf("commData.state = %d\n", commData.state);
+    setTime(commData.BRC_time);
+    if (!receivedMsg && year() == 2018 && animationsSetUp) {
+      receivedMsg = true;
+      myprintf("Received message and animations setup\n");
+      setupSchedule();
+    }
+    if (false) {
+      Serial.print("Received: ");
+      for (unsigned int i = 0; i < sizeof(CommData); i++)
+        myprintf("%02x ", p[i]);
+      Serial.println();
+    }
+  } else if (kind == 57) {
+
+    uint8_t thisActivity = Wire.read();
+    uint8_t thisSubActivity = Wire.read();
+
+    activityReports++;
+    if (activityData.lastActivity != slaveRebootStarted
+        && thisActivity == rebootStarted)  {
+      if (activityData.reboots < 255)
+        activityData.reboots++;
+    } else {
+      activityData.lastActivity = thisActivity;
+      activityData.subActivity = thisSubActivity;
+      if (thisActivity != rebootActivity)
+        activityData.reboots = 0;
+      lastActivityAt = now();
+    }
+    if (activityReports < 300)
+      myprintf( "activity %d.%d, %d reboots\n", activityData.lastActivity,
+                activityData.subActivity, activityData.reboots);
+  } else {
+    myprintf("Got unknown i2c message, kind %d, %d bytes\n",
+             kind, Wire.available());
   }
 }
 
+
+uint16_t secondsBetween(unsigned long start, unsigned long end) {
+  unsigned long diff = (end - start) / 1000;
+  if (diff > 65535) return 65535;
+  return diff;
+}
 //
 // handle Tx Event (outgoing I2C data)
 //
 void requestEvent(void)
 {
   Serial.println("requestEvent...");
-  uint8_t v = 0;
-  if (addr < MEM_LEN)
-    v = mem[addr];
-
-  Wire.write(v);
-  myprintf(Serial, "Sent mem[%d] which is %d\n", addr, v);
-  addr++;
+  unsigned long now = millis();
+  activityData.secondsSinceLastActivity = secondsBetween(lastActivityAt, now);
+  activityData.secondsSinceBoot = secondsBetween(0, now);
+  uint8_t * p = (uint8_t *)&activityData;
+  Wire.write(p, sizeof(ActivityData));
 }
 
 

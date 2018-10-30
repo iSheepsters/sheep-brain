@@ -1,9 +1,14 @@
-
 #include <Arduino.h>
 
 #include "touchSensors.h"
+#include "logging.h"
+#include "state.h"
+#include "scheduler.h"
+#include "sound.h"
+#include "comm.h"
 
 #include "Adafruit_ZeroFFT.h"
+#include "util.h"
 
 Adafruit_MPR121 cap = Adafruit_MPR121();
 
@@ -15,26 +20,36 @@ const uint16_t pettingBufferSize = 512;
 uint16_t pettingData[numPettingSensors][pettingBufferSize];
 uint16_t pettingDataPosition = 0;
 
+unsigned long nextPettingReport;
+
+
+boolean debugTouch = false;
+
 uint16_t minRecentValue[numTouchSensors];
 uint16_t maxRecentValue[numTouchSensors];
 uint16_t stableValue[numTouchSensors];
 int32_t timeTouched[numTouchSensors];
 int32_t timeUntouched[numTouchSensors];
+int32_t qualityTimeIntervals[numTouchSensors];
+unsigned long firstTouchThisInterval[numTouchSensors];
 uint16_t touchedThisInterval;
 unsigned long nextTouchInterval = 2000;
+unsigned long lastTouchInterval = 0;
 const uint16_t touchInterval = 1000;
-const uint16_t recentInterval = 15000;
-unsigned long nextRecentInterval = 2000;
+const uint16_t resetSensorsInterval = 15000;
+unsigned long nextSensorResetInterval = 0;
 
 unsigned long lastTouch[numTouchSensors];
+
+boolean valid[numTouchSensors];
 
 const uint8_t  FFI = 3;
 const uint8_t  SFI = 3;
 const uint8_t  ESI = 0;
-const uint8_t  CDC = 16;
-const uint8_t  CDT = 1;
+const uint8_t  CDC = 53;
+const uint8_t  CDT = 3;
 
-boolean  fixed = false;
+boolean fixed = false;
 
 unsigned long nextTouchSample = 0;
 
@@ -53,6 +68,40 @@ boolean newTouch(enum TouchSensor sensor) {
 }
 
 
+uint8_t swapLeftRightSensors(uint8_t touched) {
+  boolean leftTouched = (touched & _BV(LEFT_SENSOR)) != 0;
+  boolean rightTouched = (touched & _BV(RIGHT_SENSOR)) != 0;
+  touched = touched & 0xf3;
+  if (leftTouched)
+    touched |= _BV(RIGHT_SENSOR);
+  if (rightTouched)
+    touched |= _BV(LEFT_SENSOR);
+  return touched;
+}
+
+uint8_t CDTx_value(uint8_t addr) {
+  uint8_t value =  cap.readRegister8(0x6C + addr / 2);
+  if (addr % 2 == 0)
+    return value & 0x07;
+  return (value >> 4) & 0x07;
+}
+
+uint8_t CDTx_value(enum TouchSensor sensor) {
+  return CDTx_value((uint8_t) sensor);
+}
+
+uint8_t CDCx_value(uint8_t sensor) {
+  return cap.readRegister8(0x5f + sensor) & 0x3f;
+}
+uint8_t CDCx_value(enum TouchSensor sensor) {
+  return CDCx_value((uint8_t) sensor);
+
+}
+
+void checkValid() {
+  for (int t = 0; t < numTouchSensors; t++)
+    valid[t] = true;  // CDTx_value(t) > 2;
+}
 void setupTouch() {
   Serial.println("setting up touch");
 
@@ -60,7 +109,7 @@ void setupTouch() {
   // If tied to SDA its 0x5C and if SCL then 0x5D
   while  (!cap.begin(0x5A)) {
     Serial.println("MPR121 not found, check wiring?");
-    delay(1000);
+    setupDelay(1000);
   }
   Serial.println("MPR121 found!");
   for (int t = 0; t < numTouchSensors; t++) {
@@ -69,19 +118,24 @@ void setupTouch() {
       pettingData[t][i] = 0;
     }
   }
-  dumpConfiguration();
   Serial.println("Applying configuration");
   mySetup();
+  setupDelay(100);
   dumpConfiguration();
-  delay(200);
-  calibrate();
-  dumpConfiguration();
-  delay(200);
-  freeze();
-  delay(200);
-  for (int i = 0; i < 6; i++) if (cap.filteredData(i) > 10)
-      stableValue[i] = cap.filteredData(i) - 2;
-  nextRecentInterval = nextTouchInterval = millis() + 1000;
+  checkValid();
+  for (int i = 0; i < numTouchSensors; i++) {
+    uint16_t value = cap.filteredData(i);
+    if (!valid[i])
+      myprintf(Serial, "sensor %d not connected\n", i);
+    else if (value > 10)
+      stableValue[i] = value - 1;
+    firstTouchThisInterval[i] = 0;
+  }
+  nextSensorResetInterval = nextTouchInterval = millis() + 1000;
+  nextPettingReport =  millis() + 2000;
+  addScheduledActivity(50, updateTouchData, "touch");
+  Serial.println("done with touch ");
+
 }
 
 const uint16_t  intervalBetweenSamples = 15;
@@ -90,11 +144,21 @@ const uint16_t sampleRate = 1000 / intervalBetweenSamples;
 void dumpTouchData() {
   if (true) {
     for (int i = 0; i < 6; i++) {
+      Serial.print(i);
+      Serial.print(" ");
+      Serial.print(isTouched((TouchSensor)i) ? "t " : "- ");
       Serial.print(cap.filteredData(i));
       Serial.print(" ");
       Serial.print(stableValue[i]);
       Serial.print("  ");
+      Serial.print(timeTouched[i]);
+      Serial.print("  ");
+      Serial.print(timeUntouched[i]);
+      Serial.print("  ");
+      if (true || i % 2 == 1)
+        Serial.println();
     }
+
   } else
     for (int i = 0; i < 6; i++) {
       Serial.print(cap.filteredData(i) - stableValue[i]);
@@ -103,84 +167,227 @@ void dumpTouchData() {
   Serial.println();
 }
 
-void updateTouchData(unsigned long now, boolean debug) {
-  lastTouched = currTouched;
-  currTouched = 0;
+void wasTouchedInappropriately() {
+  qualityTimeIntervals[BACK_SENSOR] = 0;
+  qualityTimeIntervals[HEAD_SENSOR] = 0;
+  qualityTimeIntervals[RUMP_SENSOR] = 0;
+
+}
+
+uint8_t touchThreshold(uint8_t i) {
+  enum TouchSensor sensor = (TouchSensor) i;
+  switch (sensor) {
+    case HEAD_SENSOR:
+      return 3;
+    case LEFT_SENSOR:
+    case RIGHT_SENSOR:
+      return 5;
+    case PRIVATES_SENSOR:
+      return 10;
+    case BACK_SENSOR:
+    case RUMP_SENSOR:
+    default:
+      return 10;
+  }
+}
+
+int16_t sensorValue(enum TouchSensor sensor) {
+  int value = cap.filteredData((uint8_t) sensor);
+  if (value < 10) return 0;
+  return value - ( stableValue[sensor] - touchThreshold((uint8_t)sensor));
+}
+
+unsigned long lastReset = 20000;
+
+boolean isStable(int sensor) {
+  int range = maxRecentValue[sensor] - minRecentValue[sensor];
+  int maxRange = 5;
+  unsigned long secondsSinceLastReset = (millis() - lastReset) / 1000;
+  if (lastReset > 5 * 60)
+    maxRange = 10;
+  return range <= maxRange;
+}
+
+void resetStableValue(int sensor) {
+  if (isStable(sensor))
+    stableValue[sensor] = minRecentValue[sensor] - 1;
+  else myprintf(Serial, "Asked to reset %d, but it isn't stable\n", sensor);
+}
+
+
+void considerResettingTouchSensors() {
+  boolean allStable = true;
+  int potentialMaxChange = 0;
+
+  sendSubActivity(10);
   for (int i = 0; i < numTouchSensors; i++) {
-    if (cap.filteredData(i) < stableValue[i] && cap.filteredData(i)  > 0)
-      currTouched |= 1 << i;
+    if (i != LEFT_SENSOR && i != RIGHT_SENSOR && !isStable(i))
+      allStable = false;
+    potentialMaxChange = max(potentialMaxChange, abs(stableValue[i] - (minRecentValue[i] - 1)));
   }
 
-  newTouched = currTouched & ~lastTouched;
-  if (nextRecentInterval < now) {
-    boolean allStable = true;
-    int potentialMaxChange = 0;
-    
+  sendSubActivity(11);
+  if (!musicPlayer.playingMusic) {
+    noInterrupts();
+    if (allStable)
+      logFile.print("S,");
+    else
+      logFile.print("U,");
+    logFile.print(potentialMaxChange);
+    logFile.print(",  ");
+    sendSubActivity(21);
     for (int i = 0; i < numTouchSensors; i++) {
-      int range = maxRecentValue[i] - minRecentValue[i];
+      logFile.print(minRecentValue[i]);
+      logFile.print(",");
 
-      if (range > 3 || minRecentValue[i] < 10 || cap.filteredData(i) < 10)
-        allStable = false;
-      potentialMaxChange = max(potentialMaxChange,abs(stableValue[i] - (minRecentValue[i] - 1)));
+      logFile.print(maxRecentValue[i]);
+      logFile.print(",");
+      logFile.print(stableValue[i]);
+      logFile.print(",");
+      logFile.print(combinedTouchDuration((enum TouchSensor)i) / 1000);
+      logFile.print(", ");
     }
+    sendSubActivity(22);
+    logFile.println();
+    interrupts();
 
-    if (allStable && potentialMaxChange > 0) {
+    if (false) {
+      sendSubActivity(12);
+      optionalFlush();
+    }
+  }
+
+
+  if (allStable) {
+    sendSubActivity(13);
+    if (potentialMaxChange > 0) {
+      lastReset = millis();
       myprintf(Serial, "All stable, change of %d, resetting\n", potentialMaxChange);
       for (int i = 0; i < numTouchSensors; i++) {
-        stableValue[i] = minRecentValue[i] - 1;
+        resetStableValue(i);
       };
-    } else if  (allStable && potentialMaxChange == 0) {
+    } else if  (potentialMaxChange == 0) {
       Serial.println("Touch sensors stable and unchanged");
     }
-    for (int i = 0; i < numTouchSensors; i++) {
-      minRecentValue[i] = maxRecentValue[i] = cap.filteredData(i);
-    };
-    nextRecentInterval = now + recentInterval;
+  } else {
+    sendSubActivity(14);
+    for (int i = 0; i < numTouchSensors; i++)  if (isStable(i)) {
+        int touchSeconds = touchDuration((enum TouchSensor) i);
+        if (touchSeconds > 5 * 60 && maxRecentValue[i] < stableValue[i]) {
+          myprintf(Serial, "Sensor %d stable, touched for %d seconds, recent values %d - %d, stableValue %d, resetting\n",
+                   i, touchSeconds, minRecentValue[i], maxRecentValue[i], stableValue[i]);
+          resetStableValue(i);
+        }
+      }
   }
-  else
-    for (int i = 0; i < numTouchSensors; i++) {
-      if (minRecentValue[i] == 0 && cap.filteredData(i) > 10)
-        minRecentValue[i] = cap.filteredData(i);
-      if (stableValue[i] == 0 && cap.filteredData(i) > 10)
-        stableValue[i] =  cap.filteredData(i) - 3;
-      if (minRecentValue[i] > cap.filteredData(i) && cap.filteredData(i) > 10 )
-        minRecentValue[i] = cap.filteredData(i);
-      else if (maxRecentValue[i] < cap.filteredData(i))
-        maxRecentValue[i] = cap.filteredData(i);
+
+  sendSubActivity(15);
+  for (int i = 0; i < numTouchSensors; i++) {
+    minRecentValue[i] = maxRecentValue[i] = currentValue[i];
+  };
+
+}
+uint16_t currentValue[numTouchSensors];
+
+void updateTouchData() {
+  unsigned long now = millis();
+  boolean debug = false;
+  lastTouched = currTouched;
+  currTouched = 0;
+  for (int i = 0; i < numTouchSensors; i++) if (valid[i]) {
+      uint16_t value = cap.filteredData(i);
+      if (value > 2) {
+        currentValue[i] = value;
+        int16_t threshold = touchThreshold(i);
+        if (lastTouched & _BV(i))
+          threshold = threshold * 3 / 4;
+        if (value < stableValue[i] - threshold ) {
+          currTouched |= 1 << i;
+          if ( firstTouchThisInterval[i] == 0)
+            firstTouchThisInterval[i] = now;
+        }
+      }
     }
 
-  if (nextTouchInterval < now) {
+  newTouched = currTouched & ~lastTouched;
+  if (nextSensorResetInterval < now) {
+    sendSubActivity(1);
+
+    considerResettingTouchSensors();
+    nextSensorResetInterval = now + resetSensorsInterval;
+  } else {
+    sendSubActivity(2);
     for (int i = 0; i < numTouchSensors; i++) {
+      if (minRecentValue[i] == 0 )
+        minRecentValue[i] = currentValue[i];
+      if (stableValue[i] == 0)
+        stableValue[i] =  currentValue[i] - 3;
+      if (minRecentValue[i] > currentValue[i]  )
+        minRecentValue[i] = currentValue[i] ;
+      else if (maxRecentValue[i] < currentValue[i] )
+        maxRecentValue[i] = currentValue[i] ;
+    }
+  }
+  if (nextTouchInterval < now) {
+    sendSubActivity(3);
+    // advance to next touch interval
+    for (int i = 0; i < numTouchSensors; i++) {
+
       if ((touchedThisInterval & _BV(i)) != 0) {
         timeTouched[i]++;
+        qualityTimeIntervals[i]++;
+        if (qualityTimeIntervals[i] > 20)
+          qualityTimeIntervals[i] = 20;
         timeUntouched[i] = 0;
+        firstTouchThisInterval[i] = now;
         if (debug) Serial.print(timeTouched[i]);
       } else {
         timeTouched[i] = 0;
+        firstTouchThisInterval[i] = 0;
         timeUntouched[i]++;
+        int q = qualityTimeIntervals[i] - timeUntouched[i];
+        if (q < 0)
+          qualityTimeIntervals[i] = 0;
+        else
+          qualityTimeIntervals[i] = q;
+
         if (debug) Serial.print(-timeUntouched[i]);
       }
       if (debug) Serial.print(" ");
+
     }
     if (debug) Serial.println();
+    if (false) {
+      Serial.print("Touch: ");
+      if (! privateSensorEnabled())
+        Serial.print("(private sensor disabled) ");
+      for (int i = 0; i < numTouchSensors; i++) {
+        myprintf(Serial, "%2d %2d %2d  ", timeTouched[i], qualityTimeIntervals[i], timeUntouched[i]);
+      }
+      Serial.println();
+    }
+
     touchedThisInterval = currTouched;
+    lastTouchInterval = nextTouchInterval;
     nextTouchInterval = now + touchInterval;
+
   } else {
     touchedThisInterval |= currTouched;
-
+    for (int i = 0; i < numTouchSensors; i++)
+      if ((currTouched & _BV(i)) != 0 && firstTouchThisInterval[i] == 0) {
+        firstTouchThisInterval[i] = now;
+      }
   }
 
-
-
+  sendSubActivity(4);
   if (nextTouchSample <= now) {
     nextTouchSample = now + 15;
     pettingDataPosition = pettingDataPosition + 1;
     if (pettingDataPosition >= pettingBufferSize)
       pettingDataPosition = 0;
     for (int t = 0; t < numTouchSensors; t++) {
-      uint16_t v = cap.filteredData(t);
-      uint16_t b = cap.baselineData(t);
-      if (v < b) {
+      uint16_t v = currentValue[t] ;
+      if (v < stableValue[t]) {
         lastTouch[t] = now;
       }
       if (t < numPettingSensors) {
@@ -189,6 +396,29 @@ void updateTouchData(unsigned long now, boolean debug) {
 
     }
   }
+  sendSubActivity(5);
+  if (false && nextPettingReport < now) {
+    nextPettingReport = now + 250;
+    for (int i = 0; i < numPettingSensors; i++) {
+
+      float confidence = 0.0;
+      /// int i = 7;
+      float hz = detectPetting(i, 64, &confidence);
+      digitalWrite(LED_BUILTIN, hz > 0.0);
+      Serial.print(hz);
+      Serial.print(" ");
+      //       Serial.print(confidence);
+      //      Serial.print(" ");
+    }
+    Serial.println();
+  }
+  if (debugTouch) {
+    Serial.print("TD ");
+    for (int i = 0; i < numTouchSensors; i++)
+      myprintf(Serial, " %3d %3d %3d  ", stableValue[i],  currentValue[i], sensorValue((TouchSensor)i));
+    Serial.println();
+  }
+  sendSubActivity(6);
 }
 
 int32_t combinedTouchDuration(enum TouchSensor sensor) {
@@ -197,8 +427,24 @@ int32_t combinedTouchDuration(enum TouchSensor sensor) {
   return -timeUntouched[sensor] * touchInterval;
 
 }
+int32_t recentTouchDuration(enum TouchSensor sensor) {
+  int8_t i = sensor;
+  if ( !(touchedThisInterval & _BV(i)) )
+    return 0;
+  if ( firstTouchThisInterval[i] < lastTouchInterval) {
+    myprintf(Serial, "Touch error; firstTouchThisInterval[%d] = %d, lastTouchInterval=%d\n",
+             i, firstTouchThisInterval[i], lastTouchInterval);
+    return millis() - lastTouchInterval;
+  }
+  return millis() - firstTouchThisInterval[i];
+}
+
 int32_t touchDuration(enum TouchSensor sensor) {
-  return timeTouched[sensor] * touchInterval;
+  return timeTouched[sensor] * touchInterval
+         + recentTouchDuration(sensor);
+}
+int32_t qualityTime(enum TouchSensor sensor) {
+  return qualityTimeIntervals[sensor] * touchInterval + recentTouchDuration(sensor);
 }
 int32_t untouchDuration(enum TouchSensor sensor) {
   return timeUntouched[sensor] * touchInterval;
@@ -258,29 +504,40 @@ void dumpConfiguration() {
 
   // 5f 60 61 62 63 64 65 66 67 68 69 6a 6b
   Serial.print("CDC: ");
-  for (int i = 0; i <= 12; i++) {
-    uint8_t CDCx = cap.readRegister8(0x5f + i);
-    Serial.print(CDCx & 0x3f);
+  for (int i = 0; i < numTouchSensors; i++) {
+    Serial.print(CDCx_value(i));
     Serial.print(" ");
   }
   Serial.println();
   // 6c 6d 6e 6f 70 71 72
   Serial.print("CDT: ");
-  for (int i = 0; i <= 6; i++) {
-    uint8_t CDTx = cap.readRegister8(0x6C + i);
-    Serial.print(CDTx & 0x7);
-    Serial.print(" ");
-    Serial.print((CDTx >> 4) & 0x7);
+  for (int i = 0; i < numTouchSensors; i++) {
+    Serial.print(CDTx_value(i));
     Serial.print(" ");
   }
   Serial.println();
 
 }
+
+void logTouchConfiguration() {
+  noInterrupts();
+  logFile.print("TC, ");
+
+  sendSubActivity(42);
+  for (int i = 0; i < numTouchSensors; i++) {
+    logFile.print(CDCx_value(i));
+    logFile.print(",");
+    logFile.print(CDTx_value(i));
+    logFile.print(", ");
+  }
+  logFile.println();
+  interrupts();
+}
 void changeMode(uint8_t newMode) {
   cap.writeRegister(MPR121_ECR, 0);
-  delay(10);
+  delay(2);
   cap.writeRegister(MPR121_ECR, newMode);
-  delay(10);
+  delay(2);
 }
 
 
@@ -298,7 +555,7 @@ void setECR(bool updateBaseline) {
 
 void mySetup() {
   cap.writeRegister(MPR121_ECR, 0);
-  delay(10);
+  setupDelay(10);
   cap.writeRegister(MPR121_UPLIMIT, 200);
   cap.writeRegister(MPR121_TARGETLIMIT, 181);
   cap.writeRegister(MPR121_LOWLIMIT, 131);
@@ -314,40 +571,11 @@ void mySetup() {
   // ACE = 1
   // ARE = 1
 
-  cap.writeRegister(MPR121_AUTOCONFIG0, (FFI << 6) |  0x17);
+  cap.writeRegister(MPR121_AUTOCONFIG0, (FFI << 6) |  0x16);
   setECR(true);
-  delay(10);
+  setupDelay(10);
 }
 
-
-void adjust() {
-  Serial.println("Changing to adjustable baselines");
-
-  changeMode(0xBF);
-  fixed = false;
-}
-
-
-void freeze() {
-  Serial.println("stopping calibration");
-  changeMode(0x7f);
-  fixed = true;
-}
-
-uint8_t calculateBaseline(uint16_t value) {
-  uint16_t baseline = value & 0xfffc;
-  if (value - baseline < 3) baseline = baseline - 4;
-  return  (baseline >> 2);
-}
-void calibrate() {
-  uint8_t mode = cap.readRegister8(MPR121_ECR);
-
-  cap.writeRegister(MPR121_ECR, 0);
-  for (int i = 0; i <= lastTouchSensor; i++) {
-    cap.writeRegister(MPR121_BASELINE_0 + i, calculateBaseline(cap.filteredData(i)));
-  }
-  cap.writeRegister(MPR121_ECR, mode);
-}
 
 float detectPetting(uint8_t touchSensor, uint16_t sampleSize, float * confidence) {
   if (touchSensor >= numPettingSensors) return 0;
@@ -419,5 +647,3 @@ float detectPetting(uint8_t touchSensor, uint16_t sampleSize, float * confidence
   *confidence = max / avg;
   return answer;
 }
-
-
