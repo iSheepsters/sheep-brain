@@ -133,7 +133,7 @@ void moveTracer(Tracer & t, int index) {
       break;
     default :
       if (!complainedAboutUnknownState) {
-        Serial.println("Unknown state");
+        Serial.print("Unknown state: ");
         Serial.println(commData.state);
         complainedAboutUnknownState = true;
       }
@@ -316,9 +316,10 @@ void head() {
         leds[j] = CRGB::White;
 }
 
-void overlays() {
+void overlays(boolean receivedMsg) {
 
   head();
+  if (receivedMsg) {
   updateTracers();
   applyAndFadeFlash();
 
@@ -339,7 +340,6 @@ void overlays() {
     backLights();
   if (touchData & 0x20)
     headLights();
+  }
 
 }
-
-

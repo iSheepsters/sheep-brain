@@ -1,3 +1,2 @@
 
-extern void overlays();
-
+extern void overlays(boolean receivedMsg);
