@@ -33,7 +33,7 @@ void setupState() {
 }
 
 boolean privateSensorEnabled() {
-  return millis() > privateTouchDisabledUntil;
+  return privatesEnabled && millis() > privateTouchDisabledUntil;
 }
 
 int32_t untouchDurationPrivates() {
