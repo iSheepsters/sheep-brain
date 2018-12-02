@@ -8,18 +8,20 @@ extern boolean soundPlayedRecently(unsigned long now);
 
 extern void loadPerSheepSounds();
 class SoundCollection;
-const int MAX_SOUND_FILES = 18;
+const uint8_t MAX_SOUND_FILES = 18;
+const uint8_t FILE_NAME_LENGTH = 15; 
 
 class SoundFile {
   public:
-    SoundFile() : lastStarted(0), lastPlaying(0), duration(0), num(-1) {
+    SoundFile() : lastStarted(0), lastPlaying(0), duration(0) {
+      name[0] = 0;
     };
 
     uint32_t lastStarted;
     uint32_t lastPlaying;
     uint32_t duration;
     SoundCollection * collection;
-    uint8_t num;
+    char name[FILE_NAME_LENGTH];
     boolean eligibleToPlay(unsigned long now,  boolean ambientSound);
 };
 
