@@ -1,6 +1,6 @@
 #include <Adafruit_SleepyDog.h>
 #include <MemoryFree.h>
-const char * VERSION = "version as of 10/3/2018, 12pm";
+const char * VERSION = "version as of 11/3/2018";
 const boolean WAIT_FOR_SERIAL = false;
 
 #include <Wire.h>
@@ -204,8 +204,44 @@ void setup() {
     logDistress("no config.txt file");
 
   } else {
+    Watchdog.reset();
     s = configFile.parseInt();
     myprintf(Serial, "config file contains %d\n", s);
+    int v = configFile.parseInt();
+    if (v != 0) {
+      privatesEnabled = true;
+      Serial.println("Privates enabled");
+    } else Serial.println("Privates disabled");
+    v = configFile.parseInt();
+    if (v != 0) {
+      allowRrated = true;
+      Serial.println("R rated sounds enabled");
+    } else
+      Serial.println("R rated sounds disabled");
+    Serial.println("barfoo");
+    v = configFile.parseInt();
+    Serial.println("foobar");
+    if (v > 0 && v <= 63) {
+      thevol = v;
+      myprintf(Serial, "default volume set to %d\n", v);
+    } else
+      myprintf(Serial, "default volume not set, using %d\n", thevol);
+
+    timeZoneAdjustment = configFile.parseInt();
+    myprintf(Serial, "time zone adjustment: %d\n", timeZoneAdjustment);
+    numTimeAdjustments = configFile.parseInt();
+    timeAdjustments = new TimeAdjustment[numTimeAdjustments];
+    for (int i = 0; i < numTimeAdjustments; i++) {
+      timeAdjustments[i].hourStart = configFile.parseInt();
+      timeAdjustments[i].hoursLong = configFile.parseInt();
+      timeAdjustments[i].volume = configFile.parseInt();
+      myprintf(Serial, "time adjustment #%d: %d, %d, %d\n",
+               i,
+               timeAdjustments[i].hourStart,
+               timeAdjustments[i].hoursLong,
+               timeAdjustments[i].volume);
+    }
+
     configFile.close();
   }
 
@@ -223,10 +259,9 @@ void setup() {
              sheepNumber, s);
   }
 
-  writeSheepNumber(sheepToSwitchTo(sheepNumber));
   setupLogging();
   myprintf(logFile, "Start of log for sheep %d\n", sheepNumber);
-
+  Watchdog.reset();
   if (useSound) {
 
     myprintf(Serial, "Free memory = %d\n", freeMemory());
@@ -303,6 +338,9 @@ void generateReport() {
            sheepNumber, now, currentSheepState->name,
            batteryVoltage(),  minutesUptime(), fixCount,
            hour(), minute(), second());
+  myprintf(Serial, "  local time %2d:%02d:%02d, current volume %d\n",
+
+           adjustedHour(), minute(), second(), getAdjustedVolume());
   myprintf(Serial, "  %dms interrupt interval, %dus max interrupt time, %d max avail\n",
            longestInterval, maxInterruptTime, maxAvail);
 
@@ -311,7 +349,8 @@ void generateReport() {
   if (thevol != INITIAL_AMP_VOL)
     myprintf(Serial, "  amplifier volume %d\n", thevol);
   if (currentSoundFile != NULL)
-    myprintf(Serial, "  playing %s/%d.mp3\n", currentSoundFile->collection->name, currentSoundFile -> num);
+    myprintf(Serial, "  playing %s/%s\n", currentSoundFile->collection->name,
+             currentSoundFile -> name);
   else if (musicPlayer.playingMusic)
     Serial.println("  Playing unknown sound");
   else {
@@ -397,6 +436,7 @@ void loop() {
   yield(10);
 }
 
+const int DELAY_BETWEEN_SOUNDS = 5000;
 void checkForNextAmbientSound() {
   unsigned long now = millis();
   if (!useSound || !playSound)
@@ -408,19 +448,19 @@ void checkForNextAmbientSound() {
   if (now > nextAmbientSound) {
     if (TRACE) Serial.println("play ambient sound");
     if (!isInFriendlyTerritory() && random(2) == 0 && seperatedSounds.playSound(now, true))  {
-      unsigned long delay = 20000;
+      unsigned long delay = DELAY_BETWEEN_SOUNDS;
       if (false && currentSoundFile -> duration > 0 && currentSoundFile -> duration < delay)
         delay = currentSoundFile -> duration;
-      delay = (delay + random(20000)) * howCrowded();
+      delay = (delay + random(DELAY_BETWEEN_SOUNDS)) * howCrowded();
       myprintf(Serial, "Started playing seperated sound, next in %dms\n", delay);
       nextAmbientSound = now + delay;
       return;
     }
     if (currentSheepState -> playSound(now, true)) {
-      unsigned long delay = 20000;
+      unsigned long delay = DELAY_BETWEEN_SOUNDS;
       if (currentSoundFile -> duration > 0 && currentSoundFile -> duration < delay)
-        delay = currentSoundFile -> duration ;
-      delay = (delay + random(20000)) * howCrowded();
+        delay = currentSoundFile -> duration/2 ;
+      delay = (delay + random(DELAY_BETWEEN_SOUNDS/2, DELAY_BETWEEN_SOUNDS)) * howCrowded();
       myprintf(Serial, "Started playing ambient sound, next in %dms\n", delay);
       nextAmbientSound = now + delay;
       return;
@@ -428,18 +468,18 @@ void checkForNextAmbientSound() {
 
       myprintf(Serial, "No ambient sound available, baa-ing\n");
 
-      unsigned long delay = random(10000, 20000) * howCrowded();
+      unsigned long delay = random(DELAY_BETWEEN_SOUNDS/2, DELAY_BETWEEN_SOUNDS) * howCrowded();
       nextAmbientSound = now + delay;
-      nextBaa = now + delay + 10000;
+      nextBaa = now + delay + DELAY_BETWEEN_SOUNDS/2;
     } else {
       myprintf(Serial, "No ambient or baa sound available\n");
-      nextAmbientSound = now + 5000;
+      nextAmbientSound = now + DELAY_BETWEEN_SOUNDS/4;
     }
   }
   if (now > nextBaa && nextBaa + 8000 < nextAmbientSound) {
     if (TRACE) Serial.println("play baa sound");
     if (baaSounds.playSound(now, true)) {
-      unsigned long delay = random(10000, 20000) * howCrowded();
+      unsigned long delay = random(DELAY_BETWEEN_SOUNDS/2, DELAY_BETWEEN_SOUNDS) * howCrowded();
       Serial.println("Started playing baa");
       myprintf(Serial, "Started playing baa sound, next in %dms\n", delay);
       nextBaa = now + delay;

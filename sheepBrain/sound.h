@@ -5,6 +5,7 @@ extern Adafruit_VS1053_FilePlayer musicPlayer;
 
 extern int8_t thevol;
 
+extern uint8_t getAdjustedVolume();
 extern boolean turnAmpOn();
 extern boolean turnAmpOff();
 extern void setupSound();

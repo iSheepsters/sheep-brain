@@ -26,6 +26,11 @@ const boolean USE_AMPLIFIER = true;
 Adafruit_VS1053_FilePlayer musicPlayer =
   Adafruit_VS1053_FilePlayer(VS1053_RESET, VS1053_CS, VS1053_DCS, VS1053_DREQ, CARDCS);
 
+const int RIGHT_SPEAKER_DECREASE = 5;
+
+int getRightSpeakerSetting(int leftSpeakerSetting) {
+  return constrain(leftSpeakerSetting + RIGHT_SPEAKER_DECREASE, 0, 0xfe);
+}
 
 // 0x4B is the default i2c address
 #define MAX9744_I2CADDR 0x4B
@@ -43,15 +48,14 @@ boolean wasPlayingMusic;
 void musicPlayerSetVolume(uint8_t v) {
 
   VS1053_volume = v;
-  // right channel is always silent, we don't use it
-  musicPlayer.setVolume(v, 0xfe);
+ musicPlayer.setVolume(v, getRightSpeakerSetting(v));
   turnAmpOn();
 }
 void musicPlayerFullVolume() {
 
   //Serial.println("musicPlayerFullVolume");
   VS1053_volume = 0;
-  musicPlayer.setVolume(0, 0xfe);
+  musicPlayer.setVolume(0, getRightSpeakerSetting(0));
   turnAmpOn();
 }
 void musicPlayerNoVolume() {
@@ -144,9 +148,22 @@ void changeAmpVol(int8_t v) {
   thevol = v;
 }
 
+uint8_t getAdjustedVolume() {
+  uint8_t h = adjustedHour();
+  for (int i = 0; i < numTimeAdjustments; i++)
+    if (h >= timeAdjustments[i].hourStart
+        && h < timeAdjustments[i].hourStart + timeAdjustments[i].hoursLong
+        || h < timeAdjustments[i].hourStart + timeAdjustments[i].hoursLong - 24) {
+     return timeAdjustments[i].volume;
+    }
+  
+  return thevol;
+
+}
+
 boolean turnAmpOn() {
   ampOn = true;
-  return setAmpVolume(thevol);
+  return setAmpVolume(getAdjustedVolume());
 }
 boolean turnAmpOff() {
   ampOn = false;
@@ -208,10 +225,10 @@ void noteEndOfMusic() {
     currentSoundFile->lastPlaying = now;
     if (currentSoundFile->duration == 0) {
       currentSoundFile->duration = currentSoundFile->lastPlaying - currentSoundFile->lastStarted;
-      myprintf(Serial, "%d ms for %s/%d.mp3\n",
+      myprintf(Serial, "%d ms for %s/%s\n",
                currentSoundFile->duration,
                currentSoundFile->collection->name,
-               currentSoundFile->num);
+               currentSoundFile->name);
       isBaa = currentSoundFile->collection == &baaSounds;
       currentSoundFile = NULL;
     }

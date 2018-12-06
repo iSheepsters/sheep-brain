@@ -27,6 +27,16 @@ volatile boolean read_gps_in_interrupt = false;
 Adafruit_GPS GPS(&Serial1);
 
 
+uint8_t adjustedHour() {
+  int h = hour() - 4 + timeZoneAdjustment;
+  if (h < 0) h = h+24;
+  if (h > 23) h = h-23;
+  h = h % 24;
+  return h;
+  
+}
+
+
 boolean setupGPS() {
   // 9600 NMEA is the default baud rate for Adafruit MTK GPS's- some use 4800
   if (false) {

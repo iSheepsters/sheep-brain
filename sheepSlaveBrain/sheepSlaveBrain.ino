@@ -1,6 +1,6 @@
 #include <Adafruit_SleepyDog.h>
 
-const char * VERSION = "version as of 9/29, 11am";
+const char * VERSION = "version as of 11/3";
 
 #include<FastLED.h>
 
@@ -60,15 +60,15 @@ const enum EOrder LED_COLOR_ORDER = GRB;
 CRGB leds[NUM_STRIPS * NUM_LEDS_PER_STRIP];
 
 CRGB & getSheepLEDFor(uint8_t x, uint8_t y) {
-  uint8_t strip = 1+y/8;
+  uint8_t strip = 1 + y / 8;
   if (strip == 4)
     return unusedLED;
-  uint8_t pos = 8*x;
+  uint8_t pos = 8 * x;
   y = y % 8;
   if (x % 2 == 0)
-  pos += y;
+    pos += y;
   else
-  pos += 7-y;
+    pos += 7 - y;
   return leds[strip * NUM_LEDS_PER_STRIP + pos];
 }
 
@@ -87,14 +87,19 @@ void copyLEDs() {
 
 
 void setup() {
+  pinMode(led, OUTPUT);
+  digitalWrite(led, LOW);
   LEDS.addLeds<WS2811_PORTD, NUM_STRIPS, LED_COLOR_ORDER>(leds, NUM_LEDS_PER_STRIP);
+  LEDS.setBrightness(BRIGHTNESS_BORED);
+  LEDS.clear();
+  setLEDsToBlack();
   LEDS.show();
   LEDS.setCorrection(TypicalLEDStrip);
-  pinMode(led, OUTPUT);
+
   digitalWrite(led, HIGH);
   Serial.begin(115200);
   Serial.println("Starting sheep LED brain");
-
+  LEDS.show();
   if (true) {
     int countdownMS = Watchdog.enable(14000);
     Serial.print("Enabled the watchdog with max countdown of ");
@@ -109,25 +114,26 @@ void setup() {
     delay(50);
     Serial.println(i);
   }
-
+  LEDS.show();
   setupComm();
   Serial.println("comm set up");
-  
+
   setupAnimations();
   Serial.println("animations set up");
-  
 
- 
+
+
   for (int i = 0; !receivedMsg && i < 100; i++) {
     digitalWrite(led, HIGH);   // turn the LED on (HIGH is the voltage level)
     delay(25);               // wait for a second
     digitalWrite(led, LOW);    // turn the LED off by making the voltage LOW
     delay(25);
     Serial.println(i);
+    LEDS.show();
   }
 
 
-  LEDS.setBrightness(BRIGHTNESS_BORED);
+
   Serial.println("setup complete");
   Serial.println(VERSION);
 
@@ -182,7 +188,7 @@ void loop() {
         LEDS.setBrightness(BRIGHTNESS_NORMAL);
         break;
     }
-    
+
   //LEDS.setBrightness(BRIGHTNESS_NORMAL);
   if (nextUpdate < now) {
     unsigned long millisToChange =  updateAnimation(now);
@@ -192,7 +198,7 @@ void loop() {
               currState, month(), day(), hour(), minute(), second());
     if (!receivedMsg)
       Serial.println(" Have not received any messages");
-      else
+    else
       myprintf(" Received %d activity messages\n", activityReports);
     if (isPreview())
       Serial.println("is preview");
@@ -217,8 +223,18 @@ void loop() {
   if (false) Serial.println("updating animation");
   if (useLEDs()) {
     currentAnimation->update(now);
-    overlays();
+    overlays(receivedMsg);
 
+#ifndef STANDARD_SHEEP
+if (false) {
+    getSheepLEDFor(HALF_GRID_WIDTH, 0) =  CRGB::LightGrey;
+    getSheepLEDFor(HALF_GRID_WIDTH, 8) =  CRGB::LightGrey;
+    getSheepLEDFor(HALF_GRID_WIDTH, 9) =  CRGB::LightGrey;
+    getSheepLEDFor(HALF_GRID_WIDTH, 16) =  CRGB::LightGrey;
+    getSheepLEDFor(HALF_GRID_WIDTH, 17) =  CRGB::LightGrey;
+    getSheepLEDFor(HALF_GRID_WIDTH, 18) =  CRGB::LightGrey;
+}
+#endif
     copyLEDs();
     LEDS.show();
   } else {
