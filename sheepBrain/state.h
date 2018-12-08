@@ -2,7 +2,6 @@
 #define _STATE_H
 #include "soundFile.h"
 
-
 enum State {
   Bored,
   Attentive,
@@ -22,10 +21,13 @@ class SheepState {
     virtual SheepState * update() = 0;
     const char * const name;
     const enum State state;
-    SoundCollection & sounds;
-    SheepState(enum State st, const char * n, SoundCollection & s) : state(st), name(n), sounds(s) {};
-    boolean playSound(unsigned long now, boolean ambientNoise);
-
+    SoundCollection & initialSounds;
+    SoundCollection & ambientSounds;
+    SheepState(enum State st, const char * n, SoundCollection & s) 
+    : state(st), name(n), initialSounds(s), ambientSounds(s) {};
+    SheepState(enum State st, const char * n, SoundCollection & s, SoundCollection & ambient) 
+    : state(st), name(n), initialSounds(s), ambientSounds(ambient) {};
+    boolean playAmbientSound(unsigned long now);
 };
 
 extern SheepState * currentSheepState;
@@ -40,7 +42,7 @@ class BoredState : public SheepState {
 
 class AttentiveState : public SheepState {
    public:
-    AttentiveState() : SheepState(Attentive, "Attentive", attentiveSounds) {};
+    AttentiveState() : SheepState(Attentive, "Attentive", firstTouchSounds, attentiveSounds) {};
     SheepState * update();
 };
 

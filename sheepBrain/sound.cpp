@@ -11,6 +11,7 @@ const boolean USE_AMPLIFIER = true;
 
 #include "sound.h"
 #include "soundFile.h"
+#include "tysons.h"
 
 #include <Wire.h>
 // These are the pins used
@@ -149,6 +150,8 @@ void changeAmpVol(int8_t v) {
 }
 
 uint8_t getAdjustedVolume() {
+  if (!isOpen(false)) 
+    return 0;
   uint8_t h = adjustedHour();
   for (int i = 0; i < numTimeAdjustments; i++)
     if (h >= timeAdjustments[i].hourStart
@@ -262,7 +265,7 @@ boolean playFile(const char *fmt, ... ) {
   Serial.println(buf);
 
   lastSoundStarted = millis();
-  boolean result =  musicPlayer.startPlayingFile(buf);
+  boolean result = musicPlayer.startPlayingFile(buf);
   if (result)
     currentSoundPriority = 0;
 

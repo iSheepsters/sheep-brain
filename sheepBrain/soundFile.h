@@ -9,7 +9,7 @@ extern boolean soundPlayedRecently(unsigned long now);
 extern void loadPerSheepSounds();
 class SoundCollection;
 const uint8_t MAX_SOUND_FILES = 18;
-const uint8_t FILE_NAME_LENGTH = 15; 
+const uint8_t FILE_NAME_LENGTH = 20; 
 
 class SoundFile {
   public:
@@ -31,6 +31,9 @@ class SoundCollection {
     char name[13];
     uint16_t count;
     boolean common = false;
+    boolean available() {
+      return count>0;
+    }
     const uint8_t priority; // higher priority sounds will preempt lower priority sounds
     SoundFile files[MAX_SOUND_FILES];
 
@@ -54,7 +57,9 @@ extern int currentSoundPriority;
 extern unsigned long nextAmbientSound;
 extern unsigned long nextBaa;
 
+extern SoundCollection generalSounds;
 extern SoundCollection boredSounds;
+extern SoundCollection firstTouchSounds;
 extern SoundCollection ridingSounds;
 extern SoundCollection readyToRideSounds;
 extern SoundCollection endOfRideSounds;

@@ -69,7 +69,7 @@ void runScheduledActivities() {
       if (first || duration > 15 || totalYield - oldTotalYield > 5) {
         myprintf(Serial, "%2dms, %2dms yield for %s\n", duration, totalYield - oldTotalYield, s.name);
       }
-      s.lastDuration =  now - s.lastStarted;
+      s.lastDuration = now - s.lastStarted;
     }
   }
 }

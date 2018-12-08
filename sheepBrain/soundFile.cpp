@@ -9,7 +9,6 @@
 
 #define CARDCS          5     // Card chip select pin
 
-
 int currentSoundPriority = 0;
 
 const int PATH_BUFFER_LENGTH = 100;
@@ -66,14 +65,14 @@ boolean SoundCollection::load(File dir) {
   uint16_t i = 0;
   char nm[30];
   while (i < MAX_SOUND_FILES) {
-    File entry =  dir.openNextFile();
+    File entry = dir.openNextFile();
     if (!entry) {
       break;
     }
 
     entry.getName(nm, 30);
     if (!entry.isDirectory() && isMusicFile(nm)) {
-      entry.getName(files[i].name,FILE_NAME_LENGTH);
+      entry.getName(files[i].name, FILE_NAME_LENGTH);
       files[i].collection = this;
       files[i].lastPlaying = 0;
       files[i].duration = 0;
@@ -182,7 +181,7 @@ SoundFile * SoundCollection::leastRecentlyPlayed(unsigned long now,
       return s;
     if (s->eligibleToPlay(now, ambientSound) && bestTime > s->lastPlaying) {
       candidate = s;
-      bestTime =  s->lastPlaying;
+      bestTime = s->lastPlaying;
     }
   }
   if (candidate != NULL || ambientSound)
@@ -193,7 +192,7 @@ SoundFile * SoundCollection::leastRecentlyPlayed(unsigned long now,
     SoundFile *s = &(files[index]);
     if (bestTime > s->lastPlaying) {
       candidate = s;
-      bestTime =  s->lastPlaying;
+      bestTime = s->lastPlaying;
     }
   }
   return candidate;
@@ -284,7 +283,7 @@ boolean setupSD() {
 void printDirectory(File dir, int numTabs) {
   while (true) {
     char buf[40];
-    File entry =  dir.openNextFile();
+    File entry = dir.openNextFile();
     if (! entry) {
       // no more files
       //Serial.println("**nomorefiles**");
@@ -311,6 +310,8 @@ void loadPerSheepSounds() {
   Serial.println("Loading sound files");
   myprintf(Serial, "Free memory = %d\n", freeMemory());
   boredSounds.load("BORED");
+  generalSounds.load("GENERAL");
+  firstTouchSounds.load("TOUCHED");
   ridingSounds.load("RIDNG");
   readyToRideSounds.load("RDRID");
   endOfRideSounds.load("EORID");
@@ -319,4 +320,6 @@ void loadPerSheepSounds() {
   violatedSounds.load("VIOLT");
   inappropriateTouchSounds.load("INAPP");
   seperatedSounds.load("SEPRT");
+  myprintf(Serial, "Free memory = %d\n", freeMemory());
+  
 }

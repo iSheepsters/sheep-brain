@@ -16,6 +16,7 @@ extern void updateGPS();
 extern void logGPS(unsigned long now);
 extern time_t BRC_now();
 extern uint8_t adjustedHour();
+extern time_t adjustedNow();
 
 
 extern boolean inCorral(int sheep) ;

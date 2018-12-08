@@ -26,16 +26,34 @@ volatile boolean read_gps_in_interrupt = false;
 
 Adafruit_GPS GPS(&Serial1);
 
+bool isDST() {
+time_t time = now()-4;
+if (year(time) == 2018) return false;
+int m = month(time);
+if (m < 3) return false;
+if (m == 3) return day(time) >= 10;
+if (m > 3 && m < 11) return true;
+if (m == 11) return day(time) < 3;
+return false;
+}
+
+int adjustmentForEasternTime() {
+  if (isDST()) return -4;
+  return -5;
+}
 
 uint8_t adjustedHour() {
-  int h = hour() - 4 + timeZoneAdjustment;
+  int h = hour() + adjustmentForEasternTime() + timeZoneAdjustment;
   if (h < 0) h = h+24;
   if (h > 23) h = h-23;
   h = h % 24;
   return h;
-  
 }
 
+
+time_t adjustedNow() {
+  return now() + 60*60*(timeZoneAdjustment + adjustmentForEasternTime());
+}
 
 boolean setupGPS() {
   // 9600 NMEA is the default baud rate for Adafruit MTK GPS's- some use 4800
@@ -57,7 +75,6 @@ boolean setupGPS() {
     GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
   else
     GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCONLY);
-
 
   // Set the update rate
   GPS.sendCommand(PMTK_SET_NMEA_UPDATE_2HZ);
@@ -83,16 +100,16 @@ const float FEET_PER_DEGREE_LONGITUDE = 276033.42;
 float FIXED_TO_FLOAT = 10000000.0;
 const float FEET_PER_DEGREE_LATITUDE_FIXED = FEET_PER_DEGREE_LATITUDE / FIXED_TO_FLOAT;
 
-const float FEET_PER_DEGREE_LONGITUDE_FIXED =  FEET_PER_DEGREE_LONGITUDE / FIXED_TO_FLOAT;
+const float FEET_PER_DEGREE_LONGITUDE_FIXED = FEET_PER_DEGREE_LONGITUDE / FIXED_TO_FLOAT;
 
 
-const int32_t MAN_LATITUDE_FIXED      =    407864000;
-const int32_t MAN_LONGITUDE_FIXED     =   -1192065000;
+const int32_t MAN_LATITUDE_FIXED      =   407864000;
+const int32_t MAN_LONGITUDE_FIXED     =  -1192065000;
 
-const int32_t CORRAL_LATITUDE_FIXED  =   407829257;
+const int32_t CORRAL_LATITUDE_FIXED  =  407829257;
 const int32_t CORRAL_LONGITUDE_FIXED = -1192062897;
 
-const float CORRAL_LATITUDE  =   CORRAL_LATITUDE_FIXED / FIXED_TO_FLOAT;
+const float CORRAL_LATITUDE  =  CORRAL_LATITUDE_FIXED / FIXED_TO_FLOAT;
 const float CORRAL_LONGITUDE = CORRAL_LONGITUDE_FIXED / FIXED_TO_FLOAT;
 
 
@@ -334,7 +351,7 @@ boolean parseGPS(unsigned long now) {
       fixCount = 0;
       haveFix = true;
       latitudeDegreesAvg = lastLatitudeDegreesFixed;
-      longitudeDegreesAvg =  lastLongitudeDegreesFixed;
+      longitudeDegreesAvg = lastLongitudeDegreesFixed;
     }
     getSheep().latitude = latitudeDegreesAvg / FIXED_TO_FLOAT;
     getSheep().longitude = longitudeDegreesAvg / FIXED_TO_FLOAT;
@@ -346,7 +363,7 @@ boolean parseGPS(unsigned long now) {
     anyFix = true;
     totalFixes++;
     if (totalFixes % 1000 == 0) {
-      uint16_t minutes =  (now - firstFix) / 1000 / 60;
+      uint16_t minutes = (now - firstFix) / 1000 / 60;
       myprintf(Serial, "%d GPS fixes per minute\n", totalFixes / minutes);
     }
 

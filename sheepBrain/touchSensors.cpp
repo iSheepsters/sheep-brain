@@ -80,7 +80,7 @@ uint8_t swapLeftRightSensors(uint8_t touched) {
 }
 
 uint8_t CDTx_value(uint8_t addr) {
-  uint8_t value =  cap.readRegister8(0x6C + addr / 2);
+  uint8_t value = cap.readRegister8(0x6C + addr / 2);
   if (addr % 2 == 0)
     return value & 0x07;
   return (value >> 4) & 0x07;
@@ -132,7 +132,7 @@ void setupTouch() {
     firstTouchThisInterval[i] = 0;
   }
   nextSensorResetInterval = nextTouchInterval = millis() + 1000;
-  nextPettingReport =  millis() + 2000;
+  nextPettingReport = millis() + 2000;
   addScheduledActivity(50, updateTouchData, "touch");
   Serial.println("done with touch ");
 
@@ -321,7 +321,7 @@ void updateTouchData() {
       if (minRecentValue[i] == 0 )
         minRecentValue[i] = currentValue[i];
       if (stableValue[i] == 0)
-        stableValue[i] =  currentValue[i] - 3;
+        stableValue[i] = currentValue[i] - 3;
       if (minRecentValue[i] > currentValue[i]  )
         minRecentValue[i] = currentValue[i] ;
       else if (maxRecentValue[i] < currentValue[i] )
@@ -607,7 +607,7 @@ float detectPetting(uint8_t touchSensor, uint16_t sampleSize, float * confidence
       max = -v;
   }
   for (int i = 0; i < sampleSize; i++) {
-    touchData[i] =  (((int32_t)touchData[i]) * 10000) / max;
+    touchData[i] = (((int32_t)touchData[i]) * 10000) / max;
 
   }
   ZeroFFT(touchData, sampleSize);

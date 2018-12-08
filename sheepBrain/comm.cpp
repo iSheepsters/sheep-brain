@@ -9,7 +9,7 @@
 #include "touchSensors.h"
 #include "scheduler.h"
 
-const uint8_t commAddress =  0x44;
+const uint8_t commAddress = 0x44;
 
 const uint8_t rebootStarted = 255;
 const uint8_t rebootActivity = 254;
@@ -73,7 +73,7 @@ uint8_t sendSubActivity(uint8_t subActivity) {
   Wire.write(57);
   Wire.write(lastActivity);
   Wire.write(subActivity);
-  uint8_t result =  Wire.endTransmission();
+  uint8_t result = Wire.endTransmission();
   return result;
 }
 
@@ -118,7 +118,7 @@ void sendComm() {
     Wire.write(p, sizeof(CommData));
 
     Wire.flush();
-    uint8_t result =  Wire.endTransmission();
+    uint8_t result = Wire.endTransmission();
     interrupts();
     delay(1);
     return;

@@ -17,6 +17,7 @@ const boolean WAIT_FOR_SERIAL = false;
 #include "logging.h"
 #include "avdweb_SAMDtimer.h"
 #include "scheduler.h"
+#include "tysons.h"
 
 
 extern  void checkForCommand();
@@ -38,7 +39,9 @@ SheepInfo & getSheep(int s) {
 }
 
 
+SoundCollection generalSounds(0);
 SoundCollection boredSounds(0);
+SoundCollection firstTouchSounds(0);
 SoundCollection ridingSounds(2);
 SoundCollection readyToRideSounds(2);
 
@@ -284,8 +287,6 @@ void setup() {
   } else
     Serial.println("Skipping touch");
 
-
-
   addScheduledActivity(10000, generateReport, "report");
   if (useSound && playSound)
     addScheduledActivity(500, checkForNextAmbientSound, "ambient sound");
@@ -345,7 +346,12 @@ void generateReport() {
            longestInterval, maxInterruptTime, maxAvail);
 
   myprintf(Serial, "  Free memory = %d\n", freeMemory());
-
+  if (MALL_SHEEP) {
+    if (isOpen(true))
+      Serial.println("  Sheep is on");
+    else
+      Serial.println("  Sheep is off");
+  }
   if (thevol != INITIAL_AMP_VOL)
     myprintf(Serial, "  amplifier volume %d\n", thevol);
   if (currentSoundFile != NULL)
@@ -416,7 +422,7 @@ void loop() {
   }
   totalYield = 0;
   me.uptimeMinutes = minutesUptime();
-  me.batteryVoltageRaw =  batteryVoltageRaw();
+  me.batteryVoltageRaw = batteryVoltageRaw();
   me.errorCodes = 0;
   unsigned long now = millis();
   unsigned long nowMicros = micros();
@@ -426,12 +432,6 @@ void loop() {
     digitalWrite(LED_BUILTIN, LOW);
 
   runScheduledActivities();
-
-  if (false) {
-    Serial.print(touchDuration(BACK_SENSOR));
-    Serial.print(" ");
-    Serial.println(now);
-  }
 
   yield(10);
 }
@@ -456,11 +456,11 @@ void checkForNextAmbientSound() {
       nextAmbientSound = now + delay;
       return;
     }
-    if (currentSheepState -> playSound(now, true)) {
+    if (currentSheepState -> playAmbientSound(now)) {
       unsigned long delay = DELAY_BETWEEN_SOUNDS;
       if (currentSoundFile -> duration > 0 && currentSoundFile -> duration < delay)
-        delay = currentSoundFile -> duration/2 ;
-      delay = (delay + random(DELAY_BETWEEN_SOUNDS/2, DELAY_BETWEEN_SOUNDS)) * howCrowded();
+        delay = currentSoundFile -> duration / 2 ;
+      delay = (delay + random(DELAY_BETWEEN_SOUNDS / 2, DELAY_BETWEEN_SOUNDS)) * howCrowded();
       myprintf(Serial, "Started playing ambient sound, next in %dms\n", delay);
       nextAmbientSound = now + delay;
       return;
@@ -468,18 +468,18 @@ void checkForNextAmbientSound() {
 
       myprintf(Serial, "No ambient sound available, baa-ing\n");
 
-      unsigned long delay = random(DELAY_BETWEEN_SOUNDS/2, DELAY_BETWEEN_SOUNDS) * howCrowded();
+      unsigned long delay = random(DELAY_BETWEEN_SOUNDS / 2, DELAY_BETWEEN_SOUNDS) * howCrowded();
       nextAmbientSound = now + delay;
-      nextBaa = now + delay + DELAY_BETWEEN_SOUNDS/2;
+      nextBaa = now + delay + DELAY_BETWEEN_SOUNDS / 2;
     } else {
       myprintf(Serial, "No ambient or baa sound available\n");
-      nextAmbientSound = now + DELAY_BETWEEN_SOUNDS/4;
+      nextAmbientSound = now + DELAY_BETWEEN_SOUNDS / 4;
     }
   }
   if (now > nextBaa && nextBaa + 8000 < nextAmbientSound) {
     if (TRACE) Serial.println("play baa sound");
     if (baaSounds.playSound(now, true)) {
-      unsigned long delay = random(DELAY_BETWEEN_SOUNDS/2, DELAY_BETWEEN_SOUNDS) * howCrowded();
+      unsigned long delay = random(DELAY_BETWEEN_SOUNDS / 2, DELAY_BETWEEN_SOUNDS) * howCrowded();
       Serial.println("Started playing baa");
       myprintf(Serial, "Started playing baa sound, next in %dms\n", delay);
       nextBaa = now + delay;

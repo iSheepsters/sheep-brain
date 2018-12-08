@@ -56,7 +56,7 @@ void optionalFlush() {
 
 void requiredFlush() {
   logFile.flush();
-  nextFlush =  millis() + 15000;
+  nextFlush = millis() + 15000;
 }
 
 void myLogStart(enum PacketKind kind) {
