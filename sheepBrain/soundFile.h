@@ -9,7 +9,7 @@ extern boolean soundPlayedRecently(unsigned long now);
 extern void loadPerSheepSounds();
 class SoundCollection;
 const uint8_t MAX_SOUND_FILES = 18;
-const uint8_t FILE_NAME_LENGTH = 20; 
+const uint8_t FILE_NAME_LENGTH = 30; 
 
 class SoundFile {
   public:

@@ -109,6 +109,9 @@ boolean qualityTouch() {
 boolean isIgnored() {
   if (qualityTouch() || isTouched())
     return false;
+  if (MALL_SHEEP)
+    return untouchDuration(WHOLE_BODY_SENSOR) > 20000;
+
   return untouchDuration(BACK_SENSOR) > 15000
          && untouchDuration(HEAD_SENSOR) > 15000
          && untouchDuration(RUMP_SENSOR) > 10000
@@ -214,8 +217,8 @@ void updateState() {
 
 
     if (!musicPlayer.playingMusic ||
-        newState->initialSounds.priority >= currentSoundPriority) {
-      newState->initialSounds.playSound(ms, false);
+        newState->getInitialSounds().priority >= currentSoundPriority) {
+      newState->getInitialSounds().playSound(ms, false);
       if (newState == &violatedState)
         nextAmbientSound = ms + 12000;
       else
@@ -278,6 +281,8 @@ SheepState * AttentiveState::update() {
     becomeViolated();
     return &violatedState;
   }
+  if (MALL_SHEEP)
+    return this;
   if (secondsSinceEnteredCurrentState() > 40 && !wouldInterrupt()
       && millis() < notInTheMoodUntil)
     return &notInTheMoodState;

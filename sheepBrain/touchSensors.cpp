@@ -6,6 +6,7 @@
 #include "scheduler.h"
 #include "sound.h"
 #include "comm.h"
+#include "tysons.h"
 
 #include "Adafruit_ZeroFFT.h"
 #include "util.h"
@@ -46,8 +47,8 @@ boolean valid[numTouchSensors];
 const uint8_t  FFI = 3;
 const uint8_t  SFI = 3;
 const uint8_t  ESI = 0;
-const uint8_t  CDC = 53;
-const uint8_t  CDT = 3;
+const uint8_t  CDC = 40;
+const uint8_t  CDT = 4;
 
 boolean fixed = false;
 
@@ -130,6 +131,8 @@ void setupTouch() {
     else if (value > 10)
       stableValue[i] = value - 1;
     firstTouchThisInterval[i] = 0;
+    myprintf(Serial, "sensor %d = %d\n", i, value);
+
   }
   nextSensorResetInterval = nextTouchInterval = millis() + 1000;
   nextPettingReport = millis() + 2000;
@@ -141,24 +144,26 @@ void setupTouch() {
 const uint16_t  intervalBetweenSamples = 15;
 const uint16_t sampleRate = 1000 / intervalBetweenSamples;
 
+void dumpTouchData(int i) {
+  Serial.print(i);
+  Serial.print(" ");
+  Serial.print(isTouched((TouchSensor)i) ? "t " : "- ");
+  Serial.print(cap.filteredData(i));
+  Serial.print(" ");
+  Serial.print(stableValue[i]);
+  Serial.print("  ");
+  Serial.print(timeTouched[i]);
+  Serial.print("  ");
+  Serial.println(timeUntouched[i]);
+}
 void dumpTouchData() {
+  if (MALL_SHEEP) {
+    dumpTouchData(8);
+    return;
+  }
   if (true) {
-    for (int i = 0; i < 6; i++) {
-      Serial.print(i);
-      Serial.print(" ");
-      Serial.print(isTouched((TouchSensor)i) ? "t " : "- ");
-      Serial.print(cap.filteredData(i));
-      Serial.print(" ");
-      Serial.print(stableValue[i]);
-      Serial.print("  ");
-      Serial.print(timeTouched[i]);
-      Serial.print("  ");
-      Serial.print(timeUntouched[i]);
-      Serial.print("  ");
-      if (true || i % 2 == 1)
-        Serial.println();
-    }
-
+    for (int i = 0; i < 6; i++)
+      dumpTouchData(i);
   } else
     for (int i = 0; i < 6; i++) {
       Serial.print(cap.filteredData(i) - stableValue[i]);
@@ -184,6 +189,8 @@ uint8_t touchThreshold(uint8_t i) {
       return 5;
     case PRIVATES_SENSOR:
       return 10;
+    case WHOLE_BODY_SENSOR:
+      return 40;
     case BACK_SENSOR:
     case RUMP_SENSOR:
     default:
@@ -413,8 +420,15 @@ void updateTouchData() {
     Serial.println();
   }
   if (debugTouch) {
+    int start, end;
+    if (MALL_SHEEP) {
+      start = end = WHOLE_BODY_SENSOR;
+    } else {
+      start =  PRIVATES_SENSOR;
+      end = HEAD_SENSOR;
+    }
     Serial.print("TD ");
-    for (int i = 0; i < numTouchSensors; i++)
+    for (int i = start; i <= end; i++)
       myprintf(Serial, " %3d %3d %3d  ", stableValue[i],  currentValue[i], sensorValue((TouchSensor)i));
     Serial.println();
   }
@@ -541,7 +555,7 @@ void changeMode(uint8_t newMode) {
 }
 
 
-const uint8_t ELE_EN = 6;
+const uint8_t ELE_EN = numTouchSensors;
 void setECR(bool updateBaseline) {
   // 0b10111111
   // CL = 01
@@ -571,7 +585,7 @@ void mySetup() {
   // ACE = 1
   // ARE = 1
 
-  cap.writeRegister(MPR121_AUTOCONFIG0, (FFI << 6) |  0x16);
+  cap.writeRegister(MPR121_AUTOCONFIG0, (FFI << 6) |  0x17);
   setECR(true);
   setupDelay(10);
 }

@@ -150,7 +150,7 @@ void changeAmpVol(int8_t v) {
 }
 
 uint8_t getAdjustedVolume() {
-  if (!isOpen(false)) 
+  if (false && !isOpen(false)) 
     return 0;
   uint8_t h = adjustedHour();
   for (int i = 0; i < numTimeAdjustments; i++)

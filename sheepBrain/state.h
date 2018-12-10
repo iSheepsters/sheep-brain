@@ -21,53 +21,60 @@ class SheepState {
     virtual SheepState * update() = 0;
     const char * const name;
     const enum State state;
-    SoundCollection & initialSounds;
+
     SoundCollection & ambientSounds;
-    SheepState(enum State st, const char * n, SoundCollection & s) 
-    : state(st), name(n), initialSounds(s), ambientSounds(s) {};
-    SheepState(enum State st, const char * n, SoundCollection & s, SoundCollection & ambient) 
-    : state(st), name(n), initialSounds(s), ambientSounds(ambient) {};
+    SoundCollection & getInitialSounds() {
+      if (initialSounds.available()) return initialSounds;
+      return ambientSounds;
+    }
+    SheepState(enum State st, const char * n, SoundCollection & s)
+      : state(st), name(n), initialSounds(s), ambientSounds(s) {};
+    SheepState(enum State st, const char * n, SoundCollection & s, SoundCollection & ambient)
+      : state(st), name(n), initialSounds(s), ambientSounds(ambient) {};
     boolean playAmbientSound(unsigned long now);
+  private:
+    SoundCollection & initialSounds;
+
 };
 
 extern SheepState * currentSheepState;
 
 
 class BoredState : public SheepState {
- public:
+  public:
     BoredState() : SheepState(Bored, "Bored", boredSounds) {};
     SheepState * update();
 
 };
 
 class AttentiveState : public SheepState {
-   public:
+  public:
     AttentiveState() : SheepState(Attentive, "Attentive", firstTouchSounds, attentiveSounds) {};
     SheepState * update();
 };
 
 class ReadyToRideState : public SheepState {
-   public:
+  public:
     ReadyToRideState() : SheepState(ReadyToRide, "Ready to ride", readyToRideSounds) {};
     SheepState * update();
 };
 
 class RidingState : public SheepState {
-   public:
+  public:
     RidingState() : SheepState(Riding, "Riding", ridingSounds) {};
 
     SheepState * update();
 };
 
 class NotInTheMoodState : public SheepState {
-   public:
+  public:
     NotInTheMoodState() : SheepState(NotInTheMood, "Not in the mood", notInTheMoodSounds) {};
     SheepState * update();
 };
 
 
 class ViolatedState : public SheepState {
-   public:
+  public:
     ViolatedState() : SheepState(Violated, "Violated", violatedSounds) {};
     SheepState * update();
 };

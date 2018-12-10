@@ -4,7 +4,7 @@
 #include <Wire.h>
 #include "Adafruit_MPR121.h"
 
-const uint8_t  ELEPROX_EN = 0; // 0b10; // 0; // 0b10;
+const uint8_t  ELEPROX_EN = 0; // 0b10; 
 const uint8_t  lastTouchSensor = ELEPROX_EN == 0 ? 8 : 12;
 const uint8_t  numTouchSensors = lastTouchSensor+1;
 extern uint16_t stableValue[numTouchSensors];
