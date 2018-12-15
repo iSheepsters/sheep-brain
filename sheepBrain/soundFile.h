@@ -31,9 +31,11 @@ class SoundCollection {
     char name[13];
     uint16_t count;
     boolean common = false;
+    boolean scripted = false;
     boolean available() {
       return count>0;
     }
+    uint8_t nextFile = 0;
     const uint8_t priority; // higher priority sounds will preempt lower priority sounds
     SoundFile files[MAX_SOUND_FILES];
 
@@ -44,6 +46,7 @@ class SoundCollection {
     boolean load(const char * s);
     boolean loadCommon(const char * s);
     boolean load(File f);
+    boolean load(File f, File script);
     SoundFile * chooseSound(unsigned long now,  boolean ambientSound);
     SoundFile * leastRecentlyPlayed(unsigned long now, boolean ambientSound);
     boolean playSound(unsigned long now,  boolean ambientSound);

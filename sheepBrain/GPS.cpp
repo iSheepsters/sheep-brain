@@ -6,6 +6,7 @@
 #include "util.h"
 #include "printf.h"
 #include "scheduler.h"
+#include "tysons.h"
 
 #include <math.h>
 
@@ -27,14 +28,14 @@ volatile boolean read_gps_in_interrupt = false;
 Adafruit_GPS GPS(&Serial1);
 
 bool isDST() {
-time_t time = now()-4;
-if (year(time) == 2018) return false;
-int m = month(time);
-if (m < 3) return false;
-if (m == 3) return day(time) >= 10;
-if (m > 3 && m < 11) return true;
-if (m == 11) return day(time) < 3;
-return false;
+  time_t time = now() - 4;
+  if (year(time) == 2018) return false;
+  int m = month(time);
+  if (m < 3) return false;
+  if (m == 3) return day(time) >= 10;
+  if (m > 3 && m < 11) return true;
+  if (m == 11) return day(time) < 3;
+  return false;
 }
 
 int adjustmentForEasternTime() {
@@ -44,15 +45,15 @@ int adjustmentForEasternTime() {
 
 uint8_t adjustedHour() {
   int h = hour() + adjustmentForEasternTime() + timeZoneAdjustment;
-  if (h < 0) h = h+24;
-  if (h > 23) h = h-23;
+  if (h < 0) h = h + 24;
+  if (h > 23) h = h - 23;
   h = h % 24;
   return h;
 }
 
 
 time_t adjustedNow() {
-  return now() + 60*60*(timeZoneAdjustment + adjustmentForEasternTime());
+  return now() + 60 * 60 * (timeZoneAdjustment + adjustmentForEasternTime());
 }
 
 boolean setupGPS() {
@@ -174,20 +175,20 @@ boolean isInFriendlyTerritory() {
     return true;
   for (int s = 1; s <= NUMBER_OF_SHEEP; s++)
     if (s != sheepNumber && isRecent(s) && isClose(s)) {
-      myprintf(Serial, "%d feet from corral, but sheep %d is nearby\n",
-               (int) distanceFromCorral(sheepNumber), s);
+      if (printInfo()) myprintf(Serial, "%d feet from corral, but sheep %d is nearby\n",
+                                  (int) distanceFromCorral(sheepNumber), s);
       return true;
     }
-  myprintf(Serial, "Not in friendly terriorty, %d feet from corral\n",
-           (int) distanceFromCorral(sheepNumber));
+  if (printInfo()) myprintf(Serial, "Not in friendly terriorty, %d feet from corral\n",
+                              (int) distanceFromCorral(sheepNumber));
   int h = hour(BRC_now());
   int m = minute(BRC_now());
   if (h < 2) {
-    myprintf(Serial, "Time is %d:%02d, assuming we are shepherded\n", h, m);
+    if (printInfo()) myprintf(Serial, "Time is %d:%02d, assuming we are shepherded\n", h, m);
     return true;
   }
   if (h > 16) {
-    myprintf(Serial, "Time is %d:%02d, assuming we are shepherded\n", h, m);
+    if (printInfo()) myprintf(Serial, "Time is %d:%02d, assuming we are shepherded\n", h, m);
     return true;
   }
 
@@ -200,6 +201,8 @@ boolean isInFriendlyTerritory() {
 // If the rest of the sheep are 20 feet away, returns 1+(x-1)/3;
 // In corral with 12 sheep, will likely return 6 or more
 float howCrowded() {
+  if (MALL_SHEEP)
+    return 1.0;
   if (minutesPerSheep > 0)
     return 0.5;
   if (!anyFix)
@@ -208,8 +211,10 @@ float howCrowded() {
   for (int s = 1; s <= NUMBER_OF_SHEEP; s++)
     if (s != sheepNumber && isRecent(s)) {
       float distance = distanceToSheep(s);
-      myprintf(Serial, "Sheep %d at distance ", s);
-      Serial.println(distance);
+      if (printInfo()) {
+        myprintf(Serial, "Sheep %d at distance ", s);
+        Serial.println(distance);
+      }
       answer += 10.0 / (10.0 + distance);
     }
   return answer;
@@ -280,7 +285,7 @@ boolean parseGPS(unsigned long now) {
     return false;
   }
 
-  if (GPS.year <18) {
+  if (GPS.year < 18) {
     if (GPS_DEBUG) myprintf(Serial, "Bad date from GPS string: \"%s\"\n", (txt + 1));
     return false;
   }
@@ -345,7 +350,7 @@ boolean parseGPS(unsigned long now) {
       latitudeDegreesAvg += latDiff / 4;
       longitudeDegreesAvg += longDiff / 4;
     } else {
-      Serial.println("Acquired fix");
+      if (printInfo()) Serial.println("Acquired fix");
       if (firstFix == 0)
         firstFix = now;
       fixCount = 0;
@@ -434,7 +439,7 @@ void updateGPS() {
 void logGPS(unsigned long now) {
   if (GPS.fix) {
     if (!haveFix) {
-      Serial.println("Acquired fix");
+      if (printInfo()) Serial.println("Acquired fix");
       latitudeDegreesAvg = GPS.latitudeDegrees;
       longitudeDegreesAvg = GPS.longitudeDegrees;
       fixCount = 0;
@@ -445,7 +450,7 @@ void logGPS(unsigned long now) {
       longitudeDegreesAvg = (3 * longitudeDegreesAvg + GPS.longitude_fixed) / 4;
       fixCount++;
 
-      if (now - timer > 1000) {
+      if (now - timer > 1000 && printInfo()) {
         timer = now; // reset the timer
         Serial.print(latitudeDegreesAvg, 6);
         Serial.print(", ");
@@ -464,7 +469,7 @@ void logGPS(unsigned long now) {
       }
     }
   } else if (haveFix) {
-    Serial.println("Lost fix");
+    if (printInfo()) Serial.println("Lost fix");
     fixCount = 0;
   }
 }

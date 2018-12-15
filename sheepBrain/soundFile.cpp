@@ -3,6 +3,7 @@
 #include "sound.h"
 #include "printf.h"
 #include "util.h"
+#include "tysons.h"
 #include <MemoryFree.h>
 #include <SPI.h>
 #include <SdFat.h>
@@ -23,8 +24,9 @@ boolean isMusicFile(const char * name) {
   if (!allowRrated && (name[0] == 'r' || name[0] == 'R')) return false;
   if ( strcmp(suffix, ".MP3") == 0 || strcmp(suffix, ".mp3") == 0)
     return true;
-  Serial.print("non-music file: ");
-  Serial.println(suffix);
+  Serial.print("non-music file: \"");
+  Serial.print(name);
+  Serial.println("\"");
   return false;
 }
 
@@ -43,15 +45,66 @@ boolean SoundCollection::loadCommon(const char * s) {
   common = true;
   return load(dir);
 }
-char buf[30];
+char buf[FILE_NAME_LENGTH];
 
 boolean SoundCollection::load(const char * s) {
   strncpy(name, s, 13);
   snprintf(buf, 30, "%d/%s", sheepNumber, name);
   myprintf(Serial, "opening %s\n", buf);
   File dir = SD.open(buf);
-  return load(dir);
+  bool result =  load(dir);
+  if (result) {
+    myprintf(Serial, "got %d sounds for %s\n", count, name);
+  } else
+    myprintf(Serial, "error loading sounds for %s\n", name);
+  return result;
 }
+
+
+
+boolean SoundCollection::load(File dir, File script) {
+  uint16_t i = 0;
+  char txt[100];
+  char *s = txt;
+  File check;
+  while (i < MAX_SOUND_FILES) {
+    int len = script.fgets(txt, 100);
+    if (len <= 0) break;
+    if (txt[0] == '#')
+      continue;
+    char * term = strchr(txt, '\t');
+    if (term != NULL)
+      *term = '\0';
+    else {
+      term = strchr(txt, '\n');
+      if (term != NULL)
+        *term = '\0';
+    }
+
+    if (!isMusicFile(txt)) {
+      myprintf(Serial, "Skipping non-music file \"%s\" from script\n", txt);
+      continue;
+    }
+    if (check.open(&dir, s, O_READ)) {
+      myprintf(Serial, "Loading #%d  \"%s\" from script, %d bytes\n", i, txt, check.fileSize());
+      check.close();
+      strncat(files[i].name, txt, FILE_NAME_LENGTH);
+      files[i].collection = this;
+      files[i].lastPlaying = 0;
+      files[i].duration = 0;
+      files[i].lastStarted = 0;
+      i++;
+
+    } else
+      myprintf(Serial, "Could not open \"%s\" from script\n", txt);
+  }
+  script.close();
+  count = i;
+  scripted = true;
+  nextFile = 0;
+  return i > 0;
+}
+
 boolean SoundCollection::load(File dir) {
   count = 0;
   if (!dir.isDirectory()) {
@@ -61,7 +114,15 @@ boolean SoundCollection::load(File dir) {
     return false;
   }
 
+  File script;
+  if (script.open(&dir, "script.txt", O_READ)) {
+    myprintf(Serial, "Loading script for %s\n", name);
+    if (load(dir, script))
+      return true;
+  }
 
+  Serial.println("Scanning all files");
+  dir.rewind();
   uint16_t i = 0;
   char nm[30];
   while (i < MAX_SOUND_FILES) {
@@ -71,6 +132,7 @@ boolean SoundCollection::load(File dir) {
     }
 
     entry.getName(nm, 30);
+    Serial.println(nm);
     if (!entry.isDirectory() && isMusicFile(nm)) {
       entry.getName(files[i].name, FILE_NAME_LENGTH);
       files[i].collection = this;
@@ -82,7 +144,7 @@ boolean SoundCollection::load(File dir) {
     entry.close();
   }
   count = i;
-
+  nextFile = 0;
   myprintf(Serial, "Found %d files for %s\n", count, name);
   myprintf(Serial, "Free memory = %d\n", freeMemory());
   dir.close();
@@ -120,10 +182,13 @@ boolean soundPlayedRecently(unsigned long now) {
 
 unsigned long nextVerboseList = 0;
 boolean SoundCollection::playSound(unsigned long now, boolean ambientSound) {
-  myprintf(Serial, "trying to play sound for %s\n", name);
+  if (printInfo())
+    myprintf(Serial, "trying to play sound for %s\n", name);
   if (ambientSound && soundPlayedRecently(now)) {
-    Serial.print("Too soon for any sound from ");
-    Serial.println(name);
+    if (printInfo()) {
+      Serial.print("Too soon for any sound from ");
+      Serial.println(name);
+    }
     return false;
   }
   SoundFile *s = chooseSound(now, ambientSound);
@@ -155,7 +220,8 @@ boolean SoundCollection::playSound(unsigned long now, boolean ambientSound) {
     musicPlayerNoVolume();
     return false;
   } else {
-    myprintf(Serial, "Starting %s/%s at %d\n", name, s->name, now);
+    if (printInfo())
+      myprintf(Serial, "Starting %s/%s at %d\n", name, s->name, now);
     s->lastStarted = s->lastPlaying = now;
     currentSoundFile = s;
     currentSoundPriority = priority;
@@ -169,7 +235,8 @@ boolean SoundCollection::playSound(unsigned long now, boolean ambientSound) {
 SoundFile * SoundCollection::leastRecentlyPlayed(unsigned long now,
     boolean ambientSound) {
 
-  myprintf(Serial, "finding least recently played %s\n", name);
+  if (printInfo())
+    myprintf(Serial, "finding least recently played %s\n", name);
 
   SoundFile * candidate = NULL;
   unsigned long bestTime = 0xfffffff;
@@ -201,6 +268,18 @@ SoundFile * SoundCollection::leastRecentlyPlayed(unsigned long now,
 
 SoundFile * SoundCollection::chooseSound(unsigned long now,  boolean ambientSound) {
   if (count == 0) return NULL;
+
+  if (scripted) {
+    if (printInfo()) {
+      myprintf(Serial, "using script entry %d\n", nextFile);
+    }
+    SoundFile * f = &(files[nextFile]);
+    nextFile++;
+    if (nextFile >= count)
+      nextFile = 0;
+    return f;
+  }
+
   if (this == & violatedSounds)
     ambientSound = false;
   if (random(3) <= 1) {
@@ -312,14 +391,16 @@ void loadPerSheepSounds() {
   boredSounds.load("BORED");
   generalSounds.load("GENERAL");
   firstTouchSounds.load("TOUCHED");
-  ridingSounds.load("RIDNG");
-  readyToRideSounds.load("RDRID");
-  endOfRideSounds.load("EORID");
   attentiveSounds.load("ATTNT");
-  notInTheMoodSounds.load("NMOOD");
-  violatedSounds.load("VIOLT");
-  inappropriateTouchSounds.load("INAPP");
-  seperatedSounds.load("SEPRT");
+  if (!MALL_SHEEP) {
+    ridingSounds.load("RIDNG");
+    readyToRideSounds.load("RDRID");
+    endOfRideSounds.load("EORID");
+    notInTheMoodSounds.load("NMOOD");
+    violatedSounds.load("VIOLT");
+    inappropriateTouchSounds.load("INAPP");
+    seperatedSounds.load("SEPRT");
+  }
   myprintf(Serial, "Free memory = %d\n", freeMemory());
-  
+
 }

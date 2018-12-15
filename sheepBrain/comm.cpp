@@ -1,13 +1,13 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include "comm.h"
-#include "touchSensors.h"
 #include "printf.h"
 #include "Print.h"
 #include "util.h"
 #include "GPS.h"
 #include "touchSensors.h"
 #include "scheduler.h"
+#include "tysons.h"
 
 const uint8_t commAddress = 0x44;
 
@@ -98,10 +98,13 @@ void sendComm() {
       touched = t;
     }
     commData.currTouched = touched;
-    commData.backTouchQuality = millisToSecondsCapped(qualityTime(BACK_SENSOR));
+    if (MALL_SHEEP)
+      commData.backTouchQuality = millisToSecondsCapped(qualityTime(WHOLE_BODY_SENSOR));
+    else
+      commData.backTouchQuality = millisToSecondsCapped(qualityTime(BACK_SENSOR));
     commData.headTouchQuality = millisToSecondsCapped(qualityTime(HEAD_SENSOR));
     commData. haveFix = haveFixNow();
-    commData.when = Night;
+    commData.activated = isOpen(false) ? Active : Inactive;
     uint8_t * p = (uint8_t *)&commData;
     if (false) {
       Serial.print("Sending ");

@@ -1,6 +1,6 @@
 #include <Adafruit_SleepyDog.h>
 
-const char * VERSION = "version as of 12/3";
+const char * VERSION = "version as of 12/14/2018";
 
 #include<FastLED.h>
 
@@ -51,8 +51,8 @@ CRGB & getSheepLEDFor(uint8_t x, uint8_t y) {
   return leds[strip * NUM_LEDS_PER_STRIP + pos];
 }
 
-const uint8_t BRIGHTNESS_NORMAL = 210;
-const uint8_t BRIGHTNESS_BORED = 100;
+const uint8_t BRIGHTNESS_NORMAL = 255;
+const uint8_t BRIGHTNESS_BORED = 255;
 
 #else
 const uint16_t NUM_LEDS_PER_STRIP  = 256;
@@ -150,18 +150,6 @@ boolean isDaytime() {
   return h >= 7 && h <= 18;
 }
 
-boolean isPreview() {
-  return true;
-  if (!receivedMsg)
-    return true;
-  int h = month();
-  return h == 8;
-}
-
-boolean useLEDs() {
-  return true;
-  return  isPreview() ||  !isDaytime();
-}
 
 void setLEDsToBlack() {
   for (int j = 0; j < NUM_STRIPS * NUM_LEDS_PER_STRIP; j++)
@@ -193,17 +181,13 @@ void loop() {
   if (nextUpdate < now) {
     unsigned long millisToChange =  updateAnimation(now);
 
-    myprintf( "sheepSlaveBrain  sheep %d, state %d, %d/%d, %d:%02d:%02d\n",
+    myprintf( "sheepSlaveBrain  sheep %d, state %d:%d, %d/%d, %d:%02d:%02d\n",
               commData.sheepNum,
-              currState, month(), day(), hour(), minute(), second());
+              currState, commData.activated, month(), day(), hour(), minute(), second());
     if (!receivedMsg)
       Serial.println(" Have not received any messages");
     else
       myprintf(" Received %d activity messages\n", activityReports);
-    if (isPreview())
-      Serial.println("is preview");
-    if (isDaytime())
-      Serial.println("is daytime");
     myprintf(" currentEpoc %d, %dms to next epoc, %d feet to the man", animationEPOC,
              millisToChange,  (int) commData.feetFromMan);
     if (commData.haveFix)
@@ -221,25 +205,32 @@ void loop() {
   setLEDsToBlack();
 
   if (false) Serial.println("updating animation");
-  if (useLEDs()) {
-    currentAnimation->update(now);
+  if (!receivedMsg || commData.activated != Off) {
+    if (commData.activated == Active)
+      currentAnimation->update(now);
     overlays(receivedMsg);
 
 #ifndef STANDARD_SHEEP
-if (false) {
-    getSheepLEDFor(HALF_GRID_WIDTH, 0) =  CRGB::LightGrey;
-    getSheepLEDFor(HALF_GRID_WIDTH, 8) =  CRGB::LightGrey;
-    getSheepLEDFor(HALF_GRID_WIDTH, 9) =  CRGB::LightGrey;
-    getSheepLEDFor(HALF_GRID_WIDTH, 16) =  CRGB::LightGrey;
-    getSheepLEDFor(HALF_GRID_WIDTH, 17) =  CRGB::LightGrey;
-    getSheepLEDFor(HALF_GRID_WIDTH, 18) =  CRGB::LightGrey;
-}
+    if (false) {
+      getSheepLEDFor(HALF_GRID_WIDTH, 0) =  CRGB::LightGrey;
+      getSheepLEDFor(HALF_GRID_WIDTH, 8) =  CRGB::LightGrey;
+      getSheepLEDFor(HALF_GRID_WIDTH, 9) =  CRGB::LightGrey;
+      getSheepLEDFor(HALF_GRID_WIDTH, 16) =  CRGB::LightGrey;
+      getSheepLEDFor(HALF_GRID_WIDTH, 17) =  CRGB::LightGrey;
+      getSheepLEDFor(HALF_GRID_WIDTH, 18) =  CRGB::LightGrey;
+    }
 #endif
     copyLEDs();
     LEDS.show();
-  } else {
-    Serial.println("daytime; LEDs off");
 
+    unsigned long timeUsed = millis() - now;
+
+    long timeToWait = 33 - timeUsed;
+    if (timeToWait > 0)
+      delay(timeToWait);
+  } else {
+    Serial.println("LEDs off");
+    copyLEDs();
     LEDS.show();
     for (int i = 0; i < 20; i++) {
       digitalWrite(led, HIGH);   // turn the LED on (HIGH is the voltage level)
@@ -249,11 +240,5 @@ if (false) {
     }
   }
 
-  if (false) Serial.println("updated animation");
 
-  unsigned long timeUsed = millis() - now;
-
-  long timeToWait = 33 - timeUsed;
-  if (timeToWait > 0)
-    delay(timeToWait);
 }

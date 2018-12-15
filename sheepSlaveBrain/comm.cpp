@@ -39,7 +39,6 @@ void setupComm() {
   Wire.onReceive(receiveEvent);
   Wire.onRequest(requestEvent);
 
-
 }
 unsigned long activityReports = 0;
 //

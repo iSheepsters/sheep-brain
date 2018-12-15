@@ -135,6 +135,7 @@ boolean isGPS(int i) {
   return i % 11 == 0;
 }
 boolean isCustom(int i) {
+  return false;
   return i % 15 == 0;
 }
 boolean isBasic(int i) {
@@ -142,6 +143,7 @@ boolean isBasic(int i) {
   return i % 11 == 0;
 }
 boolean isOPC(int i) {
+  return true;
   return !isGPS(i) && !isCustom(i) && !isBasic(i);
 }
 

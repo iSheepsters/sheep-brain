@@ -4,6 +4,7 @@
 #include "printf.h"
 
 bool isOpen(bool debug) {
+
   time_t time = adjustedNow();
   tmElements_t openAt;
   tmElements_t closeAt;
@@ -15,6 +16,9 @@ bool isOpen(bool debug) {
   closeAt.Second = 0;
   int thisMonth = month(time);
   int thisDay = day(time);
+  if (debug) {
+    myprintf(Serial, "isOpen %d %d\n", thisMonth, thisDay);
+  }
   if (thisMonth == 1 and thisDay == 1) {
     openAt.Hour = 10; closeAt.Hour = 6;
   } else if (thisMonth == 12)
@@ -22,42 +26,52 @@ bool isOpen(bool debug) {
       case 15: {
           openAt.Hour = 9;
           closeAt.Hour = 12 + 10;
+          break;
         }
       case 16: {
           openAt.Hour = 9;
           closeAt.Hour = 12 + 10;
+          break;
         }
       case 17: {
           openAt.Hour = 9;
           closeAt.Hour = 12 + 10;
+          break;
         }
       case 18: {
           openAt.Hour = 9;
           closeAt.Hour = 12 + 10;
+          break;
         }
       case 19: {
           openAt.Hour = 9;
           closeAt.Hour = 12 + 11;
+          break;
         }
       case 20: {
           openAt.Hour = 9;
           closeAt.Hour = 12 + 11;
+          break;
         }
       case 21: {
           openAt.Hour = 9;
           closeAt.Hour = 12 + 11;
+          break;
         }
       case 22: {
           openAt.Hour = 9;
           closeAt.Hour = 12 + 11;
+          break;
         }
       case 23: {
           openAt.Hour = 9;
           closeAt.Hour = 12 + 11;
+          break;
         }
       case 24: {
           openAt.Hour = 8;
           closeAt.Hour = 12 + 5;
+          break;
         }
       case 25: {
           return false;
@@ -66,29 +80,35 @@ bool isOpen(bool debug) {
           openAt.Hour = 8;
           closeAt.Hour = 12 + 9;
           closeAt.Minute = 30;
+          break;
         }
       case 27: {
           openAt.Hour = 10;
           closeAt.Hour = 12 + 9;
           closeAt.Minute = 30;
+          break;
         }
       case 28: {
           openAt.Hour = 10;
           closeAt.Hour = 12 + 9;
           closeAt.Minute = 30;
+          break;
         }
       case 29: {
           openAt.Hour = 10;
           closeAt.Hour = 12 + 9;
           closeAt.Minute = 30;
+          break;
         }
       case 30: {
           openAt.Hour = 11;
           closeAt.Hour = 12 + 7;
+          break;
         }
       case 31: {
           openAt.Hour = 10;
           closeAt.Hour = 12 + 6;
+          break;
         }
       default : {
           if (weekday(time) == 1) {
@@ -97,6 +117,7 @@ bool isOpen(bool debug) {
           } else {
             openAt.Hour = 10; closeAt.Hour = 12 + 9; closeAt.Minute = 30;
           }
+          break;
         }
     }
   else {
@@ -131,6 +152,7 @@ bool isOpen(bool debug) {
   }
   const time_t buffer = 15 * 60;
   if (oTime - buffer <= time && time <= cTime + buffer) return true;
+  return true;
   return false;
 
 }

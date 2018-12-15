@@ -9,6 +9,7 @@
 
 const boolean USE_AMPLIFIER = true;
 
+boolean rightSpeakerOn = false;
 #include "sound.h"
 #include "soundFile.h"
 #include "tysons.h"
@@ -49,19 +50,22 @@ boolean wasPlayingMusic;
 void musicPlayerSetVolume(uint8_t v) {
 
   VS1053_volume = v;
- musicPlayer.setVolume(v, getRightSpeakerSetting(v));
+  if (currentSheepState->state == Bored && false) {
+    musicPlayer.setVolume(v, 0xfe);
+    rightSpeakerOn = false;
+  } else {
+    musicPlayer.setVolume(v, getRightSpeakerSetting(v));
+    rightSpeakerOn = true;
+  }
   turnAmpOn();
 }
 void musicPlayerFullVolume() {
-
-  //Serial.println("musicPlayerFullVolume");
-  VS1053_volume = 0;
-  musicPlayer.setVolume(0, getRightSpeakerSetting(0));
-  turnAmpOn();
+  musicPlayerSetVolume(0);
 }
 void musicPlayerNoVolume() {
   //Serial.println("musicPlayerNoVolume");
   VS1053_volume = 0;
+  rightSpeakerOn = false;
   musicPlayer.setVolume(0xfe, 0xfe);
   turnAmpOff();
 }
@@ -90,7 +94,7 @@ void setupSound() {
     Serial.println("amp off");
   myprintf(Serial, "VS1053_volume %d\n", VS1053_volume);
 
-  musicPlayer.sineTest(0x44, 100);    // Make a tone to indicate VS1053 is working
+  musicPlayer.sineTest(0x44, 50);    // Make a tone to indicate VS1053 is working
   Serial.println(F("sineTest complete"));
 
 
@@ -131,8 +135,10 @@ boolean setAmpVolume(int8_t v) {
   if (v == lastAmpVol)
     return true;
 
-  Serial.print("Setting volume to ");
-  Serial.println(v);
+  if (printInfo()) {
+    Serial.print("Setting volume to ");
+    Serial.println(v);
+  }
   Wire.beginTransmission(MAX9744_I2CADDR);
   Wire.write(v);
   lastAmpVol = v;
@@ -150,16 +156,16 @@ void changeAmpVol(int8_t v) {
 }
 
 uint8_t getAdjustedVolume() {
-  if (false && !isOpen(false)) 
+  if (!isOpen(false))
     return 0;
   uint8_t h = adjustedHour();
   for (int i = 0; i < numTimeAdjustments; i++)
     if (h >= timeAdjustments[i].hourStart
         && h < timeAdjustments[i].hourStart + timeAdjustments[i].hoursLong
         || h < timeAdjustments[i].hourStart + timeAdjustments[i].hoursLong - 24) {
-     return timeAdjustments[i].volume;
+      return timeAdjustments[i].volume;
     }
-  
+
   return thevol;
 
 }
@@ -207,19 +213,19 @@ void setNextAmbientSound(unsigned long durationOfLastSound) {
 
 
   unsigned long result = durationOfLastSound / 2 + (unsigned long)(random(20000, 40000) * crowded);
-  myprintf(Serial, "next ambient sound in %d ms\n", result);
+  if (printInfo()) myprintf(Serial, "next ambient sound in %d ms\n", result);
   nextAmbientSound = millis() + result;
 }
 
 void noteEndOfMusic() {
   unsigned long now = millis();
   if (musicPlayer.playingMusic) {
-    Serial.println("Music still playing");
+    if (printInfo())Serial.println("Music still playing");
     return;
   }
   if (!wasPlayingMusic)
     return;
-  Serial.println("note end of music");
+  if (printInfo())Serial.println("note end of music");
   wasPlayingMusic = false;
   musicPlayerNoVolume();
 
@@ -228,10 +234,10 @@ void noteEndOfMusic() {
     currentSoundFile->lastPlaying = now;
     if (currentSoundFile->duration == 0) {
       currentSoundFile->duration = currentSoundFile->lastPlaying - currentSoundFile->lastStarted;
-      myprintf(Serial, "%d ms for %s/%s\n",
-               currentSoundFile->duration,
-               currentSoundFile->collection->name,
-               currentSoundFile->name);
+      if (printInfo()) myprintf(Serial, "%d ms for %s/%s\n",
+                                  currentSoundFile->duration,
+                                  currentSoundFile->collection->name,
+                                  currentSoundFile->name);
       isBaa = currentSoundFile->collection == &baaSounds;
       currentSoundFile = NULL;
     }
@@ -240,14 +246,14 @@ void noteEndOfMusic() {
   if (!isBaa) {
     setNextAmbientSound(lastSoundPlaying - lastSoundStarted);
     nextBaa = now + random(10000, 20000) * howCrowded();
-    myprintf(Serial, "ambient ended, next sound in %d seconds\n",
-             (nextAmbientSound - now) / 1000);
+    if (printInfo()) myprintf(Serial, "ambient ended, next sound in %d seconds\n",
+                                (nextAmbientSound - now) / 1000);
   }
   nextBaa = millis() + random(10000, 20000) * howCrowded();
   if (nextAmbientSound < now + 4000)
     nextAmbientSound = now + 4000;
-  myprintf(Serial, "next baa in %d seconds, next ambient in %d\n",
-           (nextBaa - now) / 1000, (nextAmbientSound - now) / 1000);
+  if (printInfo()) myprintf(Serial, "next baa in %d seconds, next ambient in %d\n",
+                              (nextBaa - now) / 1000, (nextAmbientSound - now) / 1000);
 }
 
 
@@ -261,8 +267,10 @@ boolean playFile(const char *fmt, ... ) {
   va_start (args, fmt );
   vsnprintf(buf, 256, fmt, args);
   va_end (args);
-  Serial.print("Playing ");
-  Serial.println(buf);
+  if (printInfo()) {
+    Serial.print("Playing ");
+    Serial.println(buf);
+  }
 
   lastSoundStarted = millis();
   boolean result = musicPlayer.startPlayingFile(buf);
@@ -270,7 +278,7 @@ boolean playFile(const char *fmt, ... ) {
     currentSoundPriority = 0;
 
   unsigned long duration = micros() - start;
-  if (duration > 10000)
+  if (duration > 10000 && printInfo())
     myprintf(Serial, "%5dus to start %s\n", duration, buf);
   return result;
 

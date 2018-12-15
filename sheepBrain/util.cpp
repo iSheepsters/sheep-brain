@@ -10,6 +10,10 @@ uint8_t numTimeAdjustments = 0;
 int8_t timeZoneAdjustment;
 TimeAdjustment* timeAdjustments;
 
+bool printInfo() {
+  return !plotTouch;
+}
+
 uint16_t totalYield;
 /* return voltage for 12v battery */
 uint16_t batteryVoltageRaw() {

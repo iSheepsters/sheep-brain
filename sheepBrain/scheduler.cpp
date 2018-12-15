@@ -4,6 +4,7 @@
 #include "util.h"
 #include "comm.h"
 
+
 const int MAX_ACTIVITIES = 10;
 const int ACTIVITY_NAME_LENGTH = 20;
 
@@ -66,7 +67,7 @@ void runScheduledActivities() {
       s.func();
       now = millis();
       unsigned long duration = now - s.lastStarted;
-      if (first || duration > 15 || totalYield - oldTotalYield > 5) {
+     if (printInfo()) if (first || duration > 15 || totalYield - oldTotalYield > 5) {
         myprintf(Serial, "%2dms, %2dms yield for %s\n", duration, totalYield - oldTotalYield, s.name);
       }
       s.lastDuration = now - s.lastStarted;

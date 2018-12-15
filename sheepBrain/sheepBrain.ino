@@ -1,6 +1,6 @@
 #include <Adafruit_SleepyDog.h>
 #include <MemoryFree.h>
-const char * VERSION = "version as of 11/3/2018";
+const char * VERSION = "version as of 12/14/2018";
 const boolean WAIT_FOR_SERIAL = false;
 
 #include <Wire.h>
@@ -196,6 +196,7 @@ void setup() {
       setupDelay(1000);                     // wait for a second
       digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
       setupDelay(1000);
+      Serial.println("setupSD failed");
 
     }
   }
@@ -210,7 +211,14 @@ void setup() {
     Watchdog.reset();
     s = configFile.parseInt();
     myprintf(Serial, "config file contains %d\n", s);
+
     int v = configFile.parseInt();
+    if (v != 0) {
+      STABLE_VALUE = v;
+      myprintf(Serial, "stable sensor value set to %d\n", v);
+
+    }
+    v = configFile.parseInt();
     if (v != 0) {
       privatesEnabled = true;
       Serial.println("Privates enabled");
@@ -221,14 +229,18 @@ void setup() {
       Serial.println("R rated sounds enabled");
     } else
       Serial.println("R rated sounds disabled");
-    Serial.println("barfoo");
     v = configFile.parseInt();
-    Serial.println("foobar");
+
     if (v > 0 && v <= 63) {
       thevol = v;
       myprintf(Serial, "default volume set to %d\n", v);
     } else
       myprintf(Serial, "default volume not set, using %d\n", thevol);
+
+    v = configFile.parseInt();
+    if (v != 0) msToNextSoundMin = v * 1000;
+    v = configFile.parseInt();
+    if (v != 0) msToNextSoundMax = v * 1000;
 
     timeZoneAdjustment = configFile.parseInt();
     myprintf(Serial, "time zone adjustment: %d\n", timeZoneAdjustment);
@@ -334,6 +346,7 @@ int32_t prevLat = -1;
 int32_t prevLong = -1;
 
 void generateReport() {
+  if (plotTouch) return;
   unsigned long now = millis();
   myprintf(Serial, "%d/%d State %s, %f volts,  %d minutes uptime, %d GPS fixes, %2d:%02d:%02d\n",
            sheepNumber, now, currentSheepState->name,
@@ -416,7 +429,7 @@ void loop() {
   interrupts();
   SheepInfo & me = getSheep();
   me.time = now();
-  if (totalYield > 20) {
+  if (totalYield > 20 && printInfo()) {
     myprintf(Serial, "total yield %dms\n", totalYield);
 
   }
@@ -458,17 +471,18 @@ void checkForNextAmbientSound() {
     }
     if (currentSheepState -> playAmbientSound(now)) {
       unsigned long delay = DELAY_BETWEEN_SOUNDS;
-      if (currentSoundFile -> duration > 0 && currentSoundFile -> duration < delay)
+      if (currentSoundFile -> duration > 0 && currentSoundFile -> duration / 2 < delay)
         delay = currentSoundFile -> duration / 2 ;
-      delay = (delay + random(DELAY_BETWEEN_SOUNDS / 2, DELAY_BETWEEN_SOUNDS)) * howCrowded();
-      myprintf(Serial, "Started playing ambient sound, next in %dms\n", delay);
+      delay = (delay + random(msToNextSoundMin, msToNextSoundMax)) * howCrowded();
+      if (printInfo())
+        myprintf(Serial, "Started playing ambient sound, next in %dms\n", delay);
       nextAmbientSound = now + delay;
       return;
     } else  if (baaSounds.playSound(now, true)) {
 
-      myprintf(Serial, "No ambient sound available, baa-ing\n");
+      if (printInfo()) myprintf(Serial, "No ambient sound available, baa-ing\n");
 
-      unsigned long delay = random(DELAY_BETWEEN_SOUNDS / 2, DELAY_BETWEEN_SOUNDS) * howCrowded();
+      unsigned long delay = random(msToNextSoundMin, msToNextSoundMax) * howCrowded();
       nextAmbientSound = now + delay;
       nextBaa = now + delay + DELAY_BETWEEN_SOUNDS / 2;
     } else {
@@ -476,12 +490,11 @@ void checkForNextAmbientSound() {
       nextAmbientSound = now + DELAY_BETWEEN_SOUNDS / 4;
     }
   }
-  if (now > nextBaa && nextBaa + 8000 < nextAmbientSound) {
+  if (now > nextBaa && nextBaa + 4000 < nextAmbientSound) {
     if (TRACE) Serial.println("play baa sound");
     if (baaSounds.playSound(now, true)) {
-      unsigned long delay = random(DELAY_BETWEEN_SOUNDS / 2, DELAY_BETWEEN_SOUNDS) * howCrowded();
-      Serial.println("Started playing baa");
-      myprintf(Serial, "Started playing baa sound, next in %dms\n", delay);
+      unsigned long delay = random(msToNextSoundMin, msToNextSoundMax) * howCrowded();
+      if (printInfo()) myprintf(Serial, "Started playing baa sound, next in %dms\n", delay);
       nextBaa = now + delay;
       return;
     } else
@@ -528,21 +541,18 @@ void checkForCommand() {
           debugTouch = !debugTouch;
           break;
 
-        // if we get an 'p' on the serial console, pause/unpause!
         case 'p':
-          if (! musicPlayer.paused()) {
-            Serial.println("Paused");
-            musicPlayer.pausePlaying(true);
-          } else {
-            Serial.println("Resumed");
-            musicPlayer.pausePlaying(false);
-          }
+          dumpConfiguration();
+          dumpTouchData();
+          plotTouch = !plotTouch;
           break;
         case '+':
           changeAmpVol(thevol + 1);
+          myprintf(Serial, "volume is now %d\n", thevol);
           break;
         case '-':
           changeAmpVol(thevol - 1);
+          myprintf(Serial, "volume is now %d\n", thevol);
           break;
       }
     }

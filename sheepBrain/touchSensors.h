@@ -5,9 +5,10 @@
 #include "Adafruit_MPR121.h"
 
 const uint8_t  ELEPROX_EN = 0; // 0b10; 
-const uint8_t  lastTouchSensor = ELEPROX_EN == 0 ? 8 : 12;
+const uint8_t  lastTouchSensor = ELEPROX_EN == 0 ? 7 : 12;
 const uint8_t  numTouchSensors = lastTouchSensor+1;
 extern uint16_t stableValue[numTouchSensors];
+extern uint16_t STABLE_VALUE;
 extern uint8_t swapLeftRightSensors(uint8_t touched);
 enum TouchSensor {
   PRIVATES_SENSOR, 
@@ -17,7 +18,6 @@ enum TouchSensor {
   BACK_SENSOR, 
   HEAD_SENSOR,
   UNUSED1_SENSOR,
-  UNUSED2_SENSOR,
   WHOLE_BODY_SENSOR
 };
 
@@ -25,7 +25,7 @@ enum TouchSensor {
 extern uint16_t touchedThisInterval;
 extern uint16_t currentValue[numTouchSensors];
 extern uint16_t pettingDataPosition; 
-extern boolean debugTouch;
+
 
 const uint8_t numPettingSensors = numTouchSensors;
 

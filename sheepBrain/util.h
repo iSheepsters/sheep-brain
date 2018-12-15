@@ -18,6 +18,8 @@ extern uint16_t totalYield;
 extern void setupDelay(uint16_t ms);
 extern void yield(uint16_t ms);
 
+extern bool printInfo();
+
 extern uint8_t millisToSecondsCapped(unsigned long ms);
 
 extern unsigned long updateGPSLatency();
@@ -34,6 +36,8 @@ const boolean useLog = true;
 const boolean useCommands = true;
 const boolean doUpdateState = true;
 const boolean getGPSFixQuality = false;
+extern boolean debugTouch;
+extern boolean plotTouch;
 
 
 class __attribute__ ((packed)) SheepInfo {

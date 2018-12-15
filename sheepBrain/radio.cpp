@@ -169,7 +169,7 @@ void updateRadio() {
     if (rf95.recv(buf, &len)) {
       HashInfo hashInfo;
 
-      myprintf(Serial, "Received radio packet, length %d, RSSI %d, SNR %d, kind %d\n",
+      if (printInfo()) myprintf(Serial, "Received radio packet, length %d, RSSI %d, SNR %d, kind %d\n",
       len, rf95.lastRssi(), rf95.lastSNR(), (enum PacketKind) buf[0]);
 
       switch ((enum PacketKind) buf[0]) {
@@ -180,12 +180,12 @@ void updateRadio() {
             hashInfo.sheepNumber = fromNum;
             hashInfo.currentTime = received->currentTime;
             if (hashInfo.getHash() != received->hashValue) {
-              Serial.println("Radio Info with bad hash value, rejecting");
+              if (printInfo()) Serial.println("Radio Info with bad hash value, rejecting");
               badPackets++;
               break;
             }
 
-            myprintf(Serial, "Received info packet of length %d from sheep %d\n", len, fromNum);
+            if (printInfo()) myprintf(Serial, "Received info packet of length %d from sheep %d\n", len, fromNum);
             memcpy(&getSheep(fromNum), &from,  sizeof(SheepInfo));
             logRadioUpdate(fromNum, from);
             uint8_t waywardSheepNumber = received->waywardSheepNumber;
@@ -202,24 +202,26 @@ void updateRadio() {
             hashInfo.sheepNumber = fromNum;
             hashInfo.currentTime = received->currentTime;
             if (hashInfo.getHash() != received->hashValue) {
-              Serial.println("Radio Distress packet with bad hash value, rejecting");
+              if (printInfo()) Serial.println("Radio Distress packet with bad hash value, rejecting");
               badPackets++;
               break;
             }
+            if (printInfo()) {
             myprintf(Serial, "Received distress packet of length %d from sheep %d\n", len, fromNum);
             myprintf(Serial, "msg: %s\n",  received->msg);
+            }
             logRadioDistress(fromNum, distressInfo.currentTime, getSheep(fromNum), received->msg);
             break;
           }
         case CommandPacket: {
             CommandInfo * received = (CommandInfo *)buf;
-            myprintf(Serial, "Received command packet of length %d\n", len);
+            if (printInfo()) myprintf(Serial, "Received command packet of length %d\n", len);
             if (received->hashValue != SECRET_SALT)  {
-              Serial.println("Radio Command packet with bad hash value, rejecting");
+              if (printInfo()) Serial.println("Radio Command packet with bad hash value, rejecting");
               badPackets++;
               break;
             }
-             myprintf(Serial, "command packet sets volume to %d\n", received->ampVol);
+             if (printInfo()) myprintf(Serial, "command packet sets volume to %d\n", received->ampVol);
            
             changeAmpVol(received->ampVol);
           }
@@ -230,7 +232,7 @@ void updateRadio() {
 
       }
     } else {
-      Serial.println("Radio receive failed");
+      if (printInfo()) Serial.println("Radio receive failed");
       break;
     }
   }
@@ -239,9 +241,9 @@ void updateRadio() {
   uint16_t radioWindow = (trueTime % RADIO_EPOC) / RADIO_WINDOW;
   if (radioEpoc != lastEpoc && radioWindow == sheepNumber) {
     lastEpoc = radioEpoc;
-    myprintf(Serial, "Sending out radio packet for epoc %d\n", radioEpoc);
+    if (printInfo()) myprintf(Serial, "Sending out radio packet for epoc %d\n", radioEpoc);
     if (ampOn) {
-      Serial.println("Amplifier is on, skipping radio packet");
+      if (printInfo()) Serial.println("Amplifier is on, skipping radio packet");
     } else {
 
       hashInfo.sheepNumber = sheepNumber;
@@ -254,27 +256,27 @@ void updateRadio() {
       radioInfo.currTouched = currTouched;
 
       memcpy(&(radioInfo.myInfo), &getSheep(), sizeof(SheepInfo));
-      Serial.println("Looking for wayward sheep");
+      if (printInfo()) Serial.println("Looking for wayward sheep");
       boolean waywardSheep = findNextWaywardSheep();
 
       size_t length = sizeof(radioInfo);
       if (waywardSheep) {
-        myprintf(Serial, "Found wayward sheep %d\n", lastWaywardSheep );
+        if (printInfo()) myprintf(Serial, "Found wayward sheep %d\n", lastWaywardSheep );
 
         radioInfo.waywardSheepNumber = lastWaywardSheep;
         memcpy(&(radioInfo.waywardSheep), &getSheep(lastWaywardSheep), sizeof(SheepInfo));
       } else {
-        Serial.println("No wayward sheep found");
+        if (printInfo()) Serial.println("No wayward sheep found");
         radioInfo.waywardSheepNumber = 0;
         length -= sizeof(SheepInfo);
       }
       uint8_t * data = (uint8_t *)&radioInfo;
-      myprintf(Serial, "Sending radio packet of size %d\n", length);
+     if (printInfo())  myprintf(Serial, "Sending radio packet of size %d\n", length);
 
       if (rf95.send(data,  length)) {
         // rf95.waitPacketSent();
       } else
-        Serial.println("Radio packet send failed");
+        if (printInfo()) Serial.println("Radio packet send failed");
     }
   }
 }

@@ -29,7 +29,7 @@ struct Tracer {
     y = random(GRID_HEIGHT) + 0.5;
     dir = random(4);
   }
-  
+
   boolean inBounds() {
     if (x < 0 || y < 0) return false;
     if (x >= GRID_WIDTH) return false;
@@ -39,17 +39,17 @@ struct Tracer {
   void placeRandomRadial();
   void moveTowardsCenter() {
 
-      float dx = HALF_GRID_WIDTH - x;
-        float dy =  midSaddle - y;
-        float range = sqrt(dx*dx+dy*dy);
-        if (range < 1.0) {
-            placeRandomRadial();
-            return;
-        }
-        x += dx/range;
-        y += dy/range;
+    float dx = HALF_GRID_WIDTH - x;
+    float dy =  midSaddle - y;
+    float range = sqrt(dx * dx + dy * dy);
+    if (range < 1.0) {
+      placeRandomRadial();
+      return;
+    }
+    x += dx / range;
+    y += dy / range;
   }
- 
+
   void move() {
     switch (dir) {
       case 0:
@@ -75,15 +75,15 @@ struct Tracer {
   }
 };
 
- void Tracer::placeRandomRadial() {
-    float distance = GRID_HEIGHT - midSaddle;
-    float angle = random(360)*PI/180;
-    x = HALF_GRID_WIDTH + 1 + cos(angle)*distance;
-    y = midSaddle + 0.5 + sin(angle)*distance;
-    while (!inBounds()) {
-      moveTowardsCenter();
-    }
+void Tracer::placeRandomRadial() {
+  float distance = GRID_HEIGHT - midSaddle;
+  float angle = random(360) * PI / 180;
+  x = HALF_GRID_WIDTH + 1 + cos(angle) * distance;
+  y = midSaddle + 0.5 + sin(angle) * distance;
+  while (!inBounds()) {
+    moveTowardsCenter();
   }
+}
 Tracer tracers[numTracers];
 
 boolean complainedAboutUnknownState = false;
@@ -92,7 +92,7 @@ boolean complainedAboutUnknownState = false;
 void moveTracer(Tracer & t, int index) {
   switch (commData.state) {
     case Bored:
-      if ((index + tracerFrame) % 3 == 0) {
+      if ((index + tracerFrame) % 4 == 0) {
         if (random(6) == 0)
           t.dir = (t.dir + 1 + random(2) * 2) % 4;
         t.move();
@@ -116,7 +116,7 @@ void moveTracer(Tracer & t, int index) {
       }
       break;
     case ReadyToRide: {
-      t.moveTowardsCenter();
+        t.moveTowardsCenter();
       }
       break;
     case NotInTheMood:
@@ -146,7 +146,7 @@ void updateTracers() {
     moveTracer(t, i);
     int x = ((int) t.x) % GRID_WIDTH;
     int y =  ((int) t.y) % GRID_HEIGHT;
-    
+
     if (false &&  flash[x][y] == 255)
       moveTracer(t, i);
     flash[x][y] = 255;
@@ -155,25 +155,32 @@ void updateTracers() {
 
 
 void applyAndFadeFlash() {
+  int h = (millis() / 40) % 255;
   for (int x = 0; x < GRID_WIDTH; x++)
     for (int y = 0; y < GRID_HEIGHT; y++) {
       int v = flash[x][y];
       if (v == 0)
         continue;
-
       CRGB & led = getSheepLEDFor(x, y);
-      CHSV hsv = rgb2hsv_approximate (led);
-      int value = v + hsv.v;
-      if (value <= 255) {
-        hsv.v = value;
+      CHSV hsv;
+      if (commData.activated == Active) {
+        hsv = rgb2hsv_approximate (led);
+        int value = v + hsv.v;
+        if (value <= 255) {
+          hsv.v = value;
+        } else {
+          hsv.value = 255;
+          value = hsv.s - (value - 255);
+          if (value < 0)
+            hsv.s = 0;
+          else hsv.s = value;
+        }
       } else {
-        hsv.value = 255;
-        value = hsv.s - (value - 255);
-        if (value < 0)
-          hsv.s = 0;
-        else hsv.s = value;
+        // inactive, not showing animations, just colored tracers
+        hsv = CHSV(h, 255, v);
       }
       led = hsv;
+
       if (commData.state == ReadyToRide)
         v = v * 0.95 - 2;
       else
@@ -231,11 +238,12 @@ void rightLights() {
 void backLights() {
   // back side
   int q = commData.backTouchQuality + commData.headTouchQuality / 4;
+  
   myprintf("Back lights %d\n", q);
   for (int y = -4; y <=  4; y++) {
     int brightness = 250 - abs(y) * 130 + q * 25;
     brightness = max(0, min(255, brightness));
-
+    if (y == 0) brightness = 255;
     for (int x = HALF_GRID_WIDTH - 1; x <= HALF_GRID_WIDTH; x++)
       getSheepLEDFor(x, y + midSaddle) = CRGB(brightness, brightness, brightness);
   }
@@ -312,7 +320,7 @@ void head() {
       if (isEye(j)) {
         if (!blinking)
           leds[j] = CRGB::White;
-      } else
+      } else if (commData.activated == Active)
         leds[j] = CRGB::White;
 }
 
@@ -320,26 +328,30 @@ void overlays(boolean receivedMsg) {
 
   head();
   if (receivedMsg) {
-  updateTracers();
-  applyAndFadeFlash();
+    updateTracers();
+    applyAndFadeFlash();
 
-  if (commData.state == Violated) {
-    violatedLights();
-  }
-  uint8_t touchData = commData.currTouched;
+    if (commData.state == Violated) {
+      violatedLights();
+    }
+    uint8_t touchData = commData.currTouched;
 
-  if (touchData & 0x1)
-    privateLights();
-  if (touchData & 0x2)
-    rumpLights();
-  if (touchData & 0x4)
-    leftLights();
-  if (touchData & 0x8)
-    rightLights();
-  if (touchData & 0x10)
-    backLights();
-  if (touchData & 0x20)
-    headLights();
+    if (touchData & 0x1)
+      privateLights();
+    if (touchData & 0x2)
+      rumpLights();
+    if (touchData & 0x4)
+      leftLights();
+    if (touchData & 0x8)
+      rightLights();
+    if (touchData & 0x10 || touchData & 0x80)
+      backLights();
+    if (touchData & 0x20)
+      headLights();
+    if (commData.state == Attentive) {
+      for (int x = HALF_GRID_WIDTH - 2; x <= HALF_GRID_WIDTH + 1; x++)
+        getSheepLEDFor(x, 2) = CRGB::White;
+    }
   }
 
 }

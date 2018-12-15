@@ -7,6 +7,10 @@
 #include "printf.h"
 #include "tysons.h"
 
+
+int msToNextSoundMin = 12000;
+int msToNextSoundMax = 25000;
+
 unsigned long nextAmbientSound = 10000;
 unsigned long nextBaa = 30000;
 
@@ -80,6 +84,7 @@ boolean definitivelyRiding() {
 
 
 boolean isTouched() {
+  if (millis() < 10000) return false;
   if (MALL_SHEEP) {
     return  touchDuration(WHOLE_BODY_SENSOR) > 400;
   }
@@ -97,6 +102,7 @@ boolean isTouched() {
 }
 
 boolean qualityTouch() {
+  if (millis() < 10000) return false;
   if (MALL_SHEEP) {
     return  qualityTime(WHOLE_BODY_SENSOR) > 15000;
   }
@@ -189,6 +195,7 @@ void updateState() {
   if (newState != currentSheepState) {
     // got an update
 
+if (printInfo()) {
     myprintf(Serial, "State changed from %s to %s\n", currentSheepState->name, newState->name);
     if (MALL_SHEEP) {
       myprintf(Serial, "   %d secs, %6d\n",
@@ -214,15 +221,16 @@ void updateState() {
       if (privateTouches > 0)
         myprintf(Serial, "%d private touches\n", privateTouches);
     }
+}
 
 
     if (!musicPlayer.playingMusic ||
         newState->getInitialSounds().priority >= currentSoundPriority) {
       newState->getInitialSounds().playSound(ms, false);
       if (newState == &violatedState)
-        nextAmbientSound = ms + 12000;
+        nextAmbientSound = ms + msToNextSoundMin;
       else
-        nextAmbientSound = ms + 12000 + random(1, 15000);
+        nextAmbientSound = ms +  random(msToNextSoundMin, msToNextSoundMax);
     }
     currentSheepState = newState;
     timeEnteredCurrentState = ms;
@@ -243,7 +251,11 @@ void updateState() {
 }
 
 boolean SheepState::playAmbientSound(unsigned long now) {
-  if (random(2) == 0) {
+  int roll = random(10);
+  if (printInfo()) {
+    myprintf(Serial, "ambient/general roll: %d\n", roll);
+  }
+  if (roll < 6) {
     if (ambientSounds.playSound(now, true))
       return true;
     return generalSounds.playSound(now, true);

@@ -2,6 +2,9 @@
 #define _STATE_H
 #include "soundFile.h"
 
+extern int msToNextSoundMin;
+extern int msToNextSoundMax;
+
 enum State {
   Bored,
   Attentive,
