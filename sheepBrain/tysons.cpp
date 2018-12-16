@@ -150,9 +150,10 @@ bool isOpen(bool debug) {
     else
       myprintf(Serial, "closed %d minutes ago\n", -(cTime - time) / 60);
   }
-  const time_t buffer = 15 * 60;
-  if (oTime - buffer <= time && time <= cTime + buffer) return true;
-  return true;
+  const time_t onBeforeOpening = 60 * 60;
+  const time_t onAfterClosing = 15 * 60;
+  if (oTime - onBeforeOpening <= time && time <= cTime + onAfterClosing)
+    return true;
   return false;
 
 }
