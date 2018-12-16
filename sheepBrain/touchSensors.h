@@ -36,7 +36,7 @@ extern Adafruit_MPR121 cap;
 extern void setupTouch();
 extern void dumpTouchData();
 extern uint16_t currTouched;
-extern uint16_t newTouched;
+
 
 extern void dumpConfiguration();
 extern void dumpData();

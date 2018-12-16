@@ -90,14 +90,6 @@ boolean isTouched() {
   }
   boolean result =  touchDuration(BACK_SENSOR) > 400
                     ||  touchDuration(RUMP_SENSOR) > 400  ||  touchDuration(HEAD_SENSOR) > 400;
-  if (false && result) {
-    myprintf(Serial, "touched: %4d %4d %4d\n", touchDuration(BACK_SENSOR) , touchDuration(RUMP_SENSOR) , touchDuration(HEAD_SENSOR));
-
-    myprintf(Serial, "recent: %4d %4d %4d\n", recentTouchDuration(BACK_SENSOR) ,
-             recentTouchDuration(RUMP_SENSOR) , recentTouchDuration(HEAD_SENSOR));
-    myprintf(Serial, "isTouchedThisInterval: %x\n", touchedThisInterval);
-
-  }
   return result;
 }
 

@@ -55,15 +55,11 @@ unsigned long nextTouchSample = 0;
 
 const boolean trace = false;
 
-uint16_t lastTouched = 0;
 uint16_t currTouched = 0;
-uint16_t newTouched = 0;
+
 
 boolean isTouched(enum TouchSensor sensor) {
   return (currTouched & _BV(sensor)) != 0;
-}
-boolean newTouch(enum TouchSensor sensor) {
-  return (newTouched & _BV(sensor)) != 0;
 }
 
 
@@ -310,22 +306,17 @@ uint16_t currentValue[numTouchSensors];
 
 uint16_t tripValue(int i) {
   int16_t threshold = touchThreshold(i);
-  if (lastTouched & _BV(i))
-    threshold = threshold * 2 / 3;
   return stableV(i) - threshold;
 }
 void updateTouchData() {
   unsigned long now = millis();
   boolean debug = false;
-  lastTouched = currTouched;
   currTouched = 0;
   for (int i = 0; i < numTouchSensors; i++) if (valid[i]) {
       uint16_t value = cap.filteredData(i);
       if (value > 2) {
         currentValue[i] = value;
         int16_t threshold = touchThreshold(i);
-        if (lastTouched & _BV(i))
-          threshold = threshold * 3 / 4;
         if (value < stableV(i) - threshold ) {
           currTouched |= 1 << i;
 
@@ -335,7 +326,6 @@ void updateTouchData() {
       }
     }
 
-  newTouched = currTouched & ~lastTouched;
   if (nextSensorResetInterval < now) {
     sendSubActivity(1);
 
