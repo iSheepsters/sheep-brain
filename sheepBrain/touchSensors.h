@@ -21,13 +21,15 @@ enum TouchSensor {
   WHOLE_BODY_SENSOR
 };
 
+enum TouchReading {
+    TOUCHED_YES,
+    TOUCH_UNKNOWN,
+    TOUCHED_NO,
+};
+
 
 extern uint16_t touchedThisInterval;
 extern uint16_t currentValue[numTouchSensors];
-extern uint16_t pettingDataPosition; 
-
-
-const uint8_t numPettingSensors = numTouchSensors;
 
 extern Adafruit_MPR121 cap;
 
@@ -47,7 +49,6 @@ extern void updateTouchData();
 extern int16_t sensorValue(enum TouchSensor sensor);
 extern boolean isTouched(enum TouchSensor sensor);
 extern int32_t touchDuration(enum TouchSensor sensor);
-extern int32_t recentTouchDuration(enum TouchSensor sensor);
 extern int32_t qualityTime(enum TouchSensor sensor);
 extern int32_t combinedTouchDuration(enum TouchSensor sensor);
 extern int32_t untouchDuration(enum TouchSensor sensor);
@@ -55,12 +56,8 @@ extern boolean newTouch(enum TouchSensor sensor);
 extern void wasTouchedInappropriately();
 extern uint8_t calculateBaseline(uint16_t value);
 extern uint8_t CDTx_value(enum TouchSensor sensor);
-
-
 extern uint8_t CDCx_value(enum TouchSensor sensor);
 
-
-extern float detectPetting(uint8_t touchSensor, uint16_t sampleSize, float * confidence);
 
 
 #endif
