@@ -4,7 +4,7 @@ const char * VERSION = "version as of 12/14/2018";
 
 #include<FastLED.h>
 
-#define STANDARD_SHEEP
+//#define STANDARD_SHEEP
 
 #include "all.h"
 #include "comm.h"
@@ -51,8 +51,8 @@ CRGB & getSheepLEDFor(uint8_t x, uint8_t y) {
   return leds[strip * NUM_LEDS_PER_STRIP + pos];
 }
 
-const uint8_t BRIGHTNESS_NORMAL = 255;
-const uint8_t BRIGHTNESS_BORED = 255;
+const uint8_t BRIGHTNESS_NORMAL = 200;
+const uint8_t BRIGHTNESS_BORED = 160;
 
 #else
 const uint16_t NUM_LEDS_PER_STRIP  = 256;

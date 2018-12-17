@@ -1,3 +1,7 @@
+#ifndef _TYSONS_H
+#define _TYSONS_H
 
-const bool MALL_SHEEP = true;
+#define MALL_SHEEP  true
 extern bool isOpen(bool debug);
+
+#endif _TYSONS_H

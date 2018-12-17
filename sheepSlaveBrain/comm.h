@@ -4,4 +4,5 @@
 void setupComm();
 
 extern volatile boolean receivedMsg;
+extern unsigned long lastMsg;
 extern unsigned long activityReports;

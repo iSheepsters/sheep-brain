@@ -373,6 +373,7 @@ boolean parseGPS(unsigned long now) {
     }
 
   } else if (haveFix) {
+    if (printInfo()) 
     Serial.println("Lost fix");
     haveFix = false;
   }

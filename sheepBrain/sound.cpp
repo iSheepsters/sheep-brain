@@ -94,9 +94,8 @@ void setupSound() {
     Serial.println("amp off");
   myprintf(Serial, "VS1053_volume %d\n", VS1053_volume);
 
-  musicPlayer.sineTest(0x44, 50);    // Make a tone to indicate VS1053 is working
-  Serial.println(F("sineTest complete"));
-
+  //musicPlayer.sineTest(0x44, 50);    // Make a tone to indicate VS1053 is working
+  //Serial.println(F("sineTest complete"));
 
   // musicPlayer.useInterrupt(VS1053_FILEPLAYER_PIN_INT);  // DREQ int
   wasPlayingMusic = false;
@@ -186,7 +185,8 @@ void slowlyStopMusic() {
       musicPlayer.feedBuffer();
       yield(10);
     }
-    Serial.println("Music slowly stopped");
+    if (printInfo())
+      Serial.println("Music slowly stopped");
     musicPlayer.stopPlaying();
   }
   noteEndOfMusic();

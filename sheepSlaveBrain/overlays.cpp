@@ -238,7 +238,7 @@ void rightLights() {
 void backLights() {
   // back side
   int q = commData.backTouchQuality + commData.headTouchQuality / 4;
-  
+
   myprintf("Back lights %d\n", q);
   for (int y = -4; y <=  4; y++) {
     int brightness = 250 - abs(y) * 130 + q * 25;
@@ -336,18 +336,21 @@ void overlays(boolean receivedMsg) {
     }
     uint8_t touchData = commData.currTouched;
 
-    if (touchData & 0x1)
-      privateLights();
-    if (touchData & 0x2)
-      rumpLights();
-    if (touchData & 0x4)
-      leftLights();
-    if (touchData & 0x8)
-      rightLights();
+    if (false) {
+      if (touchData & 0x1)
+        privateLights();
+      if (touchData & 0x2)
+        rumpLights();
+      if (touchData & 0x4)
+        leftLights();
+      if (touchData & 0x8)
+        rightLights();
+      if (touchData & 0x20)
+        headLights();
+    }
     if (touchData & 0x10 || touchData & 0x80)
       backLights();
-    if (touchData & 0x20)
-      headLights();
+
     if (commData.state == Attentive) {
       for (int x = HALF_GRID_WIDTH - 2; x <= HALF_GRID_WIDTH + 1; x++)
         getSheepLEDFor(x, 2) = CRGB::White;

@@ -13,6 +13,7 @@ void receiveEvent(size_t len);
 void requestEvent(void);
 
 volatile boolean receivedMsg = false;
+unsigned long lastMsg = 0;
 
 unsigned long lastActivityAt = 0;
 
@@ -59,11 +60,13 @@ void receiveEvent(size_t len)
     if (oldState != commData.state)
       myprintf("commData.state = %d\n", commData.state);
     setTime(commData.BRC_time);
-    if (!receivedMsg && year() == 2018 && animationsSetUp) {
+    if (!receivedMsg && year() >= 2018 && animationsSetUp) {
       receivedMsg = true;
       myprintf("Received message and animations setup\n");
       setupSchedule();
     }
+    if (receivedMsg)
+      lastMsg = now();
     if (false) {
       Serial.print("Received: ");
       for (unsigned int i = 0; i < sizeof(CommData); i++)

@@ -1,6 +1,6 @@
 #include <Adafruit_SleepyDog.h>
 #include <MemoryFree.h>
-const char * VERSION = "version as of 12/14/2018";
+const char * VERSION = "version as of 12/16/2018";
 const boolean WAIT_FOR_SERIAL = false;
 
 #include <Wire.h>

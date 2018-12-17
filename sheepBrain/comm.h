@@ -6,7 +6,6 @@ enum ActiveState {
   Off, Inactive, Active
 };
 
-
 struct __attribute__ ((packed)) ActivityData {
     uint16_t secondsSinceLastActivity;
   uint16_t secondsSinceBoot;
