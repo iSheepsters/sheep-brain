@@ -15,6 +15,10 @@ void requestEvent(void);
 volatile boolean receivedMsg = false;
 unsigned long lastMsg = 0;
 
+extern unsigned long timeSinceLastMessage() {
+  return millis() - lastMsg;
+}
+
 unsigned long lastActivityAt = 0;
 
 struct __attribute__ ((packed)) ActivityData {
@@ -66,7 +70,7 @@ void receiveEvent(size_t len)
       setupSchedule();
     }
     if (receivedMsg)
-      lastMsg = now();
+      lastMsg = millis();
     if (false) {
       Serial.print("Received: ");
       for (unsigned int i = 0; i < sizeof(CommData); i++)

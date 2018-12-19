@@ -60,6 +60,9 @@ extern boolean isTouched(enum TouchSensor sensor);
 extern int32_t touchDuration(enum TouchSensor sensor);
 extern int32_t qualityTime(enum TouchSensor sensor);
 extern int32_t combinedTouchDuration(enum TouchSensor sensor);
+extern uint32_t timeSinceLastKnownTouch(enum TouchSensor sensor);
+extern uint32_t timeSinceLastKnownUntouch(enum TouchSensor sensor);
+
 extern int32_t untouchDuration(enum TouchSensor sensor);
 extern boolean newTouch(enum TouchSensor sensor);
 extern void wasTouchedInappropriately();

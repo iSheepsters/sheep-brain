@@ -52,7 +52,7 @@ class BoredState : public SheepState {
 
 class AttentiveState : public SheepState {
   public:
-    AttentiveState() : SheepState(Attentive, "Attentive", attentiveSounds, attentiveSounds) {};
+    AttentiveState() : SheepState(Attentive, "Attentive", firstTouchSounds, attentiveSounds) {};
     SheepState * update();
 };
 

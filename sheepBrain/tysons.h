@@ -3,5 +3,5 @@
 
 #define MALL_SHEEP  true
 extern bool isOpen(bool debug);
-
-#endif _TYSONS_H
+extern int minutesUntilOpen(bool debug);
+#endif 

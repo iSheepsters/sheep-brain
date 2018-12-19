@@ -1,6 +1,7 @@
 
 #include "all.h"
 #include "printf.h"
+#include "comm.h"
 
 const int midSaddle = 8;
 const  uint8_t HEAD_BOTTOM = 17;
@@ -239,7 +240,7 @@ void backLights() {
   // back side
   int q = commData.backTouchQuality + commData.headTouchQuality / 4;
 
-  myprintf("Back lights %d\n", q);
+  //myprintf("Back lights %d\n", q);
   for (int y = -4; y <=  4; y++) {
     int brightness = 250 - abs(y) * 130 + q * 25;
     brightness = max(0, min(255, brightness));
@@ -330,30 +331,34 @@ void overlays(boolean receivedMsg) {
   if (receivedMsg) {
     updateTracers();
     applyAndFadeFlash();
+    if (timeSinceLastMessage() > 10 * 1000) {
+        for (int x = HALF_GRID_WIDTH - 2; x <= HALF_GRID_WIDTH + 1; x++)
+          getSheepLEDFor(x, 2) = CRGB::Red;
+    } else {
+      if (commData.state == Violated) {
+        violatedLights();
+      }
+      uint8_t touchData = commData.currTouched;
 
-    if (commData.state == Violated) {
-      violatedLights();
-    }
-    uint8_t touchData = commData.currTouched;
+      if (false) {
+        if (touchData & 0x1)
+          privateLights();
+        if (touchData & 0x2)
+          rumpLights();
+        if (touchData & 0x4)
+          leftLights();
+        if (touchData & 0x8)
+          rightLights();
+        if (touchData & 0x20)
+          headLights();
+      }
+      if (touchData & 0x10 || touchData & 0x80)
+        backLights();
 
-    if (false) {
-      if (touchData & 0x1)
-        privateLights();
-      if (touchData & 0x2)
-        rumpLights();
-      if (touchData & 0x4)
-        leftLights();
-      if (touchData & 0x8)
-        rightLights();
-      if (touchData & 0x20)
-        headLights();
-    }
-    if (touchData & 0x10 || touchData & 0x80)
-      backLights();
-
-    if (commData.state == Attentive) {
-      for (int x = HALF_GRID_WIDTH - 2; x <= HALF_GRID_WIDTH + 1; x++)
-        getSheepLEDFor(x, 2) = CRGB::White;
+      if (commData.state == Attentive) {
+        for (int x = HALF_GRID_WIDTH - 2; x <= HALF_GRID_WIDTH + 1; x++)
+          getSheepLEDFor(x, 2) = CRGB::White;
+      }
     }
   }
 

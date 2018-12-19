@@ -108,7 +108,8 @@ boolean isIgnored() {
   if (qualityTouch() || isTouched())
     return false;
   if (MALL_SHEEP)
-    return untouchDuration(WHOLE_BODY_SENSOR) > 5000;
+    return untouchDuration(WHOLE_BODY_SENSOR) > 10000
+           && timeSinceLastKnownTouch(WHOLE_BODY_SENSOR) > 30000;
 
   return untouchDuration(BACK_SENSOR) > 15000
          && untouchDuration(HEAD_SENSOR) > 15000

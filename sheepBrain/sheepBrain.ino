@@ -1,6 +1,6 @@
 #include <Adafruit_SleepyDog.h>
 #include <MemoryFree.h>
-const char * VERSION = "version as of 12/16/2018";
+const char * VERSION = "version as of 12/18/2018";
 const boolean WAIT_FOR_SERIAL = false;
 
 #include <Wire.h>
@@ -27,6 +27,7 @@ extern  void checkForCommand();
 // shouldn't be a real sheep with that number.
 // sheepNumber 14 is for shepherd
 
+const int WATCHDOG_TIMEOUT = 10000;
 uint8_t sheepNumber = 15;
 SheepInfo infoOnSheep[NUMBER_OF_SHEEP];
 
@@ -41,7 +42,7 @@ SheepInfo & getSheep(int s) {
 
 SoundCollection generalSounds(0);
 SoundCollection boredSounds(0);
-SoundCollection firstTouchSounds(0);
+SoundCollection firstTouchSounds(2);
 SoundCollection ridingSounds(2);
 SoundCollection readyToRideSounds(2);
 
@@ -126,11 +127,15 @@ void testSwapLeftRight(uint8_t touched) {
 void setup() {
   memset(&infoOnSheep, 0, sizeof (infoOnSheep));
   pinMode(LED_BUILTIN, OUTPUT);
-  int countdownMS = Watchdog.enable(10000);
+  int countdownMS = Watchdog.enable(WATCHDOG_TIMEOUT);
   myprintf(Serial, "Watchdog set, %d ms timeout\n", countdownMS);
 
   delay(100);
   Serial.begin(115200);
+  for (int i = 0; i < 4; i++) {
+    Serial.println(i);
+    delay(100);
+  }
   int clearBus = I2C_ClearBus();
   if (clearBus != 0)
     while (true) {
@@ -155,7 +160,7 @@ void setup() {
       setupDelay(200);
     }
   randomSeed(analogRead(0));
-  countdownMS = Watchdog.enable(10000);
+  countdownMS = Watchdog.enable(WATCHDOG_TIMEOUT);
   myprintf(Serial, "Watchdog set, %d ms timeout\n", countdownMS);
 
   myprintf(Serial, "Free memory = %d\n", freeMemory());
@@ -166,11 +171,12 @@ void setup() {
   } else
     Serial.println("Skipping comm");
 
-
-  if (setupRadio())
-    Serial.println("radio found");
-  else
-    Serial.println("radio not found!");
+  if (true) {
+    if (setupRadio())
+      Serial.println("radio found");
+    else
+      Serial.println("radio not found!");
+  }
 
   if (useGPS) {
     if (setupGPS())
@@ -357,13 +363,15 @@ void generateReport() {
            adjustedHour(), minute(), second(), getAdjustedVolume());
   myprintf(Serial, "  %dms interrupt interval, %dus max interrupt time, %d max avail\n",
            longestInterval, maxInterruptTime, maxAvail);
-
   myprintf(Serial, "  Free memory = %d\n", freeMemory());
   if (MALL_SHEEP) {
     if (isOpen(true))
-      Serial.println("  Sheep is on");
+      myprintf(Serial, "  Sheep is on, touchTime = %d, time since last known touch %d\n",
+               combinedTouchDuration(WHOLE_BODY_SENSOR), timeSinceLastKnownTouch(WHOLE_BODY_SENSOR));
     else
-      Serial.println("  Sheep is off");
+      myprintf(Serial, "  Sheep is off, touchTime = %d, time since last known touch %d\n",
+               combinedTouchDuration(WHOLE_BODY_SENSOR), timeSinceLastKnownTouch(WHOLE_BODY_SENSOR));
+
   }
   if (thevol != INITIAL_AMP_VOL)
     myprintf(Serial, "  amplifier volume %d\n", thevol);
@@ -424,14 +432,37 @@ unsigned long lastLoop = 0;
 
 
 const uint16_t REPORT_INTERVAL = 10000;
+
+void considerReboot() {
+  if (!ampOn) {
+    unsigned long maxMinutesUptime = 5 * 60;
+    int minutes = minutesUntilOpen(false);
+
+    if (minutes >= 5 && minutes < 30)
+      maxMinutesUptime = 30;
+    int minutesUptime = millis() / 1000 / 60;
+    if (minutesUptime > maxMinutesUptime) {
+      Serial.println("Forcing reboot");
+      noInterrupts();
+      myprintf(logFile, "forcing reboot, %d minutes before open, %d minutes uptime\n",
+               minutes, maxMinutesUptime);
+      logFile.flush();
+      interrupts();
+      delay(WATCHDOG_TIMEOUT + 2000);
+    }
+
+  }
+}
 void loop() {
+  considerReboot();
   Watchdog.reset();
   interrupts();
+  if (!isOpen(false))
+    turnAmpOff();
   SheepInfo & me = getSheep();
   me.time = now();
   if (totalYield > 20 && printInfo()) {
     myprintf(Serial, "total yield %dms\n", totalYield);
-
   }
   totalYield = 0;
   me.uptimeMinutes = minutesUptime();

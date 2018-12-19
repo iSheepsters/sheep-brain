@@ -1,6 +1,6 @@
 #include <Adafruit_SleepyDog.h>
 
-const char * VERSION = "version as of 12/14/2018";
+const char * VERSION = "version as of 12/18/2018";
 
 #include<FastLED.h>
 
@@ -51,7 +51,7 @@ CRGB & getSheepLEDFor(uint8_t x, uint8_t y) {
   return leds[strip * NUM_LEDS_PER_STRIP + pos];
 }
 
-const uint8_t BRIGHTNESS_NORMAL = 200;
+const uint8_t BRIGHTNESS_NORMAL = 230;
 const uint8_t BRIGHTNESS_BORED = 160;
 
 #else
@@ -187,7 +187,8 @@ void loop() {
     if (!receivedMsg)
       Serial.println(" Have not received any messages");
     else
-      myprintf(" Received %d activity messages\n", activityReports);
+      myprintf(" Received %d activity messages, last %d minutes ago\n", 
+      activityReports, timeSinceLastMessage()/1000/60);
     myprintf(" currentEpoc %d, %dms to next epoc, %d feet to the man", animationEPOC,
              millisToChange,  (int) commData.feetFromMan);
     if (commData.haveFix)

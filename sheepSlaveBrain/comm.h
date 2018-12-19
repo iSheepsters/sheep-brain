@@ -2,6 +2,7 @@
 #include "printf.h"
 
 void setupComm();
+extern unsigned long timeSinceLastMessage();
 
 extern volatile boolean receivedMsg;
 extern unsigned long lastMsg;

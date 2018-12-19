@@ -3,9 +3,9 @@
 #include "GPS.h"
 #include "printf.h"
 
-bool isOpen(bool debug) {
+void getTimes(bool debug, time_t & time,   time_t &oTime, time_t &cTime) {
+  time = adjustedNow();
 
-  time_t time = adjustedNow();
   tmElements_t openAt;
   tmElements_t closeAt;
   breakTime(time, openAt);
@@ -74,7 +74,9 @@ bool isOpen(bool debug) {
           break;
         }
       case 25: {
-          return false;
+          openAt.Hour = 10;
+          closeAt.Hour = 9;
+          break;
         }
       case 26: {
           openAt.Hour = 8;
@@ -128,14 +130,26 @@ bool isOpen(bool debug) {
       openAt.Hour = 10; closeAt.Hour = 12 + 9; closeAt.Minute = 30;
     }
   }
-  time_t oTime = makeTime(openAt);
-  time_t cTime = makeTime(closeAt);
+  oTime = makeTime(openAt);
+  cTime = makeTime(closeAt);
+}
+
+
+int minutesUntilOpen(bool debug) {
+  time_t time, oTime, cTime;
+  getTimes(debug, time, oTime, cTime);
+  return (oTime - time) / 60;
+}
+
+bool isOpen(bool debug) {
+
+  time_t time, oTime, cTime;
+  getTimes(debug, time, oTime, cTime);
 
   if (debug) {
     myprintf(Serial, "open at: %d\n", oTime);
     myprintf(Serial, "close at: %d\n", cTime);
     myprintf(Serial, "now: %d\n", time);
-    myprintf(Serial, "Date: %d/%d\n", thisMonth, thisDay);
 
     if (oTime  > time)
 
