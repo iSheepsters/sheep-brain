@@ -4,7 +4,7 @@ const char * VERSION = "version as of 12/18/2018";
 
 #include<FastLED.h>
 
-//#define STANDARD_SHEEP
+#define STANDARD_SHEEP
 
 #include "all.h"
 #include "comm.h"

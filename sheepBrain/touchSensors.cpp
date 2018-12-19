@@ -456,9 +456,10 @@ void updateTouchData() {
       myprintf(Serial, "turning on touch, CDCx = %d, CDTx = %d\n",
                CDCx_value(WHOLE_BODY_SENSOR),  CDTx_value(WHOLE_BODY_SENSOR));
   }
-  if (touchDisabled()) {
+  if (touchDisabled() && millis() > 20 * 1000) {
     if (timeSinceLastKnownUntouch(WHOLE_BODY_SENSOR) > 200 * 1000
-        || timeSinceLastKnownTouch(WHOLE_BODY_SENSOR) > 200 * 1000)  {
+        || timeSinceLastKnownTouch(WHOLE_BODY_SENSOR) > 200 * 1000
+        || stableValue[WHOLE_BODY_SENSOR] < 450)  {
       if (!wasDisabled) {
         // just became disabled
         startedReboot = now;
@@ -696,6 +697,7 @@ void logTouchConfiguration() {
     logFile.print(", ");
   }
   logFile.println();
+  optionalFlush();
   interrupts();
 }
 void changeMode(uint8_t newMode) {
