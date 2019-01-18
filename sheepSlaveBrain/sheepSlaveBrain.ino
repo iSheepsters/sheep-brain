@@ -184,11 +184,15 @@ void loop() {
     myprintf( "sheepSlaveBrain  sheep %d, state %d:%d, %d/%d, %d:%02d:%02d\n",
               commData.sheepNum,
               currState, commData.activated, month(), day(), hour(), minute(), second());
+    int minutesSinceLastMessage = timeSinceLastMessage() / 1000 / 60;
     if (!receivedMsg)
       Serial.println(" Have not received any messages");
     else
-      myprintf(" Received %d activity messages, last %d minutes ago\n", 
-      activityReports, timeSinceLastMessage()/1000/60);
+      myprintf(" Received %d activity messages, last %d minutes ago\n",
+               activityReports, minutesSinceLastMessage);
+
+    if (!receivedMsg || minutesSinceLastMessage > 5)
+      commData.activated = Active;
     myprintf(" currentEpoc %d, %dms to next epoc, %d feet to the man", animationEPOC,
              millisToChange,  (int) commData.feetFromMan);
     if (commData.haveFix)
