@@ -176,6 +176,7 @@ void applyAndFadeFlash() {
             hsv.s = 0;
           else hsv.s = value;
         }
+        hsv.s = hsv.s / 2;
       } else {
         // inactive, not showing animations, just colored tracers
         hsv = CHSV(h, 255, v);
@@ -236,15 +237,27 @@ void rightLights() {
     getSheepLEDFor( QUARTER_GRID_WIDTH + HALF_GRID_WIDTH - 1, y)
       = pettingOnly() ? CRGB::Pink : CRGB::LightGrey;
 }
+int backLightPosOff = 0;
+const int backLightSlowdown = 32;
+const int backLightStart = 4;
+const int backLightReadyToRide = midSaddle - 2;
 void backLights() {
   // back side
   int q = commData.backTouchQuality + commData.headTouchQuality / 4;
-
+  int start = commData.state == ReadyToRide
+              ? backLightReadyToRide : backLightStart;
   //myprintf("Back lights %d\n", q);
-  for (int y = -4; y <=  4; y++) {
+  for (int y = -start; y <=  start; y++) {
     int brightness = 250 - abs(y) * 130 + q * 25;
     brightness = max(0, min(255, brightness));
     if (y == 0) brightness = 255;
+    if (commData.state == ReadyToRide) {
+      if (abs(y) == backLightPosOff / backLightSlowdown)
+        brightness = 0;
+      backLightPosOff = backLightPosOff - 1;
+      if (backLightPosOff <= 0)
+        backLightPosOff = backLightReadyToRide * backLightSlowdown;
+    }
     for (int x = HALF_GRID_WIDTH - 1; x <= HALF_GRID_WIDTH; x++)
       getSheepLEDFor(x, y + midSaddle) = CRGB(brightness, brightness, brightness);
   }
@@ -332,15 +345,15 @@ void overlays(boolean receivedMsg) {
     updateTracers();
     applyAndFadeFlash();
     if (timeSinceLastMessage() > 10 * 1000) {
-        for (int x = HALF_GRID_WIDTH - 2; x <= HALF_GRID_WIDTH + 1; x++)
-          getSheepLEDFor(x, 2) = CRGB::Red;
+      for (int x = HALF_GRID_WIDTH - 2; x <= HALF_GRID_WIDTH + 1; x++)
+        getSheepLEDFor(x, 2) = CRGB::Red;
     } else {
       if (commData.state == Violated) {
         violatedLights();
       }
       uint8_t touchData = commData.currTouched;
 
-      if (false) {
+      if (true) {
         if (touchData & 0x1)
           privateLights();
         if (touchData & 0x2)
@@ -356,7 +369,7 @@ void overlays(boolean receivedMsg) {
         backLights();
 
       if (commData.state == Attentive) {
-        for (int x = HALF_GRID_WIDTH - 2; x <= HALF_GRID_WIDTH + 1; x++)
+        for (int x = HALF_GRID_WIDTH - 1; x <= HALF_GRID_WIDTH + 0; x++)
           getSheepLEDFor(x, 2) = CRGB::White;
       }
     }
