@@ -3,10 +3,13 @@
 | Value | Description |
 | --- | --- |
 | sheepNum | the number for the sheep voices |
+| stable sensor value | if non-zero, use as stable value
 | privates enabled | if non-zero, private sensor is enabled
 | R rated | if non-zero, R rated sounds enabled
 | default volume | 0 - 63, 63 is maximum, 0 is silent, 50 is a typical loud volume
-| time zone offset | difference from EST
+| min sound delay | minimum delay in seconds between sound clips (suggest 12)
+| max sound delay | maximum delay in seconds between sound clips (suggest 25)
+| time zone offset | difference from ET
 | # time periods | the number of lines each containing the following fields 
 | start duration volume | start is the starting o’clock in EST (0-23) for a volume reduction, duration is the number of hours, volume in that window
 
@@ -15,7 +18,10 @@ For example, the following config file
 1
 0
 0
+0
 48
+12
+25
 0
 1
 22 10 40
@@ -26,6 +32,7 @@ Specifies the following:
 * privates not enabled
 * R-rated sounds not enabled
 * default volume of 48
+* delay until next sound of 1/2 duration of previous clip plus 12-25 seconds
 * no time zone offset (use EST)
 * 1 time period offset
  * If time is between 10pm and 8am, use a volume of 40
