@@ -86,7 +86,7 @@ boolean definitivelyRiding() {
 boolean isTouched() {
   if (millis() < 10000) return false;
   if (MALL_SHEEP) {
-    return  touchDuration(WHOLE_BODY_SENSOR) > 400;
+    return  touchDuration(WHOLE_BODY_SENSOR) > 100;
   }
   boolean result =  touchDuration(BACK_SENSOR) > 400
                     ||  touchDuration(RUMP_SENSOR) > 400  ||  touchDuration(HEAD_SENSOR) > 400;
@@ -109,7 +109,7 @@ boolean isIgnored() {
     return false;
   if (MALL_SHEEP)
     return untouchDuration(WHOLE_BODY_SENSOR) > 10000
-           && timeSinceLastKnownTouch(WHOLE_BODY_SENSOR) > 30000;
+           && timeSinceLastKnownTouch(WHOLE_BODY_SENSOR) > 20000;
 
   return untouchDuration(BACK_SENSOR) > 15000
          && untouchDuration(HEAD_SENSOR) > 15000
@@ -142,6 +142,23 @@ boolean wouldInterrupt() {
 
 unsigned long next_sheep_switch = minutesPerSheep * 60 * 1000L;
 
+uint16_t secondsInState(SheepState & state) {
+  if (currentSheepState == &state) {
+    return (millis() - timeEnteredCurrentState + state.timeInState) / 1000;
+
+  }
+  return state.timeInState / 1000;
+}
+void logState() {
+  myprintf(logFile, "X, %d, %d, %d, %d\n",
+           boredState.timeStateStarted, secondsInState(boredState),
+           attentiveState.timeStateStarted, secondsInState(attentiveState));
+  boredState.timeStateStarted = 0;
+  boredState.timeInState = 0;
+  attentiveState.timeStateStarted = 0;
+  attentiveState.timeStateStarted = 0;
+}
+
 void updateState() {
 
   unsigned long ms = millis();
@@ -149,7 +166,8 @@ void updateState() {
   if (privateTouchFade < ms) {
     if (privateTouchLoad > 0) {
       privateTouchLoad--;
-      myprintf(Serial, "reducing private touch load to %d\n", privateTouchLoad);
+      if (printInfo())
+        myprintf(Serial, "reducing private touch load to %d\n", privateTouchLoad);
 
     }
     privateTouchFade = ms + 2 * 60 * 1000;
@@ -158,23 +176,26 @@ void updateState() {
   if (privateSensorEnabled() && touchDuration(PRIVATES_SENSOR) > 1000 && ms > lastPrivateTouch + 3000
       && !(currentSoundPriority == 4 && currentSoundFile != NULL)) {
     privateTouchLoad++;
-    myprintf(Serial, "new private touch, current load = %d\n", privateTouchLoad);
+    if (printInfo()) myprintf(Serial, "new private touch, current load = %d\n", privateTouchLoad);
     if (privateTouchLoad > 6) {
       privateTouchDisabledUntil = ms + 10 * 60 * 1000;
-      Serial.println("private touch disabled");
+      if (printInfo()) Serial.println("private touch disabled");
     } else {
       lastPrivateTouch = ms;
       privateTouches++;
-
-      myprintf(Serial, "inappropriate touch duration %d, num inappropriate touches = %d\n",
-               touchDuration(PRIVATES_SENSOR), privateTouches);
-      myprintf(Serial, "current value = %d, stable value = %d\n",
-               cap.filteredData((uint8_t) PRIVATES_SENSOR), stableValue[PRIVATES_SENSOR]);
+      if (printInfo()) {
+        myprintf(Serial, "inappropriate touch duration %d, num inappropriate touches = %d\n",
+                 touchDuration(PRIVATES_SENSOR), privateTouches);
+        myprintf(Serial, "current value = %d, stable value = %d\n",
+                 cap.filteredData(offsetToFirstSensor+(uint8_t) PRIVATES_SENSOR), stableValue[PRIVATES_SENSOR]);
+      }
       inappropriateTouchSounds.playSound(ms, false);
 
       if (privateTouches >= 2 && currentSheepState != &violatedState) {
         becomeViolated();
+        currentSheepState->timeInState += (ms - timeEnteredCurrentState);
         currentSheepState = &violatedState;
+        currentSheepState->timeStateStarted++;
         timeEnteredCurrentState = ms;
         return;
       }
@@ -186,8 +207,9 @@ void updateState() {
 
   SheepState * newState = currentSheepState->update();
   if (newState != currentSheepState) {
-    // got an update
+    currentSheepState->timeInState += (ms - timeEnteredCurrentState);
 
+    // got an update
     if (printInfo()) {
       myprintf(Serial, "State changed from %s to %s\n", currentSheepState->name, newState->name);
       if (MALL_SHEEP) {
@@ -223,9 +245,11 @@ void updateState() {
       if (newState == &violatedState)
         nextAmbientSound = ms + msToNextSoundMin;
       else
-        nextAmbientSound = ms +  random(msToNextSoundMin, msToNextSoundMax);
+        nextAmbientSound = ms + random(msToNextSoundMin, msToNextSoundMax);
     }
+
     currentSheepState = newState;
+    currentSheepState->timeStateStarted++;
     timeEnteredCurrentState = ms;
   } else if (minutesPerSheep > 0 && next_sheep_switch < ms && !musicPlayer.playingMusic && !wouldInterrupt()) {
     sheepNumber = sheepToSwitchTo(sheepNumber);
@@ -244,6 +268,8 @@ void updateState() {
 }
 
 boolean SheepState::playAmbientSound(unsigned long now) {
+  if (!generalSounds.available())
+    return ambientSounds.playSound(now, true);
   int roll = random(10);
   if (printInfo()) {
     myprintf(Serial, "ambient/general roll: %d\n", roll);
@@ -264,7 +290,12 @@ SheepState * BoredState::update() {
   if (privateTouches == 0 && maybeRiding() && millis() - lastReadyToRide < 8000)
     return &ridingState;
   if (isTouched()) {
-    if (!MALL_SHEEP && random(100) < 20 && secondsSinceEnteredCurrentState() > 30) {
+    int r = random(100);
+     if (printInfo())
+        myprintf(Serial, "not in the mood dice roll is %d, seconds since entered is %d\n",
+        r, secondsSinceEnteredCurrentState());
+      
+    if (!MALL_SHEEP && r < 20 && secondsSinceEnteredCurrentState() > 30) {
       int notInTheMood = (random(30, 60) + random(20, 100));
       if (printInfo())
         myprintf(Serial, "not in the mood for %d seconds\n", notInTheMood);
@@ -362,7 +393,7 @@ unsigned long nextViolationDebug = 0;
 SheepState * ViolatedState::update() {
   boolean debug = false;
   if (debug_violation && nextViolationDebug < millis()) {
-    debug = true;
+    debug = printInfo();
     nextViolationDebug = nextViolationDebug + 2000;
   }
   int t = untouchDurationPrivates();

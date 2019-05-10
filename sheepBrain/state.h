@@ -18,12 +18,15 @@ extern unsigned long timeEnteredCurrentState;
 
 extern void setupState();
 extern void updateState();
+extern void logState();
 extern boolean privateSensorEnabled();
 class SheepState {
   public:
     virtual SheepState * update() = 0;
     const char * const name;
     const enum State state;
+    uint16_t timeStateStarted = 0;
+    unsigned long timeInState = 0;
 
     SoundCollection & ambientSounds;
     SoundCollection & getInitialSounds() {

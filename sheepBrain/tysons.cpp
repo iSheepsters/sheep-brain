@@ -2,6 +2,7 @@
 #include <TimeLib.h>
 #include "GPS.h"
 #include "printf.h"
+#include "tysons.h"
 
 void getTimes(bool debug, time_t & time,   time_t &oTime, time_t &cTime) {
   time = adjustedNow();
@@ -17,9 +18,12 @@ void getTimes(bool debug, time_t & time,   time_t &oTime, time_t &cTime) {
   int thisMonth = month(time);
   int thisDay = day(time);
   if (debug) {
-    myprintf(Serial, "isOpen %d %d\n", thisMonth, thisDay);
+    myprintf(Serial, "isOpen %d/%d/%d %2d:%2d%2d\n", 
+    thisMonth, thisDay, year(time), hour(time), minute(time), second(time));
   }
-  if (thisMonth == 1 and thisDay == 1) {
+  if (thisMonth == 1 && thisDay == 6) {
+    openAt.Hour = 9; closeAt.Hour = 12 + 7;
+  } else if (thisMonth == 1 and thisDay == 1) {
     openAt.Hour = 10; closeAt.Hour = 6;
   } else if (thisMonth == 12)
     switch (thisDay) {
@@ -134,15 +138,38 @@ void getTimes(bool debug, time_t & time,   time_t &oTime, time_t &cTime) {
   cTime = makeTime(closeAt);
 }
 
-
 int minutesUntilOpen(bool debug) {
   time_t time, oTime, cTime;
   getTimes(debug, time, oTime, cTime);
   return (oTime - time) / 60;
 }
 
-bool isOpen(bool debug) {
+bool isShutdown(bool debug) {
+  if (timeStatus() != timeSet)
+    return false;
+  if (!MALL_SHEEP)
+    return false;
+  time_t time, oTime, cTime;
+  getTimes(debug, time, oTime, cTime);
+  int minutesBeforeOpening = (oTime - time) / 60;
+  int minutesAfterClosing = -(cTime - time) / 60;
+  if (debug)
+    myprintf(Serial, "checking for shutdown, %d minutes before opening, %d minutes after closing\n",
+             minutesBeforeOpening, minutesAfterClosing);
+  if (isOpen(false))
+    return false;
+  if (minutesBeforeOpening > 60)
+    return true;
+  if (minutesAfterClosing > 120)
+    return true;
+  return false;
+}
 
+bool isOpen(bool debug) {
+  if (timeStatus() != timeSet)
+    return true;
+  if (!MALL_SHEEP)
+    return true;
   time_t time, oTime, cTime;
   getTimes(debug, time, oTime, cTime);
 

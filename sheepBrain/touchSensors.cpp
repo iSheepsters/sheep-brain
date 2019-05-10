@@ -33,10 +33,11 @@ uint16_t filteredValue[numTouchSensors];
 unsigned long lastResetOf[numTouchSensors];
 
 
-const int HISTOGRAM_SIZE = 1024;
-uint16_t histogram[HISTOGRAM_SIZE];
-const uint8_t histogramSensor = 7;
-uint16_t histogramCount = 0;
+const int HISTOGRAM_SCALE = 2;
+const int HISTOGRAM_SIZE = 1024 / HISTOGRAM_SCALE;
+
+uint16_t histogram[numTouchSensors][HISTOGRAM_SIZE];
+uint16_t histogramCount[numTouchSensors];
 
 uint16_t currTouched;
 const int RING_BUFFER_SIZE = 4;
@@ -47,7 +48,7 @@ uint8_t ringBufferPos = 0;
 uint8_t ringBufferFill = 0;
 
 uint16_t numSamples = 0;
-const boolean DISABLE_TOUCH_DURING_SOUND = true;
+const boolean DISABLE_TOUCH_DURING_SOUND = MALL_SHEEP;
 
 const uint16_t resetSensorsInterval = 15000;
 unsigned long nextSensorResetInterval = 0;
@@ -86,7 +87,7 @@ boolean isTouched(enum TouchSensor sensor) {
 
 
 uint16_t stableV(int i) {
-  if (STABLE_VALUE != 0)
+  if (false && STABLE_VALUE != 0)
     return STABLE_VALUE;
   return stableValue[i];
 }
@@ -103,6 +104,7 @@ uint8_t swapLeftRightSensors(uint8_t touched) {
 }
 
 uint8_t CDTx_value(uint8_t addr) {
+  addr += offsetToFirstSensor;
   uint8_t value = cap.readRegister8(0x6C + addr / 2);
   if (addr % 2 == 0)
     return value & 0x07;
@@ -114,7 +116,7 @@ uint8_t CDTx_value(enum TouchSensor sensor) {
 }
 
 uint8_t CDCx_value(uint8_t sensor) {
-  return cap.readRegister8(0x5f + sensor) & 0x3f;
+  return cap.readRegister8(0x5f + offsetToFirstSensor + sensor) & 0x3f;
 }
 uint8_t CDCx_value(enum TouchSensor sensor) {
   return CDCx_value((uint8_t) sensor);
@@ -141,6 +143,7 @@ void setupTouch() {
     lastTouchStarted[t] = 0;
     lastUntouchedStarted[t] = 0;
     lastResetOf[t] = 0;
+    histogramCount[t] = 0;
   }
   Serial.println("Applying configuration");
   mySetup();
@@ -148,7 +151,7 @@ void setupTouch() {
   dumpConfiguration();
   checkValid();
   for (int i = firstTouchSensor; i < numTouchSensors; i++) {
-    uint16_t value = cap.filteredData(i);
+    uint16_t value = cap.filteredData(offsetToFirstSensor + i);
     if (!valid[i])
       myprintf(Serial, "sensor %d not connected\n", i);
     else if (value > 10)
@@ -183,7 +186,7 @@ void dumpTouchData() {
       dumpTouchData(i);
   } else
     for (int i = 0; i < 6; i++) {
-      Serial.print(cap.filteredData(i) - stableV(i));
+      Serial.print(cap.filteredData(offsetToFirstSensor + i) - stableV(i));
       Serial.print("  ");
     }
   Serial.println();
@@ -195,26 +198,27 @@ void wasTouchedInappropriately() {
 }
 
 uint8_t touchThreshold(uint8_t i) {
+  if (MALL_SHEEP) {
+    return 16;
+  }
   enum TouchSensor sensor = (TouchSensor) i;
   switch (sensor) {
     case HEAD_SENSOR:
-      return 3;
+      return 6;
     case LEFT_SENSOR:
     case RIGHT_SENSOR:
-      return 5;
+      return 15;
     case PRIVATES_SENSOR:
-      return 10;
-    case WHOLE_BODY_SENSOR:
-      return 25;
+      return 20;
     case BACK_SENSOR:
     case RUMP_SENSOR:
     default:
-      return 10;
+      return 15;
   }
 }
 
 int16_t sensorValue(enum TouchSensor sensor) {
-  int value = cap.filteredData((uint8_t) sensor);
+  int value = cap.filteredData(offsetToFirstSensor + (uint8_t) sensor);
   if (value < 10) return 0;
   return value - ( stableValue[sensor] - touchThreshold((uint8_t)sensor));
 }
@@ -246,177 +250,158 @@ void resetStableValue(int sensor) {
 
 uint16_t resetCount = 0;
 void considerResettingTouchSensors() {
-  if (numSamples < 20)
-    return;
-  uint16_t histogramPercentiles[11];
-  int countSoFar = 0;
-  if (false) {
-    for (int i = 0; i < HISTOGRAM_SIZE; i++) {
 
-      countSoFar += histogram[i];
-      myprintf(Serial, "%4d %4d\n", i, countSoFar);
+  if (touchDisabled())
+    return;
+    
+   if (numSamples < 20) {
+    if (printInfo()) {
+      myprintf(Serial,"Only %d samples, not resetting\n", numSamples);
     }
-    Serial.println();
-  }
-  int pos = 0;
-  countSoFar = 0;
-  while (pos < HISTOGRAM_SIZE && histogram[pos] == 0) pos++;
-  histogramPercentiles[0] = pos;
-  for (int i = 1; i <= 10; i++) {
-    while (countSoFar < i * histogramCount / 10 && pos < HISTOGRAM_SIZE)  {
-      countSoFar += histogram[pos];
-      histogram[pos++] = 0;
+    return;
+   }
+
+  uint16_t histogramPercentiles[numTouchSensors][11];
+
+  for (int t = firstTouchSensor; t <= lastTouchSensor; t++) {
+    int countSoFar = 0;
+    int pos = 0;
+    while (pos < HISTOGRAM_SIZE && histogram[t][pos] == 0) pos++;
+    histogramPercentiles[t][0] = pos * HISTOGRAM_SCALE + HISTOGRAM_SCALE / 2;
+    for (int i = 1; i <= 10; i++) {
+      while (countSoFar < i * histogramCount[t] / 10 && pos < HISTOGRAM_SIZE)  {
+        countSoFar += histogram[t][pos];
+        histogram[t][pos++] = 0;
+      }
+      histogramPercentiles[t][i] = pos * HISTOGRAM_SCALE + HISTOGRAM_SCALE / 2;
     }
-    histogramPercentiles[i] = pos;
+    while (pos < HISTOGRAM_SIZE)
+      histogram[t][pos++] = 0;
   }
-  while (pos < HISTOGRAM_SIZE)
-    histogram[pos++] = 0;
 
   boolean allStable = true;
   int potentialMaxChange = 0;
-  int firstSensor = MALL_SHEEP ? 7 : 0;
   sendSubActivity(10);
-  if (!MALL_SHEEP)
-    for (int i = firstSensor; i < numTouchSensors; i++) {
-      if (i != LEFT_SENSOR && i != RIGHT_SENSOR && !isStable(i))
-        allStable = false;
-      potentialMaxChange = max(potentialMaxChange, abs(stableV(i) - (minRecentValue[i] - 1)));
-    }
+  //  if (!MALL_SHEEP)
+  //    for (int i = firstTouchSensor; i <= lastTouchSensor; i++) {
+  //      if (i != LEFT_SENSOR && i != RIGHT_SENSOR && !isStable(i))
+  //        allStable = false;
+  //      potentialMaxChange = max(potentialMaxChange, abs(stableV(i) - (minRecentValue[i] - 1)));
+  //    }
 
-  if (printInfo() && histogramCount > 0 && !musicPlayer.playingMusic) {
-    myprintf(Serial, "histogram with %d values, stableValue %d\n", stableV(histogramSensor));
-
+  if (printInfo() ) {
     noInterrupts();
+    for (int t = firstTouchSensor; t <= lastTouchSensor; t++) {
 
-    myprintf(logFile, "H, %d, ", stableV(histogramSensor));
-    // show histogram
+      myprintf(Serial, "histogram for %d, stableValue %d\n",
+               t, stableV(t));
 
-    for (int i = 0; i <= 10; i++) {
-      while (countSoFar < i * histogramCount / 10 && pos < HISTOGRAM_SIZE)  {
-        countSoFar += histogram[pos];
-        histogram[pos++] = 0;
+      myprintf(logFile, "H, %d, %d, ", t, stableV(t));
+      // show histogram
+
+      for (int i = 0; i <= 10; i++) {
+
+        myprintf(Serial, "%2d%% %3d \n", i * 10, histogramPercentiles[t][i]);
+        myprintf(logFile, "%d, ", histogramPercentiles[t][i]);
       }
-      myprintf(Serial, "%2d%% %3d \n", i * 10, histogramPercentiles[i]);
-      myprintf(logFile, "%d, ", histogramPercentiles[i]);
-    }
 
-    logFile.println();
-    interrupts();
+      logFile.println();
+      logState();
+
+      interrupts();
+    }
 
   }
 
   sendSubActivity(11);
-  if (!musicPlayer.playingMusic) {
-    noInterrupts();
-    if (allStable)
-      logFile.print("S,");
-    else
-      logFile.print("U,");
-    logFile.print(potentialMaxChange);
-    logFile.print(",  ");
-    sendSubActivity(21);
-    int start = MALL_SHEEP ? 7 : 0;
-    for (int i = firstSensor; i < numTouchSensors; i++) {
-      logFile.print(minRecentValue[i]);
-      logFile.print(",");
 
-      logFile.print(maxRecentValue[i]);
-      logFile.print(",");
-      logFile.print(stableV(i));
-      logFile.print(",");
-      logFile.print(timeSinceLastKnownTouch((enum TouchSensor)i) / 1000);
-      logFile.print(", ");
-      logFile.print(timeSinceLastKnownUntouch((enum TouchSensor)i) / 1000);
-      logFile.print(", ");
-    }
-    sendSubActivity(22);
-    logFile.println();
-    interrupts();
+  noInterrupts();
+  if (allStable)
+    logFile.print("S,");
+  else
+    logFile.print("U,");
+  logFile.print(potentialMaxChange);
+  logFile.print(",  ");
+  sendSubActivity(21);
+  int start = MALL_SHEEP ? 7 : 0;
+  for (int i = firstTouchSensor; i <= lastTouchSensor; i++) {
+    logFile.print(minRecentValue[i]);
+    logFile.print(",");
 
-    if (false) {
-      sendSubActivity(12);
-      optionalFlush();
-    }
+    logFile.print(maxRecentValue[i]);
+    logFile.print(",");
+    logFile.print(stableV(i));
+    logFile.print(",");
+    logFile.print(timeSinceLastKnownTouch((enum TouchSensor)i) / 1000);
+    logFile.print(", ");
+    logFile.print(timeSinceLastKnownUntouch((enum TouchSensor)i) / 1000);
+    logFile.print(", ");
   }
+  sendSubActivity(22);
+  logFile.println();
+  interrupts();
 
-  if (MALL_SHEEP) {
-    int now = millis();
-    int age = (now - lastResetOf[WHOLE_BODY_SENSOR]) / 1000;
+  int now = millis();
+  for (int t = firstTouchSensor; t <= lastTouchSensor; t++) {
+
+
+
+
+    int age = (now - lastResetOf[t]) / 1000;
     int lowBucket = 2;
     int highBucket = 8;
-    if ( stableValue[WHOLE_BODY_SENSOR] < histogramPercentiles[highBucket]) {
+    int secondsTouch = touchDuration((TouchSensor)t) / 1000;
+    int secondsUntouch = untouchDuration((TouchSensor)t) / 1000;
+    if ( stableValue[t] < histogramPercentiles[t][highBucket]) {
       if (age > 10 * 60)
         lowBucket = 6;
       else if (age > 2 * 60)
         lowBucket = 4;
     }
-    int range = min(800, histogramPercentiles[highBucket]) - histogramPercentiles[lowBucket];
+    int range = min(800, histogramPercentiles[t][highBucket]) - histogramPercentiles[t][lowBucket];
     if (printInfo()) {
-      myprintf(Serial, "Mall consider touch reset(%d%%, %d secs) : %3d, %3d...%3d, %3d\n",
-               lowBucket * 10,
+      myprintf(Serial, "consider touch reset of %d(%d%%, %d secs) : %3d, %3d...%3d, %3d\n",
+               t, lowBucket * 10,
                age,
-               stableValue[WHOLE_BODY_SENSOR], histogramPercentiles[lowBucket],
-               histogramPercentiles[highBucket], range);
+               stableValue[t], histogramPercentiles[t][lowBucket],
+               histogramPercentiles[t][highBucket], range);
     }
-    int oldStableValue = stableValue[WHOLE_BODY_SENSOR];
-    if (range < touchThreshold(WHOLE_BODY_SENSOR) / 2) {
-      stableValue[WHOLE_BODY_SENSOR] = min(histogramPercentiles[lowBucket], 800);
-      lastResetOf[WHOLE_BODY_SENSOR] = now;
-      if (oldStableValue != stableValue[WHOLE_BODY_SENSOR] && printInfo())
-        myprintf(Serial, "stable value reset to %d\n",  stableValue[WHOLE_BODY_SENSOR] );
-    } else if (false && histogramPercentiles[highBucket] < stableValue[WHOLE_BODY_SENSOR]) {
-      stableValue[WHOLE_BODY_SENSOR] = histogramPercentiles[highBucket];
-      lastResetOf[WHOLE_BODY_SENSOR] = now;
-      if (oldStableValue != stableValue[WHOLE_BODY_SENSOR] && printInfo())
-        myprintf(Serial, "unstable, but too high, stable value reset to %d\n",  stableValue[WHOLE_BODY_SENSOR] );
+    int oldStableValue = stableValue[t];
+    bool inRange = range < touchThreshold(t) / 2 + HISTOGRAM_SIZE;
+    
+    if (inRange
+        || stableValue[t] < histogramPercentiles[t][0] && secondsUntouch > 60 ) {
+      if (!inRange && histogramPercentiles[t][highBucket - 1] <= stableValue[t] && secondsTouch < 120) {
+        if (printInfo())
+          myprintf(Serial,
+                   "for sensor %d, stableValue = %d, high bucket = %d, been touched for only %d seconds, ignoring\n",
+                   t, stableValue[t], histogramPercentiles[t][highBucket], secondsTouch);
+
+        continue;
+      }
+      stableValue[t] = min(histogramPercentiles[t][lowBucket], 800);
+      lastResetOf[t] = now;
+      if (oldStableValue != stableValue[t] && printInfo())
+        myprintf(Serial, "stable value of %d reset to %d\n", t, stableValue[t] );
+    } else if (false && histogramPercentiles[t][highBucket] < stableValue[t]) {
+      stableValue[t] = histogramPercentiles[t][highBucket];
+      lastResetOf[t] = now;
+      if (oldStableValue != stableValue[t] && printInfo())
+        myprintf(Serial, "unstable, but too high, stable value reset to %d\n",  stableValue[t] );
     }
-    if (!musicPlayer.playingMusic && oldStableValue != stableValue[WHOLE_BODY_SENSOR]) {
+    if (oldStableValue != stableValue[t]) {
       noInterrupts();
-      myprintf(logFile, "TR, %d, %d, %d, %d, %d\n", age, oldStableValue, stableValue[WHOLE_BODY_SENSOR],
-               histogramPercentiles[lowBucket],
-               histogramPercentiles[highBucket]);
+      myprintf(logFile, "TR, %d, %d, %d, %d, %d, %d\n", t, age, oldStableValue, stableValue[t],
+               histogramPercentiles[t][lowBucket],
+               histogramPercentiles[t][highBucket]);
       interrupts();
 
     }
-
-  } else {
-    if (allStable || resetCount == 0) {
-      sendSubActivity(13);
-      resetCount++;
-      if (potentialMaxChange > 0) {
-        lastReset = millis();
-        if (printInfo()) {
-          if (allStable)
-            myprintf(Serial, "All stable, change of %d, reset #%d\n", potentialMaxChange, resetCount);
-          else
-            myprintf(Serial, "First reset, change of %d\n", potentialMaxChange);
-        }
-
-        for (int i = firstTouchSensor; i < numTouchSensors; i++) {
-          resetStableValue(i);
-        };
-      } else if  (potentialMaxChange == 0) {
-        if (printInfo())
-          Serial.println("Touch sensors stable and unchanged");
-      }
-    } else {
-      sendSubActivity(14);
-      for (int i = firstTouchSensor; i < numTouchSensors; i++)  if (isStable(i)) {
-          int touchSeconds = touchDuration((enum TouchSensor) i);
-          if (touchSeconds > 5 * 60 && maxRecentValue[i] < stableV(i)) {
-            if (printInfo())
-              myprintf(Serial, "Sensor %d stable, touched for %d seconds, recent values %d - %d, stableValue %d, resetting\n",
-                       i, touchSeconds, minRecentValue[i], maxRecentValue[i], stableV(i));
-            resetStableValue(i);
-          }
-        }
-    }
   }
-
-  histogramCount = 0;
 
   sendSubActivity(15);
   for (int i = firstTouchSensor; i < numTouchSensors; i++) {
+    histogramCount[i] = 0;
     minRecentValue[i] = maxRecentValue[i] = filteredValue[i];
   };
 }
@@ -437,9 +422,11 @@ uint8_t ringBufferTouches(int i) {
 }
 
 void clearHistogram() {
-  histogramCount = 0;
-  for (int i = 0; i <= HISTOGRAM_SIZE; i++)
-    histogram[i] = 0;
+  for (int t = firstTouchSensor; t < numTouchSensors; t++) {
+    histogramCount[t] = 0;
+    for (int i = 0; i <= HISTOGRAM_SIZE; i++)
+      histogram[t][i] = 0;
+  }
 }
 
 void updateTouchData() {
@@ -456,7 +443,8 @@ void updateTouchData() {
       myprintf(Serial, "turning on touch, CDCx = %d, CDTx = %d\n",
                CDCx_value(WHOLE_BODY_SENSOR),  CDTx_value(WHOLE_BODY_SENSOR));
   }
-  if (touchDisabled() && millis() > 20 * 1000) {
+
+  if (MALL_SHEEP && touchDisabled() && millis() > 20 * 1000) {
     if (timeSinceLastKnownUntouch(WHOLE_BODY_SENSOR) > 200 * 1000
         || timeSinceLastKnownTouch(WHOLE_BODY_SENSOR) > 200 * 1000
         || stableValue[WHOLE_BODY_SENSOR] < 450)  {
@@ -479,8 +467,8 @@ void updateTouchData() {
     ringBufferPos = 0;
   } else {
     wasDisabled = false;
-    for (int i = firstTouchSensor; i < numTouchSensors; i++) if (valid[i]) {
-        uint16_t value = cap.filteredData(i);
+    for (int i = firstTouchSensor; i <= lastTouchSensor; i++) if (valid[i]) {
+        uint16_t value = cap.filteredData(offsetToFirstSensor + i);
         if (value < 2) continue;
         currentValue[i] = value;
         if (numSamples == 0)
@@ -493,10 +481,10 @@ void updateTouchData() {
         int16_t delta = value - (stableV(i) - threshold);
         ringBuffer[i][ringBufferPos] = delta;
         if (numSamples > 5 ) {
-          int v = filteredValue[i];
-          if (i == histogramSensor && histogramCount < 0xff00 && v >= 0 && v < HISTOGRAM_SIZE) {
-            histogram[v]++;
-            histogramCount++;
+          int v = filteredValue[i] / HISTOGRAM_SCALE;
+          if (histogramCount[i] < 0xff00 && v >= 0 && v < HISTOGRAM_SIZE) {
+            histogram[i][v]++;
+            histogramCount[i]++;
           }
           if (minRecentValue[i] == 0 )
             minRecentValue[i] = filteredValue[i];
@@ -546,19 +534,13 @@ void updateTouchData() {
   }
   sendSubActivity(5);
   if (debugTouch || plotTouch) {
-    int start, end;
-    if (MALL_SHEEP) {
-      start = end = WHOLE_BODY_SENSOR;
-    } else {
-      start = PRIVATES_SENSOR;
-      end = HEAD_SENSOR;
-    }
+
     if (plotTouch) {
-      for (int i = start; i <= end; i++) {
-        int v =  touchDisabled() ? (inReboot ? 500 : cap.filteredData(i)) : filteredValue[i];
-        if (false)
-          myprintf(Serial, "%3d ", v);
-        else myprintf(Serial, "%3d %3d %3d %3d %3d ", stableValue[i],
+      for (int i = firstTouchSensor; i <= lastTouchSensor; i++) {
+        int v =  touchDisabled() ? (inReboot ? 500 : cap.filteredData(offsetToFirstSensor + i)) : filteredValue[i];
+        if (!MALL_SHEEP)
+          myprintf(Serial, "%3d %3d  ", stableValue[i], v);
+        else myprintf(Serial, "%3d %3d %3d %3d %3d  ", stableValue[i],
                         tripValue(i),
                         v,
                         425 + min(600, touchDuration((TouchSensor)i) / 20),
@@ -572,7 +554,7 @@ void updateTouchData() {
     } else {
       Serial.print("TD ");
       myprintf(Serial, "%2x ", currTouched);
-      for (int i = start; i <= end; i++) {
+      for (int i = firstTouchSensor; i <= lastTouchSensor; i++) {
         Serial.print(isTouched((TouchSensor)i) ? "t " : "- ");
 
         myprintf(Serial, " %3d - %3d, %3d   %3d %3d %4d ", minRecentValue[i], maxRecentValue[i], stableV(i),
@@ -620,10 +602,10 @@ void dumpData() {
 
   // debugging info, what
   if (true) for (uint8_t i = firstTouchSensor; i <= lastTouchSensor; i++) {
-      Serial.print(cap.filteredData(i)); Serial.print("\t");
+      Serial.print(cap.filteredData(offsetToFirstSensor + i)); Serial.print("\t");
     }
   if (!fixed) for (uint8_t i = firstTouchSensor; i <= lastTouchSensor; i++) {
-      Serial.print(cap.baselineData(i)); Serial.print("\t");
+      Serial.print(cap.baselineData(offsetToFirstSensor + i)); Serial.print("\t");
     }
   Serial.println();
 }
@@ -670,14 +652,14 @@ void dumpConfiguration() {
 
   // 5f 60 61 62 63 64 65 66 67 68 69 6a 6b
   Serial.print("CDCx: ");
-  for (int i = firstTouchSensor; i < numTouchSensors; i++) {
+  for (int i = firstTouchSensor; i <= lastTouchSensor; i++) {
     Serial.print(CDCx_value(i));
     Serial.print(" ");
   }
   Serial.println();
   // 6c 6d 6e 6f 70 71 72
   Serial.print("CDTx: ");
-  for (int i = firstTouchSensor; i < numTouchSensors; i++) {
+  for (int i = firstTouchSensor; i <= lastTouchSensor; i++) {
     Serial.print(CDTx_value(i));
     Serial.print(" ");
   }
@@ -708,7 +690,7 @@ void changeMode(uint8_t newMode) {
 }
 
 
-const uint8_t ELE_EN = numTouchSensors;
+const uint8_t ELE_EN = numTouchSensors + offsetToFirstSensor;
 
 void turnOffTouch() {
   cap.writeRegister(MPR121_ECR, 0);

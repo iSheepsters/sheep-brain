@@ -3,5 +3,6 @@
 
 #define MALL_SHEEP  true
 extern bool isOpen(bool debug);
+extern bool isShutdown(bool debug);
 extern int minutesUntilOpen(bool debug);
 #endif 

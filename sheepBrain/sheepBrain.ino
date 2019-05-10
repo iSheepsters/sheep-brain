@@ -1,6 +1,6 @@
 #include <Adafruit_SleepyDog.h>
 #include <MemoryFree.h>
-const char * VERSION = "version as of 12/18/2018";
+const char * VERSION = "version as of 2/17/2019";
 const boolean WAIT_FOR_SERIAL = false;
 
 #include <Wire.h>
@@ -124,6 +124,7 @@ void testSwapLeftRight(uint8_t touched) {
   myprintf(Serial, "testSwapLeftRight %02x -> %02x\n",
            touched, swapLeftRightSensors(touched));
 }
+bool inShutdown = false;
 void setup() {
   memset(&infoOnSheep, 0, sizeof (infoOnSheep));
   pinMode(LED_BUILTIN, OUTPUT);
@@ -202,8 +203,8 @@ void setup() {
       setupDelay(1000);                     // wait for a second
       digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
       setupDelay(1000);
-      Serial.println("setupSD failed");
-
+      Serial.print("setupSD failed, time: ");
+      Serial.println(millis());
     }
   }
   myprintf(Serial, "Free memory = %d\n", freeMemory());
@@ -222,7 +223,8 @@ void setup() {
     if (v != 0) {
       STABLE_VALUE = v;
       myprintf(Serial, "stable sensor value set to %d\n", v);
-
+    } else {
+      myprintf(Serial, "stable sensor value not set\n", v);
     }
     v = configFile.parseInt();
     if (v != 0) {
@@ -358,6 +360,7 @@ void generateReport() {
            sheepNumber, now, currentSheepState->name,
            batteryVoltage(),  minutesUptime(), fixCount,
            hour(), minute(), second());
+  if (MALL_SHEEP) Serial.println("Mall sheep");
   myprintf(Serial, "  local time %2d:%02d:%02d, current volume %d\n",
 
            adjustedHour(), minute(), second(), getAdjustedVolume());
@@ -371,7 +374,8 @@ void generateReport() {
     else
       myprintf(Serial, "  Sheep is off, touchTime = %d, time since last known touch %d\n",
                combinedTouchDuration(WHOLE_BODY_SENSOR), timeSinceLastKnownTouch(WHOLE_BODY_SENSOR));
-
+    if (isShutdown(true))
+      Serial.println("Sheep is shutdown");
   }
   if (thevol != INITIAL_AMP_VOL)
     myprintf(Serial, "  amplifier volume %d\n", thevol);
@@ -457,23 +461,43 @@ void loop() {
   considerReboot();
   Watchdog.reset();
   interrupts();
-  if (!isOpen(false))
-    turnAmpOff();
+  totalYield = 0;
   SheepInfo & me = getSheep();
   me.time = now();
-  if (totalYield > 20 && printInfo()) {
-    myprintf(Serial, "total yield %dms\n", totalYield);
-  }
-  totalYield = 0;
   me.uptimeMinutes = minutesUptime();
   me.batteryVoltageRaw = batteryVoltageRaw();
   me.errorCodes = 0;
   unsigned long now = millis();
   unsigned long nowMicros = micros();
+
   if ((now / 500) % 2 == 1)
     digitalWrite(LED_BUILTIN, HIGH);
   else
     digitalWrite(LED_BUILTIN, LOW);
+
+
+  if (isShutdown(false)) {
+    if (!inShutdown) {
+      sendComm();
+      turnOffTouch();
+      inShutdown = true;
+      Serial.println("Going into shutdown");
+    }
+    delay(1000);
+  } else {
+    if (inShutdown) {
+      turnOnTouch();
+      inShutdown = false;
+      Serial.println("Came out of shutdown");
+    }
+    if (!isOpen(false) && ampOn)
+      turnAmpOff();
+  }
+
+
+  if (totalYield > 20 && printInfo()) {
+    myprintf(Serial, "total yield %dms\n", totalYield);
+  }
 
   runScheduledActivities();
 

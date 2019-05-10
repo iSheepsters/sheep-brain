@@ -18,7 +18,7 @@ void setupLogging() {
 
   unsigned long now = millis();
 
-  if (year() != 2018) {
+  if (year() < 2018) {
     SD.mkdir("log/nodate");
     int i = 0;
     while (true) {

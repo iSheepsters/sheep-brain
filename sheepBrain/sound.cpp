@@ -198,7 +198,8 @@ void setNextAmbientSound(unsigned long durationOfLastSound) {
   if (currentSheepState->state == Violated) {
     unsigned long result = + random(8000, 15000);
     nextAmbientSound = millis()  + result;
-    myprintf(Serial, "violated; next ambient sound in %d ms\n", result);
+    if (printInfo())
+      myprintf(Serial, "violated; next ambient sound in %d ms\n", result);
 
     return;
   }
@@ -206,7 +207,7 @@ void setNextAmbientSound(unsigned long durationOfLastSound) {
   if (durationOfLastSound < 6000) durationOfLastSound = 6000;
   else if (durationOfLastSound > 30000) durationOfLastSound = 30000;
   float crowded = howCrowded();
-  if (crowded > 1.1) {
+  if (crowded > 1.1 && printInfo()) {
     Serial.print("Crowding: ");
     Serial.println(crowded);
   }
