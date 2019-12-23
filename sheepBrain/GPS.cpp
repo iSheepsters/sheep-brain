@@ -83,14 +83,16 @@ boolean setupGPS() {
   GPS.sendCommand(PMTK_ENABLE_SBAS);
   GPS.sendCommand(PMTK_ENABLE_WAAS);
   unsigned long now = millis();
-  while (year() < 2018 && millis() < now + 4000) {
-    delay(1);
+  while (year() < 2019 && millis() < now + 4000) {
+    delay(100);
     updateGPS();
   }
+  Serial.print("year: ");
+  Serial.println(year());
   total_good_GPS = total_bad_GPS = 0;
   GPS_ready = true;
   addScheduledActivity(1000, updateGPS, "gps");
-  return year() >= 2018;
+  return year() >= 2018 && year() <= 2035;
 }
 
 // The following are calculated for 41N
@@ -267,9 +269,13 @@ boolean parseGPS(unsigned long now) {
     return true;
   }
   size_t len = strlen(txt);
-  char checksumStart = txt[len - 4];
+  while (len > 4 && (txt[len-1] == 0x0a || txt[len-1] == 0x0d))
+    len--;
+  char checksumStart = txt[len - 3];
+
   if (checksumStart != '*') {
-    if (GPS_DEBUG) myprintf(Serial, "No GPS checksum (%d:%c %02x%02x%02x%02x): \"%s\"\n", len - 4, checksumStart, checksumStart,
+    if (GPS_DEBUG) myprintf(Serial, "No GPS checksum (%02x:%c %02x%02x%02x%02x): \"%s\"\n",
+                              len - 3, checksumStart, checksumStart,
                               txt[len - 3], txt[len - 2], txt[len - 1], (txt + 1) );
     return false;
   }
@@ -373,8 +379,8 @@ boolean parseGPS(unsigned long now) {
     }
 
   } else if (haveFix) {
-    if (printInfo()) 
-    Serial.println("Lost fix");
+    if (printInfo())
+      Serial.println("Lost fix");
     haveFix = false;
   }
   return true;
