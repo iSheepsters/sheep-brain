@@ -1,10 +1,12 @@
 #include <Adafruit_SleepyDog.h>
+#include <Adafruit_ASFcore.h>
 #include <MemoryFree.h>
-const char * VERSION = "version as of 2/17/2019";
-const boolean WAIT_FOR_SERIAL = false;
+const boolean WAIT_FOR_SERIAL = true;
+#include <Adafruit_ZeroTimer.h>
 
 #include <Wire.h>
 #include <TimeLib.h>
+#include <SdFat.h>
 #include "util.h"
 #include "sound.h"
 #include "printf.h"
@@ -15,9 +17,9 @@ const boolean WAIT_FOR_SERIAL = false;
 #include "GPS.h"
 #include "radio.h"
 #include "logging.h"
-#include "avdweb_SAMDtimer.h"
 #include "scheduler.h"
 #include "tysons.h"
+
 
 
 extern  void checkForCommand();
@@ -59,8 +61,6 @@ SoundCollection seperatedSounds(1);
 SoundCollection changeSounds(0);
 
 
-
-
 unsigned long setupFinished = 0;
 uint16_t minutesUptime() {
   return ( millis() - setupFinished) / 1000 / 60;
@@ -91,15 +91,20 @@ unsigned long updateGPSLatency() {
 }
 
 unsigned long nextActivityReport = 0;
-void ISR_GPS(struct tc_module *const module_inst)
-{
+volatile uint16_t periodicTicks = 0;
+// execute this code at 20Hz
+
+void periodicTask(void) {
+  periodicTicks++;
   unsigned long start = micros();
-  unsigned long ms = millis();
-  if (currentActivityStartedAt + 500 < ms && nextActivityReport < ms) {
-    myprintf(Serial, "activity %d.%d, started %dms ago\n",
-             currentActivity, currentSubActivity,
-             ms - currentActivityStartedAt);
-    nextActivityReport = ms + 1000;
+  if (false) {
+    unsigned long ms = millis();
+    if (currentActivityStartedAt + 500 < ms && nextActivityReport < ms) {
+      myprintf(Serial, "activity %d.%d, started %dms ago\n",
+               currentActivity, currentSubActivity,
+               ms - currentActivityStartedAt);
+      nextActivityReport = ms + 1000;
+    }
   }
   if (read_gps_in_interrupt) {
 
@@ -115,10 +120,27 @@ void ISR_GPS(struct tc_module *const module_inst)
   long diff = end - start;
   if (maxInterruptTime < diff)
     maxInterruptTime = diff;
-
 }
 
-SAMDtimer IRS_timer5 = SAMDtimer(5, ISR_GPS, 55000, 0);
+// timer tester
+Adafruit_ZeroTimer zerotimer = Adafruit_ZeroTimer(4);
+
+void setupPeriodTask() {
+  Serial.println("setup periodic task");
+  int freq = 20;
+  uint8_t  divider = 64;
+  tc_clock_prescaler prescaler = TC_CLOCK_PRESCALER_DIV64;
+  uint16_t   compare = (48000000 / 64) / freq;
+  zerotimer.enable(false);
+  zerotimer.configure(prescaler,       // prescaler
+                      TC_COUNTER_SIZE_16BIT,       // bit width of timer/counter
+                      TC_WAVE_GENERATION_MATCH_PWM // frequency or PWM mode
+                     );
+
+  zerotimer.setCompare(0, compare);
+  zerotimer.setCallback(true, TC_CALLBACK_CC_CHANNEL0, periodicTask);
+  zerotimer.enable(true);
+}
 
 void testSwapLeftRight(uint8_t touched) {
   myprintf(Serial, "testSwapLeftRight %02x -> %02x\n",
@@ -126,10 +148,16 @@ void testSwapLeftRight(uint8_t touched) {
 }
 bool inShutdown = false;
 void setup() {
+  // disable the radio module until we are ready for it
+  pinMode(8, INPUT_PULLUP);
+  // disable VS1053 until we are ready for it
+  pinMode(6, INPUT_PULLUP);
+  // disable SdCard until we are ready for it
+  pinMode(5, INPUT_PULLUP);
+
+  delay(300);
   memset(&infoOnSheep, 0, sizeof (infoOnSheep));
   pinMode(LED_BUILTIN, OUTPUT);
-  int countdownMS = Watchdog.enable(WATCHDOG_TIMEOUT);
-  myprintf(Serial, "Watchdog set, %d ms timeout\n", countdownMS);
 
   delay(100);
   Serial.begin(115200);
@@ -137,6 +165,9 @@ void setup() {
     Serial.println(i);
     delay(100);
   }
+  int countdownMS = Watchdog.enable(WATCHDOG_TIMEOUT);
+  myprintf(Serial, "Watchdog set, %d ms timeout\n", countdownMS);
+
   int clearBus = I2C_ClearBus();
   if (clearBus != 0)
     while (true) {
@@ -160,11 +191,18 @@ void setup() {
       digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
       setupDelay(200);
     }
+
+
   randomSeed(analogRead(0));
+  myprintf(Serial, "\n\n\n\nCompiled %s, %s\n", F(__DATE__), F(__TIME__));
+
   countdownMS = Watchdog.enable(WATCHDOG_TIMEOUT);
   myprintf(Serial, "Watchdog set, %d ms timeout\n", countdownMS);
 
   myprintf(Serial, "Free memory = %d\n", freeMemory());
+
+
+
   if (useSlave) {
     Serial.println("Setting up comm");
     setupComm();
@@ -186,14 +224,14 @@ void setup() {
       logDistress("GPS not found!");
   } else
     Serial.println("Skipping GPS");
-
+  Watchdog.reset();
   if (useSound) {
     Serial.println("Setting up sound");
     setupSound();
     Serial.println("Sound setup");
   } else
     Serial.println("Skipping sound");
-
+  Watchdog.reset();
   if (!setupSD()) {
     Serial.println("setupSD failed");
     Serial.println("huh");
@@ -207,6 +245,7 @@ void setup() {
       Serial.println(millis());
     }
   }
+  Watchdog.reset();
   myprintf(Serial, "Free memory = %d\n", freeMemory());
   int s = 1;
   File configFile = SD.open("config.txt");
@@ -246,13 +285,21 @@ void setup() {
       myprintf(Serial, "default volume not set, using %d\n", thevol);
 
     v = configFile.parseInt();
-    if (v != 0) msToNextSoundMin = v * 1000;
+    if (v != 0) {
+      myprintf(Serial, "min time to next sound: %d secs\n", v);
+
+      msToNextSoundMin = v * 1000;
+    }
     v = configFile.parseInt();
-    if (v != 0) msToNextSoundMax = v * 1000;
+    if (v != 0) {
+      myprintf(Serial, "max time to next sound: %d secs\n", v);
+      msToNextSoundMax = v * 1000;
+    }
 
     timeZoneAdjustment = configFile.parseInt();
     myprintf(Serial, "time zone adjustment: %d\n", timeZoneAdjustment);
     numTimeAdjustments = configFile.parseInt();
+    myprintf(Serial, "# of time of day  adjustments: %d\n", numTimeAdjustments);
     timeAdjustments = new TimeAdjustment[numTimeAdjustments];
     for (int i = 0; i < numTimeAdjustments; i++) {
       timeAdjustments[i].hourStart = configFile.parseInt();
@@ -267,7 +314,7 @@ void setup() {
 
     configFile.close();
   }
-
+  Watchdog.reset();
   if (s < 0 || s >= NUMBER_OF_SHEEP)
     s = 1;
 
@@ -320,7 +367,6 @@ void setup() {
   if (useGPSinterrupts) {
     lastInterrupt = setupFinished;
     read_gps_in_interrupt = true;
-    IRS_timer5.enableInterrupt(1);
   }
 
 
@@ -333,13 +379,14 @@ void setup() {
   sendActivity(101);
   setupFinished = millis();
   myprintf(Serial, " %dms set up time\n", setupFinished);
-  myprintf(logFile, "sheep %d ready\n", sheepNumber);
+  myprintf(logFile, "sheep %d ready, ", sheepNumber);
+  myprintf(logFile, "Compiled %s, %s\n", F(__DATE__), F(__TIME__));
   listScheduledActivities();
 
   myprintf(Serial, "  Free memory = %d\n", freeMemory());
   myprintf(Serial, "setup complete, sheep %d\n",
            sheepNumber);
-  Serial.println(VERSION);
+  myprintf(Serial, "Compiled %s, %s\n", F(__DATE__), F(__TIME__));
   randomSeed(analogRead(0));
   startSchedule();
 
@@ -361,12 +408,14 @@ void generateReport() {
            batteryVoltage(),  minutesUptime(), fixCount,
            hour(), minute(), second());
   if (MALL_SHEEP) Serial.println("Mall sheep");
+
   myprintf(Serial, "  local time %2d:%02d:%02d, current volume %d\n",
 
            adjustedHour(), minute(), second(), getAdjustedVolume());
   myprintf(Serial, "  %dms interrupt interval, %dus max interrupt time, %d max avail\n",
            longestInterval, maxInterruptTime, maxAvail);
   myprintf(Serial, "  Free memory = %d\n", freeMemory());
+  myprintf(Serial, "  periodic ticks: %d\n", periodicTicks);
   if (MALL_SHEEP) {
     if (isOpen(true))
       myprintf(Serial, "  Sheep is on, touchTime = %d, time since last known touch %d\n",
@@ -458,6 +507,7 @@ void considerReboot() {
   }
 }
 void loop() {
+   periodicTask();
   considerReboot();
   Watchdog.reset();
   interrupts();

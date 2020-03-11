@@ -94,8 +94,8 @@ void setupSound() {
     Serial.println("amp off");
   myprintf(Serial, "VS1053_volume %d\n", VS1053_volume);
 
-  //musicPlayer.sineTest(0x44, 50);    // Make a tone to indicate VS1053 is working
-  //Serial.println(F("sineTest complete"));
+  musicPlayer.sineTest(0x44, 50);    // Make a tone to indicate VS1053 is working
+  Serial.println(F("sineTest complete"));
 
   // musicPlayer.useInterrupt(VS1053_FILEPLAYER_PIN_INT);  // DREQ int
   wasPlayingMusic = false;
@@ -103,8 +103,6 @@ void setupSound() {
   if (playSound)
     addScheduledActivity(100, updateSound, "sound");
 }
-
-
 
 void updateSound() {
   if (musicPlayer.playingMusic) {
@@ -143,8 +141,10 @@ boolean setAmpVolume(int8_t v) {
   lastAmpVol = v;
   if (Wire.endTransmission() == 0)
     return true;
-  else
+  else {
+    Serial.println("Set volume failed");
     return false;
+  }
 
 }
 
@@ -272,11 +272,14 @@ boolean playFile(const char *fmt, ... ) {
     Serial.print("Playing ");
     Serial.println(buf);
   }
+   
 
   lastSoundStarted = millis();
   boolean result = musicPlayer.startPlayingFile(buf);
   if (result)
     currentSoundPriority = 0;
+  else
+    SD.errorPrint(&Serial);
 
   unsigned long duration = micros() - start;
   if (duration > 10000 && printInfo())

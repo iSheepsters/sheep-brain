@@ -340,10 +340,25 @@ boolean SoundFile::eligibleToPlay(unsigned long now, boolean ambientSound) {
 
 SoundFile * currentSoundFile = NULL;
 
+#define CARDCS 5
+#define SPI_SPEED SD_SCK_MHZ(4)
+
 boolean setupSD() {
-  if (!SD.begin(5 /* CARDCS */)) {
+  if (!SD.begin(CARDCS, SPI_SPEED)) {
     Serial.println(F("SD failed, or not present"));
-    return false;
+    if (SD.card()->errorCode()) {
+      Serial.println(
+        F( "\nSD initialization failed.\n"
+           "Do not reformat the card!\n"
+           "Is the card correctly inserted?\n"
+           "Is chipSelect set to the correct value?\n"
+           "Does another SPI device need to be disabled?\n"
+           "Is there a wiring/soldering problem?\n"));
+
+      Serial.println(int(SD.card()->errorCode()));
+      Serial.println(int(SD.card()->errorData()));
+      return false;
+    }
   }
 
   Serial.println("SD OK!");
