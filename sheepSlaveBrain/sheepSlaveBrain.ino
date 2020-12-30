@@ -1,6 +1,6 @@
 #include <Adafruit_SleepyDog.h>
 
-const char * VERSION = "version as of 12/18/2018";
+const char * VERSION = "version as of 10/1/2019";
 
 #include<FastLED.h>
 
