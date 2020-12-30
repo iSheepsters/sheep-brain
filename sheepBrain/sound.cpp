@@ -1,10 +1,10 @@
 #include "Arduino.h"
 #include "util.h"
-#include "gps.h"
 #include "state.h"
 #include "printf.h"
 #include "scheduler.h"
-#include <MemoryFree.h>
+#include "time.h"
+//#include <MemoryFree.h>
 #include <Adafruit_SleepyDog.h>
 
 const boolean USE_AMPLIFIER = true;
@@ -12,7 +12,7 @@ const boolean USE_AMPLIFIER = true;
 boolean rightSpeakerOn = false;
 #include "sound.h"
 #include "soundFile.h"
-#include "tysons.h"
+
 
 #include <Wire.h>
 // These are the pins used
@@ -155,8 +155,7 @@ void changeAmpVol(int8_t v) {
 }
 
 uint8_t getAdjustedVolume() {
-  if (!isOpen(false))
-    return 0;
+
   uint8_t h = adjustedHour();
   for (int i = 0; i < numTimeAdjustments; i++)
     if (h >= timeAdjustments[i].hourStart
@@ -206,14 +205,10 @@ void setNextAmbientSound(unsigned long durationOfLastSound) {
 
   if (durationOfLastSound < 6000) durationOfLastSound = 6000;
   else if (durationOfLastSound > 30000) durationOfLastSound = 30000;
-  float crowded = howCrowded();
-  if (crowded > 1.1 && printInfo()) {
-    Serial.print("Crowding: ");
-    Serial.println(crowded);
-  }
+  
 
 
-  unsigned long result = durationOfLastSound / 2 + (unsigned long)(random(20000, 40000) * crowded);
+  unsigned long result = durationOfLastSound / 2 + (unsigned long)(random(20000, 40000) );
   if (printInfo()) myprintf(Serial, "next ambient sound in %d ms\n", result);
   nextAmbientSound = millis() + result;
 }
@@ -246,11 +241,11 @@ void noteEndOfMusic() {
   }
   if (!isBaa) {
     setNextAmbientSound(lastSoundPlaying - lastSoundStarted);
-    nextBaa = now + random(10000, 20000) * howCrowded();
+    nextBaa = now + random(10000, 20000) ;
     if (printInfo()) myprintf(Serial, "ambient ended, next sound in %d seconds\n",
                                 (nextAmbientSound - now) / 1000);
   }
-  nextBaa = millis() + random(10000, 20000) * howCrowded();
+  nextBaa = millis() + random(10000, 20000) ;
   if (nextAmbientSound < now + 4000)
     nextAmbientSound = now + 4000;
   if (printInfo()) myprintf(Serial, "next baa in %d seconds, next ambient in %d\n",

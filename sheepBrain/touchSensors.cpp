@@ -7,7 +7,6 @@
 #include "scheduler.h"
 #include "sound.h"
 #include "comm.h"
-#include "tysons.h"
 #include "state.h"
 
 #include "util.h"
@@ -48,7 +47,7 @@ uint8_t ringBufferPos = 0;
 uint8_t ringBufferFill = 0;
 
 uint16_t numSamples = 0;
-const boolean DISABLE_TOUCH_DURING_SOUND = MALL_SHEEP;
+const boolean DISABLE_TOUCH_DURING_SOUND = false;
 
 const uint16_t resetSensorsInterval = 15000;
 unsigned long nextSensorResetInterval = 0;
@@ -177,10 +176,7 @@ void dumpTouchData(int i) {
   Serial.println(untouchDuration((TouchSensor)i));
 }
 void dumpTouchData() {
-  if (MALL_SHEEP) {
-    dumpTouchData(WHOLE_BODY_SENSOR);
-    return;
-  }
+
   if (true) {
     for (int i = 0; i < 6; i++)
       dumpTouchData(i);
@@ -198,9 +194,7 @@ void wasTouchedInappropriately() {
 }
 
 uint8_t touchThreshold(uint8_t i) {
-  if (MALL_SHEEP) {
-    return 16;
-  }
+
   enum TouchSensor sensor = (TouchSensor) i;
   switch (sensor) {
     case HEAD_SENSOR:
@@ -229,7 +223,7 @@ boolean isStable(int sensor) {
   if (minRecentValue[sensor] < 200)
     return false;
   int range = maxRecentValue[sensor] - minRecentValue[sensor];
-  int maxRange = MALL_SHEEP ? 30 : 5;
+  int maxRange = 5;
   unsigned long secondsSinceLastReset = (millis() - lastReset) / 1000;
   if (lastReset > 5 * 60)
     maxRange *= 2;
@@ -243,8 +237,7 @@ void resetStableValue(int sensor) {
   }
   else if (printInfo())
     myprintf(Serial, "Asked to reset %d, but it isn't stable\n", sensor);
-  if (MALL_SHEEP && sensor == WHOLE_BODY_SENSOR && stableValue[sensor] > 720)
-    stableValue[sensor] = 720;
+
 }
 
 
@@ -323,7 +316,7 @@ void considerResettingTouchSensors() {
   logFile.print(potentialMaxChange);
   logFile.print(",  ");
   sendSubActivity(21);
-  int start = MALL_SHEEP ? 7 : 0;
+  int start = 0;
   for (int i = firstTouchSensor; i <= lastTouchSensor; i++) {
     logFile.print(minRecentValue[i]);
     logFile.print(",");
@@ -444,28 +437,7 @@ void updateTouchData() {
                CDCx_value(WHOLE_BODY_SENSOR),  CDTx_value(WHOLE_BODY_SENSOR));
   }
 
-  if (MALL_SHEEP && touchDisabled() && millis() > 20 * 1000) {
-    if (timeSinceLastKnownUntouch(WHOLE_BODY_SENSOR) > 200 * 1000
-        || timeSinceLastKnownTouch(WHOLE_BODY_SENSOR) > 200 * 1000
-        || stableValue[WHOLE_BODY_SENSOR] < 450)  {
-      if (!wasDisabled) {
-        // just became disabled
-        startedReboot = now;
-        wasDisabled = true;
-        if (true) {
-          inReboot = true;
-          if (printInfo())
-            myprintf(Serial, "turning off touch, CDCx = %d, CDTx = %d\n",
-                     CDCx_value(WHOLE_BODY_SENSOR),  CDTx_value(WHOLE_BODY_SENSOR));
-          turnOffTouch();
-        }
-      }
-    }
-    lastDisabled = now;
-    numSamples = 0;
-    ringBufferFill = 0;
-    ringBufferPos = 0;
-  } else {
+  
     wasDisabled = false;
     for (int i = firstTouchSensor; i <= lastTouchSensor; i++) if (valid[i]) {
         uint16_t value = cap.filteredData(offsetToFirstSensor + i);
@@ -495,7 +467,7 @@ void updateTouchData() {
           else if (maxRecentValue[i] < filteredValue[i] )
             maxRecentValue[i] = filteredValue[i] ;
         }
-      }
+      
 
     numSamples++;
     if (numSamples > 1000)
@@ -538,13 +510,9 @@ void updateTouchData() {
     if (plotTouch) {
       for (int i = firstTouchSensor; i <= lastTouchSensor; i++) {
         int v =  touchDisabled() ? (inReboot ? 500 : cap.filteredData(offsetToFirstSensor + i)) : filteredValue[i];
-        if (!MALL_SHEEP)
+
           myprintf(Serial, "%3d %3d  ", stableValue[i], v);
-        else myprintf(Serial, "%3d %3d %3d %3d %3d  ", stableValue[i],
-                        tripValue(i),
-                        v,
-                        425 + min(600, touchDuration((TouchSensor)i) / 20),
-                        425 + min(600, untouchDuration((TouchSensor)i) / 20));
+        
       }
       if (STABLE_VALUE != 0) {
         myprintf(Serial, "  %3d %3d", touchDisabled() ? (inReboot ? 100 : 0) : 400, STABLE_VALUE - 50 + 100 * currentSheepState->state);

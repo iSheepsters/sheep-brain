@@ -22,20 +22,17 @@ extern bool printInfo();
 
 extern uint8_t millisToSecondsCapped(unsigned long ms);
 
-extern unsigned long updateGPSLatency();
-
 const int minutesPerSheep = 0; // use 0 to not switch sheep
 const boolean useSound = true;
 const boolean playSound = true;
 const boolean useTouch = true;
-const boolean useGPS = true;
-const boolean useGPSinterrupts = true;
+
 const boolean useSlave = true;
-const boolean useRadio = false;
+
 const boolean useLog = true;
 const boolean useCommands = true;
 const boolean doUpdateState = true;
-const boolean getGPSFixQuality = false;
+
 extern boolean debugTouch;
 extern boolean plotTouch;
 
@@ -43,7 +40,6 @@ extern boolean plotTouch;
 class __attribute__ ((packed)) SheepInfo {
   public:
     SheepInfo() : time(0) {};
-    float latitude, longitude;
     time_t time;
     uint16_t uptimeMinutes;
     uint16_t batteryVoltageRaw;
@@ -54,8 +50,6 @@ class __attribute__ ((packed)) SheepInfo {
 enum PacketKind {
   InfoPacket,
   DistressPacket,
-  RadioInfoPacket,
-  RadioDistressPacket,
   CommandPacket,
 };
 

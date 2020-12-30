@@ -15,14 +15,11 @@ struct __attribute__ ((packed)) ActivityData {
 };
 
 struct __attribute__ ((packed)) CommData {
-  time_t BRC_time;
-  uint16_t feetFromMan;
   uint8_t sheepNum;
   enum State state;
   uint8_t currTouched;
   uint8_t backTouchQuality; // seconds
   uint8_t headTouchQuality; // seconds
-  boolean haveFix;
   enum ActiveState activated;
 };
 

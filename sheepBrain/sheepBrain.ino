@@ -1,11 +1,11 @@
 #include <Adafruit_SleepyDog.h>
-#include <Adafruit_ASFcore.h>
-#include <MemoryFree.h>
+// #include <Adafruit_ASFcore.h>
+//#include <MemoryFree.h>
 const boolean WAIT_FOR_SERIAL = true;
 #include <Adafruit_ZeroTimer.h>
 
+#include <Adafruit_ZeroDMA.h>
 #include <Wire.h>
-#include <TimeLib.h>
 #include <SdFat.h>
 #include "util.h"
 #include "sound.h"
@@ -14,11 +14,12 @@ const boolean WAIT_FOR_SERIAL = true;
 #include "soundFile.h"
 #include "comm.h"
 #include "state.h"
-#include "GPS.h"
-#include "radio.h"
+#include "time.h"
+
+
 #include "logging.h"
 #include "scheduler.h"
-#include "tysons.h"
+
 
 
 
@@ -75,20 +76,6 @@ volatile int maxInterruptTime = 0;
 
 void checkForNextAmbientSound();
 
-unsigned long updateGPSLatency() {
-  unsigned long now_us = millis();
-  if (lastInterrupt != 0) {
-    long diff = now_us - lastInterrupt;
-    if (longestInterval < diff) {
-      longestInterval = diff;
-    }
-  }
-  lastInterrupt = now_us;
-  int a = Serial1.available();
-  if (maxAvail < a)
-    maxAvail = a;
-  return now_us;
-}
 
 unsigned long nextActivityReport = 0;
 volatile uint16_t periodicTicks = 0;
@@ -106,14 +93,7 @@ void periodicTask(void) {
       nextActivityReport = ms + 1000;
     }
   }
-  if (read_gps_in_interrupt) {
-
-    updateGPSLatency();
-    while (true) {
-      char c = GPS.read();
-      if (!c) break;
-    }
-  }
+  
   if (musicPlayerReady && musicPlayer.playingMusic)
     musicPlayer.feedBuffer();
   unsigned long end = micros();
@@ -121,6 +101,7 @@ void periodicTask(void) {
   if (maxInterruptTime < diff)
     maxInterruptTime = diff;
 }
+
 
 // timer tester
 Adafruit_ZeroTimer zerotimer = Adafruit_ZeroTimer(4);
@@ -146,7 +127,7 @@ void testSwapLeftRight(uint8_t touched) {
   myprintf(Serial, "testSwapLeftRight %02x -> %02x\n",
            touched, swapLeftRightSensors(touched));
 }
-bool inShutdown = false;
+
 void setup() {
   // disable the radio module until we are ready for it
   pinMode(8, INPUT_PULLUP);
@@ -199,7 +180,7 @@ void setup() {
   countdownMS = Watchdog.enable(WATCHDOG_TIMEOUT);
   myprintf(Serial, "Watchdog set, %d ms timeout\n", countdownMS);
 
-  myprintf(Serial, "Free memory = %d\n", freeMemory());
+  // myprintf(Serial, "Free memory = %d\n", freeMemory());
 
 
 
@@ -210,20 +191,7 @@ void setup() {
   } else
     Serial.println("Skipping comm");
 
-  if (true) {
-    if (setupRadio())
-      Serial.println("radio found");
-    else
-      Serial.println("radio not found!");
-  }
-
-  if (useGPS) {
-    if (setupGPS())
-      Serial.println("GPS found");
-    else
-      logDistress("GPS not found!");
-  } else
-    Serial.println("Skipping GPS");
+ 
   Watchdog.reset();
   if (useSound) {
     Serial.println("Setting up sound");
@@ -231,6 +199,14 @@ void setup() {
     Serial.println("Sound setup");
   } else
     Serial.println("Skipping sound");
+
+    Serial.println("Setting up time");
+    setupTime();
+
+
+
+
+
   Watchdog.reset();
   if (!setupSD()) {
     Serial.println("setupSD failed");
@@ -246,7 +222,7 @@ void setup() {
     }
   }
   Watchdog.reset();
-  myprintf(Serial, "Free memory = %d\n", freeMemory());
+  // myprintf(Serial, "Free memory = %d\n", freeMemory());
   int s = 1;
   File configFile = SD.open("config.txt");
   if (!configFile) {
@@ -334,7 +310,7 @@ void setup() {
   Watchdog.reset();
   if (useSound) {
 
-    myprintf(Serial, "Free memory = %d\n", freeMemory());
+   // myprintf(Serial, "Free memory = %d\n", freeMemory());
     Serial.println("Sound set up, examining sound files");
 
     loadPerSheepSounds();
@@ -343,7 +319,7 @@ void setup() {
       changeSounds.loadCommon("change");
     baaSounds.loadCommon("baa");
     baaSounds.playSound(millis(), false);
-    myprintf(Serial, "Free memory = %d\n", freeMemory());
+   // myprintf(Serial, "Free memory = %d\n", freeMemory());
   } else
     Serial.println("Skipping sound");
 
@@ -363,11 +339,8 @@ void setup() {
   }
   logTouchConfiguration();
   updateLog(setupFinished);
-  quickGPSUpdate();
-  if (useGPSinterrupts) {
-    lastInterrupt = setupFinished;
-    read_gps_in_interrupt = true;
-  }
+  
+  
 
 
   if (useSlave) {
@@ -383,7 +356,7 @@ void setup() {
   myprintf(logFile, "Compiled %s, %s\n", F(__DATE__), F(__TIME__));
   listScheduledActivities();
 
-  myprintf(Serial, "  Free memory = %d\n", freeMemory());
+  // myprintf(Serial, "  Free memory = %d\n", freeMemory());
   myprintf(Serial, "setup complete, sheep %d\n",
            sheepNumber);
   myprintf(Serial, "Compiled %s, %s\n", F(__DATE__), F(__TIME__));
@@ -397,35 +370,23 @@ const boolean TRACE = false;
 
 unsigned long lastReport = 0;
 
-int32_t prevLat = -1;
-int32_t prevLong = -1;
-
 void generateReport() {
   if (plotTouch) return;
   unsigned long now = millis();
-  myprintf(Serial, "%d/%d State %s, %f volts,  %d minutes uptime, %d GPS fixes, %2d:%02d:%02d\n",
+  myprintf(Serial, "%d/%d State %s, %f volts,  %d minutes uptime, %2d:%02d:%02d\n",
            sheepNumber, now, currentSheepState->name,
-           batteryVoltage(),  minutesUptime(), fixCount,
+           batteryVoltage(),  minutesUptime(), 
            hour(), minute(), second());
-  if (MALL_SHEEP) Serial.println("Mall sheep");
+ 
 
   myprintf(Serial, "  local time %2d:%02d:%02d, current volume %d\n",
 
            adjustedHour(), minute(), second(), getAdjustedVolume());
   myprintf(Serial, "  %dms interrupt interval, %dus max interrupt time, %d max avail\n",
            longestInterval, maxInterruptTime, maxAvail);
-  myprintf(Serial, "  Free memory = %d\n", freeMemory());
+  // myprintf(Serial, "  Free memory = %d\n", freeMemory());
   myprintf(Serial, "  periodic ticks: %d\n", periodicTicks);
-  if (MALL_SHEEP) {
-    if (isOpen(true))
-      myprintf(Serial, "  Sheep is on, touchTime = %d, time since last known touch %d\n",
-               combinedTouchDuration(WHOLE_BODY_SENSOR), timeSinceLastKnownTouch(WHOLE_BODY_SENSOR));
-    else
-      myprintf(Serial, "  Sheep is off, touchTime = %d, time since last known touch %d\n",
-               combinedTouchDuration(WHOLE_BODY_SENSOR), timeSinceLastKnownTouch(WHOLE_BODY_SENSOR));
-    if (isShutdown(true))
-      Serial.println("Sheep is shutdown");
-  }
+
   if (thevol != INITIAL_AMP_VOL)
     myprintf(Serial, "  amplifier volume %d\n", thevol);
   if (currentSoundFile != NULL)
@@ -438,35 +399,14 @@ void generateReport() {
     myprintf(Serial, "next baa in %d ms\n", nextBaa - now);
   }
 
-  myprintf(Serial, "  GPS readings %d good, %d bad\n", total_good_GPS, total_bad_GPS);
-  if (getGPSFixQuality)
-    myprintf(Serial, "  Fix quality = %d, Satellites = %d\n", GPS.fixquality, GPS.satellites);
-  myprintf(Serial, "  Location = %d, %d; longest gps void = %dms,  Feet from man = ",
-           latitudeDegreesAvg, longitudeDegreesAvg, longestGPSvoid);
-  Serial.println(distanceFromMan);
-  if (now < 10000)
-    longestGPSvoid = 0;
+  
 
-
-  if (false && prevLat != -1) {
-    float speed = 1000 * distance_between_fixed_in_feet(latitudeDegreesAvg, longitudeDegreesAvg, prevLat, prevLong)
-                  / (now - lastReport);
-    Serial.print("  Speed : ");
-    Serial.print(speed, 2);
-    Serial.println(" ft / sec");
-  }
-  prevLat = latitudeDegreesAvg;
-  prevLong = longitudeDegreesAvg;
-
+ 
 
   longestInterval = 0;
   maxAvail = 0;
   maxInterruptTime = 0;
-  time_t BRC_time = BRC_now();
-
-  if (false)
-    myprintf(Serial, "BRC time: %2d:%02d:%02d\n", hour(BRC_time), minute(BRC_time), second(BRC_time));
-
+ 
   lastReport = now;
   sendSubActivity(10);
   if (useLog) {
@@ -487,24 +427,7 @@ unsigned long lastLoop = 0;
 const uint16_t REPORT_INTERVAL = 10000;
 
 void considerReboot() {
-  if (!ampOn) {
-    unsigned long maxMinutesUptime = 5 * 60;
-    int minutes = minutesUntilOpen(false);
-
-    if (minutes >= 5 && minutes < 30)
-      maxMinutesUptime = 30;
-    int minutesUptime = millis() / 1000 / 60;
-    if (minutesUptime > maxMinutesUptime) {
-      Serial.println("Forcing reboot");
-      noInterrupts();
-      myprintf(logFile, "forcing reboot, %d minutes before open, %d minutes uptime\n",
-               minutes, maxMinutesUptime);
-      logFile.flush();
-      interrupts();
-      delay(WATCHDOG_TIMEOUT + 2000);
-    }
-
-  }
+  
 }
 void loop() {
    periodicTask();
@@ -526,23 +449,7 @@ void loop() {
     digitalWrite(LED_BUILTIN, LOW);
 
 
-  if (isShutdown(false)) {
-    if (!inShutdown) {
-      sendComm();
-      turnOffTouch();
-      inShutdown = true;
-      Serial.println("Going into shutdown");
-    }
-    delay(1000);
-  } else {
-    if (inShutdown) {
-      turnOnTouch();
-      inShutdown = false;
-      Serial.println("Came out of shutdown");
-    }
-    if (!isOpen(false) && ampOn)
-      turnAmpOff();
-  }
+  
 
 
   if (totalYield > 20 && printInfo()) {
@@ -565,20 +472,12 @@ void checkForNextAmbientSound() {
   }
   if (now > nextAmbientSound) {
     if (TRACE) Serial.println("play ambient sound");
-    if (!isInFriendlyTerritory() && random(2) == 0 && seperatedSounds.playSound(now, true))  {
-      unsigned long delay = DELAY_BETWEEN_SOUNDS;
-      if (false && currentSoundFile -> duration > 0 && currentSoundFile -> duration < delay)
-        delay = currentSoundFile -> duration;
-      delay = (delay + random(DELAY_BETWEEN_SOUNDS)) * howCrowded();
-      myprintf(Serial, "Started playing seperated sound, next in %dms\n", delay);
-      nextAmbientSound = now + delay;
-      return;
-    }
+   
     if (currentSheepState -> playAmbientSound(now)) {
       unsigned long delay = DELAY_BETWEEN_SOUNDS;
       if (currentSoundFile -> duration > 0 && currentSoundFile -> duration / 2 < delay)
         delay = currentSoundFile -> duration / 2 ;
-      delay = (delay + random(msToNextSoundMin, msToNextSoundMax)) * howCrowded();
+      delay = (delay + random(msToNextSoundMin, msToNextSoundMax)) ;
       if (printInfo())
         myprintf(Serial, "Started playing ambient sound, next in %dms\n", delay);
       nextAmbientSound = now + delay;
@@ -587,7 +486,7 @@ void checkForNextAmbientSound() {
 
       if (printInfo()) myprintf(Serial, "No ambient sound available, baa-ing\n");
 
-      unsigned long delay = random(msToNextSoundMin, msToNextSoundMax) * howCrowded();
+      unsigned long delay = random(msToNextSoundMin, msToNextSoundMax) ;
       nextAmbientSound = now + delay;
       nextBaa = now + delay + DELAY_BETWEEN_SOUNDS / 2;
     } else {
@@ -598,7 +497,7 @@ void checkForNextAmbientSound() {
   if (now > nextBaa && nextBaa + 4000 < nextAmbientSound) {
     if (TRACE) Serial.println("play baa sound");
     if (baaSounds.playSound(now, true)) {
-      unsigned long delay = random(msToNextSoundMin, msToNextSoundMax) * howCrowded();
+      unsigned long delay = random(msToNextSoundMin, msToNextSoundMax) ;
       if (printInfo()) myprintf(Serial, "Started playing baa sound, next in %dms\n", delay);
       nextBaa = now + delay;
       return;

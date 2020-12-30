@@ -1,13 +1,11 @@
 
 #include <SdFat.h>
-#include <TimeLib.h>
 
 #include "util.h"
-#include "gps.h"
 #include "printf.h"
-#include "radio.h"
 #include "comm.h"
 #include "sound.h"
+#include "time.h"
 
 File logFile;
 
@@ -66,14 +64,12 @@ void myLogStart(enum PacketKind kind) {
            month(), day(), year() % 100, hour(), minute(), second(),
            now());
   myprintf(logFile, "%d,%d, ", minutesUptime(), batteryVoltageRaw());
-  logFile.print(GPS.latitudeDegrees, 7);
-  logFile.print(",");
-  logFile.print(GPS.longitudeDegrees, 7);
+
 }
 
 
 void updateLog(unsigned long timeNow) {
-  quickGPSUpdate();
+
   if (disableInterrupts)
     noInterrupts();
   myLogStart(InfoPacket);
@@ -82,23 +78,6 @@ void updateLog(unsigned long timeNow) {
   optionalFlush();
   if (disableInterrupts)
     interrupts();
-
-
-}
-
-
-void radioLogStart(uint8_t sheepNum, SheepInfo & info, enum PacketKind kind) {
-  time_t when = info.time;
-  myprintf(logFile, "R, %d,%d, ", sheepNum, kind);
-
-  myprintf(logFile, "%d/%d/%02d %d:%02d:%02d,%d, ",
-           month(when), day(when), year(when) % 100,  hour(when), minute(when), second(when),
-           when);
-  myprintf(logFile, "%d,%d, ", info.uptimeMinutes, info.batteryVoltageRaw);
-  logFile.print(info.latitude, 7);
-  logFile.print(",");
-  logFile.print(info.longitude, 7);
-
 }
 
 void logBoot() {
@@ -113,23 +92,7 @@ void logBoot() {
   if (disableInterrupts)  interrupts();
 
 }
-void logRadioUpdate(uint8_t sheepNum, SheepInfo & info) {
-  if (disableInterrupts) noInterrupts();
-  radioLogStart(sheepNum, info, RadioInfoPacket);
 
-  logFile.println();
-  optionalFlush();
-  if (disableInterrupts)  interrupts();
-}
-
-void logRadioDistress(uint8_t sheepNum, time_t when, SheepInfo & info, char* buf) {
-  if (disableInterrupts) noInterrupts();
-  radioLogStart(sheepNum, info, RadioDistressPacket);
-  myprintf(logFile, ", \"%s\"\n", buf);
-
-  requiredFlush();
-  if (disableInterrupts) interrupts();
-}
 void logDistress(const char *fmt, ... ) {
   char buf[500]; // resulting string limited to 256 chars
   va_list args;
@@ -138,7 +101,7 @@ void logDistress(const char *fmt, ... ) {
   va_end (args);
   Serial.print("Distress message ");
   Serial.println(buf);
-  distressPacket(buf);
+ //  distressPacket(buf);
   if (logFile) {
     if (disableInterrupts) noInterrupts();
     myLogStart(DistressPacket);

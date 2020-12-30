@@ -5,7 +5,7 @@
 #include "scheduler.h"
 #include "state.h"
 #include "printf.h"
-#include "tysons.h"
+
 
 
 int msToNextSoundMin = 12000;
@@ -38,7 +38,6 @@ void setupState() {
 }
 
 boolean privateSensorEnabled() {
-  if (MALL_SHEEP) return false;
   return privatesEnabled && millis() > privateTouchDisabledUntil;
 }
 
@@ -53,8 +52,6 @@ uint16_t secondsSinceEnteredCurrentState() {
   return (millis() - timeEnteredCurrentState) / 1000;
 }
 boolean maybeRiding() {
-  if (MALL_SHEEP)
-    return false;
   int extra = 0;
   if (touchDuration(LEFT_SENSOR) > 1550)
     extra ++;
@@ -68,8 +65,6 @@ boolean maybeRiding() {
 }
 
 boolean definitivelyRiding() {
-  if (MALL_SHEEP)
-    return false;
   int extra = 0;
   if (touchDuration(LEFT_SENSOR) > 3550)
     extra ++;
@@ -85,9 +80,6 @@ boolean definitivelyRiding() {
 
 boolean isTouched() {
   if (millis() < 10000) return false;
-  if (MALL_SHEEP) {
-    return  touchDuration(WHOLE_BODY_SENSOR) > 100;
-  }
   boolean result =  touchDuration(BACK_SENSOR) > 400
                     ||  touchDuration(RUMP_SENSOR) > 400  ||  touchDuration(HEAD_SENSOR) > 400;
   return result;
@@ -95,9 +87,6 @@ boolean isTouched() {
 
 boolean qualityTouch() {
   if (millis() < 10000) return false;
-  if (MALL_SHEEP) {
-    return  qualityTime(WHOLE_BODY_SENSOR) > 15000;
-  }
   return  qualityTime(BACK_SENSOR) > 15000
           ||  qualityTime(HEAD_SENSOR) > 12000
           ||  qualityTime(BACK_SENSOR) + qualityTime(RUMP_SENSOR) / 2
@@ -107,10 +96,7 @@ boolean qualityTouch() {
 boolean isIgnored() {
   if (qualityTouch() || isTouched())
     return false;
-  if (MALL_SHEEP)
-    return untouchDuration(WHOLE_BODY_SENSOR) > 10000
-           && timeSinceLastKnownTouch(WHOLE_BODY_SENSOR) > 20000;
-
+ 
   return untouchDuration(BACK_SENSOR) > 15000
          && untouchDuration(HEAD_SENSOR) > 15000
          && untouchDuration(RUMP_SENSOR) > 10000
@@ -212,15 +198,7 @@ void updateState() {
     // got an update
     if (printInfo()) {
       myprintf(Serial, "State changed from %s to %s\n", currentSheepState->name, newState->name);
-      if (MALL_SHEEP) {
-        myprintf(Serial, "   %d secs, %6d\n",
-                 secondsSinceEnteredCurrentState(),
-                 combinedTouchDuration(WHOLE_BODY_SENSOR));
-        if (isIgnored()) Serial.println("is ignored");
-        if (qualityTouch()) Serial.println("quality touched");
-        else if (isTouched()) Serial.println("is touched");
-
-      } else {
+       
         myprintf(Serial, "   %d secs, %6d %6d %6d %6d %6d\n",
                  secondsSinceEnteredCurrentState(),
                  combinedTouchDuration(HEAD_SENSOR),
@@ -235,7 +213,7 @@ void updateState() {
         else if (isTouched()) Serial.println("is touched");
         if (privateTouches > 0)
           myprintf(Serial, "%d private touches\n", privateTouches);
-      }
+      
     }
 
 
@@ -295,7 +273,7 @@ SheepState * BoredState::update() {
         myprintf(Serial, "not in the mood dice roll is %d, seconds since entered is %d\n",
         r, secondsSinceEnteredCurrentState());
       
-    if (!MALL_SHEEP && r < 20 && secondsSinceEnteredCurrentState() > 30) {
+    if ( r < 20 && secondsSinceEnteredCurrentState() > 30) {
       int notInTheMood = (random(30, 60) + random(20, 100));
       if (printInfo())
         myprintf(Serial, "not in the mood for %d seconds\n", notInTheMood);
@@ -318,8 +296,7 @@ SheepState * AttentiveState::update() {
     becomeViolated();
     return &violatedState;
   }
-  if (MALL_SHEEP)
-    return this;
+
   if (secondsSinceEnteredCurrentState() > 40 && !wouldInterrupt()
       && millis() < notInTheMoodUntil)
     return &notInTheMoodState;

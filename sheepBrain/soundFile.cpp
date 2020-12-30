@@ -3,8 +3,8 @@
 #include "sound.h"
 #include "printf.h"
 #include "util.h"
-#include "tysons.h"
-#include <MemoryFree.h>
+
+//#include <MemoryFree.h>
 #include <SPI.h>
 #include <SdFat.h>
 
@@ -146,7 +146,7 @@ boolean SoundCollection::load(File dir) {
   count = i;
   nextFile = 0;
   myprintf(Serial, "Found %d files for %s\n", count, name);
-  myprintf(Serial, "Free memory = %d\n", freeMemory());
+  // myprintf(Serial, "Free memory = %d\n", freeMemory());
   dir.close();
   return true;
 }
@@ -402,12 +402,12 @@ void printDirectory(File dir, int numTabs) {
 
 void loadPerSheepSounds() {
   Serial.println("Loading sound files");
-  myprintf(Serial, "Free memory = %d\n", freeMemory());
+  //myprintf(Serial, "Free memory = %d\n", freeMemory());
   boredSounds.load("BORED");
   generalSounds.load("GENERAL");
   firstTouchSounds.load("TOUCHED");
   attentiveSounds.load("ATTNT");
-  if (!MALL_SHEEP) {
+  
     ridingSounds.load("RIDNG");
     readyToRideSounds.load("RDRID");
     endOfRideSounds.load("EORID");
@@ -415,7 +415,7 @@ void loadPerSheepSounds() {
     violatedSounds.load("VIOLT");
     inappropriateTouchSounds.load("INAPP");
     seperatedSounds.load("SEPRT");
-  }
-  myprintf(Serial, "Free memory = %d\n", freeMemory());
+  
+ // myprintf(Serial, "Free memory = %d\n", freeMemory());
 
 }

@@ -6,21 +6,44 @@
 
 #include <math.h>
 
+// in 2021  at 2:00 AM on Sunday, March 14
+// and ends at 2:00 AM on Sunday, November 7
+
+DateTime DSTstarts2021 = DateTime(2021, 3, 14, 2, 0, 0);
+DateTime DSTends2021 = DateTime(2021, 11, 7, 2, 0, 0);
+
+RTC_DS3231 rtc;
+
+uint16_t year() { return rtc.now().year(); }
+ uint8_t month()  { return rtc.now().month(); }
+ uint8_t day()  { return rtc.now().day(); }
+ uint8_t hour()  { return rtc.now().hour(); }
+ uint8_t minute()  { return rtc.now().minute(); }
+ uint8_t second()  { return rtc.now().second(); }
+
+
+bool setupTime() {
+   if (rtc.begin()) {
+    return true;
+   }
+    Serial.println("Couldn't find RTC");
+    Serial.flush();
+    return false;
+
+}
+
+ time_t now() {
+  return  rtc.now().unixtime();
+ }
 
 bool isDST() {
-  time_t time = now() - 4;
-  if (year(time) == 2018) return false;
-  int m = month(time);
-  if (m < 3) return false;
-  if (m == 3) return day(time) >= 10;
-  if (m > 3 && m < 11) return true;
-  if (m == 11) return day(time) < 3;
-  return false;
+DateTime now = rtc.now();   
+return DSTstarts2021 <= now && now <= DSTends2021;
 }
 
 int adjustmentForEasternTime() {
-  if (isDST()) return -4;
-  return -5;
+  if (isDST()) return +1;
+  return 0;
 }
 
 uint8_t adjustedHour() {
@@ -33,9 +56,5 @@ uint8_t adjustedHour() {
 
 
 time_t adjustedNow() {
-  return now() + 60 * 60 * (timeZoneAdjustment + adjustmentForEasternTime());
-}
-
-time_t BRC_now() {
-  return now() - 7 * 60 * 60;
+  return time_t() + 60 * 60 * (timeZoneAdjustment + adjustmentForEasternTime());
 }

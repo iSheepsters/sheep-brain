@@ -3,17 +3,10 @@
 
 #include <Wire.h>
 #include "Adafruit_MPR121.h"
-#include "tysons.h"
 
-#if MALL_SHEEP
-const uint8_t offsetToFirstSensor = 0;
-const uint8_t  lastTouchSensor = 7;
-const uint8_t  firstTouchSensor = 7;
-#else
 const uint8_t offsetToFirstSensor = 0;
 const uint8_t  lastTouchSensor = 5;
 const uint8_t  firstTouchSensor = 0;
-#endif
 
 const uint8_t  numTouchSensors = lastTouchSensor+1;
 extern uint16_t stableValue[numTouchSensors];

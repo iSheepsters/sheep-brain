@@ -4,10 +4,9 @@
 #include "printf.h"
 #include "Print.h"
 #include "util.h"
-#include "GPS.h"
 #include "touchSensors.h"
 #include "scheduler.h"
-#include "tysons.h"
+
 
 const uint8_t commAddress = 0x44;
 
@@ -84,11 +83,7 @@ void sendComm() {
         || commData.currTouched != currTouched
         || nextComm < now) {
     nextComm = now + 1000;
-    commData.BRC_time = BRC_now();
-    if (distanceFromMan < 0)
-      commData.feetFromMan  = 0;
-    else
-      commData.feetFromMan = (uint16_t) distanceFromMan;
+ 
     commData.state = currentSheepState->state;
     uint8_t touched = currTouched;
     if (sheepNumber == 9 || sheepNumber == 13) {
@@ -98,13 +93,10 @@ void sendComm() {
       touched = t;
     }
     commData.currTouched = touched;
-    if (MALL_SHEEP)
-      commData.backTouchQuality = millisToSecondsCapped(qualityTime(WHOLE_BODY_SENSOR));
-    else
+
       commData.backTouchQuality = millisToSecondsCapped(qualityTime(BACK_SENSOR));
     commData.headTouchQuality = millisToSecondsCapped(qualityTime(HEAD_SENSOR));
-    commData. haveFix = haveFixNow();
-    commData.activated = isOpen(false) ? Active : (isShutdown(false) ? Off : Inactive);
+    commData.activated =  Active ;
     uint8_t * p = (uint8_t *)&commData;
     if (false) {
       Serial.print("Sending ");
