@@ -2,6 +2,7 @@
 
 #include "time.h"
 #include "printf.h"
+#include "util.h"
 
 #include <math.h>
 
@@ -38,4 +39,3 @@ time_t adjustedNow() {
 time_t BRC_now() {
   return now() - 7 * 60 * 60;
 }
-
