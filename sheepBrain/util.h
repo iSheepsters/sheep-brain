@@ -54,18 +54,8 @@ enum PacketKind {
 };
 
 
-class TimeAdjustment {
-  public:
-  uint8_t hourStart;
-  uint8_t hoursLong;
-  uint8_t volume;
-};
-
-extern int8_t timeZoneAdjustment;
 extern boolean privatesEnabled;
 extern boolean allowRrated;
-extern uint8_t numTimeAdjustments;
-extern  TimeAdjustment* timeAdjustments;
 extern SdFat SD;
 extern SheepInfo & getSheep(int s);
 

@@ -6,9 +6,6 @@
 
 boolean privatesEnabled = false;
 boolean allowRrated = false;
-uint8_t numTimeAdjustments = 0;
-int8_t timeZoneAdjustment;
-TimeAdjustment* timeAdjustments;
 
 bool printInfo() {
   return !plotTouch;

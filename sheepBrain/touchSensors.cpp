@@ -77,7 +77,7 @@ extern void turnOnTouch();
 extern void turnOffTouch();
 
 boolean touchDisabled() {
-  return millis() < 4000 || DISABLE_TOUCH_DURING_SOUND && ampOn || inReboot;
+  return millis() < 4000 || inReboot;
 }
 
 boolean isTouched(enum TouchSensor sensor) {

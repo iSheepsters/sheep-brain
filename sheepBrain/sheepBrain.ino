@@ -272,22 +272,6 @@ void setup() {
       msToNextSoundMax = v * 1000;
     }
 
-    timeZoneAdjustment = configFile.parseInt();
-    myprintf(Serial, "time zone adjustment: %d\n", timeZoneAdjustment);
-    numTimeAdjustments = configFile.parseInt();
-    myprintf(Serial, "# of time of day  adjustments: %d\n", numTimeAdjustments);
-    timeAdjustments = new TimeAdjustment[numTimeAdjustments];
-    for (int i = 0; i < numTimeAdjustments; i++) {
-      timeAdjustments[i].hourStart = configFile.parseInt();
-      timeAdjustments[i].hoursLong = configFile.parseInt();
-      timeAdjustments[i].volume = configFile.parseInt();
-      myprintf(Serial, "time adjustment #%d: %d, %d, %d\n",
-               i,
-               timeAdjustments[i].hourStart,
-               timeAdjustments[i].hoursLong,
-               timeAdjustments[i].volume);
-    }
-
     configFile.close();
   }
   Watchdog.reset();
@@ -379,9 +363,9 @@ void generateReport() {
            hour(), minute(), second());
  
 
-  myprintf(Serial, "  local time %2d:%02d:%02d, current volume %d\n",
+  myprintf(Serial, "  local time %2d:%02d:%02d\n",
 
-           adjustedHour(), minute(), second(), getAdjustedVolume());
+           adjustedHour(), minute(), second() );
   myprintf(Serial, "  %dms interrupt interval, %dus max interrupt time, %d max avail\n",
            longestInterval, maxInterruptTime, maxAvail);
   // myprintf(Serial, "  Free memory = %d\n", freeMemory());
@@ -549,14 +533,6 @@ void checkForCommand() {
           dumpConfiguration();
           dumpTouchData();
           plotTouch = !plotTouch;
-          break;
-        case '+':
-          changeAmpVol(thevol + 1);
-          myprintf(Serial, "volume is now %d\n", thevol);
-          break;
-        case '-':
-          changeAmpVol(thevol - 1);
-          myprintf(Serial, "volume is now %d\n", thevol);
           break;
       }
     }

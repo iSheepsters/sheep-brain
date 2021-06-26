@@ -42,7 +42,6 @@ int8_t thevol = INITIAL_AMP_VOL;
 uint8_t VS1053_volume = 0;
 unsigned long lastSoundStarted = 0;
 unsigned long lastSoundPlaying = 0;
-boolean ampOn = false;
 
 boolean wasPlayingMusic;
 
@@ -54,30 +53,24 @@ void musicPlayerSetVolume(uint8_t v) {
     musicPlayer.setVolume(v, 0xfe);
     rightSpeakerOn = false;
   } else {
-    musicPlayer.setVolume(v, getRightSpeakerSetting(v));
+    int right = getRightSpeakerSetting(v);
+      myprintf(Serial, "VS1053_volume %d, %d\n", v, right);
+    musicPlayer.setVolume(v, right);
     rightSpeakerOn = true;
   }
-  turnAmpOn();
 }
 void musicPlayerFullVolume() {
   musicPlayerSetVolume(0);
 }
 void musicPlayerNoVolume() {
-  //Serial.println("musicPlayerNoVolume");
+  Serial.println("musicPlayerNoVolume");
   VS1053_volume = 0;
   rightSpeakerOn = false;
   musicPlayer.setVolume(0xfe, 0xfe);
-  turnAmpOff();
 }
 
 volatile boolean musicPlayerReady = false;
 void setupSound() {
-  if (true) {
-    if (! turnAmpOff())
-      Serial.println(F("Failed to set volume, MAX9744 not found!"));
-    else
-      Serial.println(F("MAX9744 found"));
-  }
 
 
   if (! musicPlayer.begin()) { // initialise the music player
@@ -88,10 +81,6 @@ void setupSound() {
   Serial.println(F("VS1053 found"));
 
   musicPlayerFullVolume();
-  if (ampOn)
-    Serial.println("amp on");
-  else
-    Serial.println("amp off");
   myprintf(Serial, "VS1053_volume %d\n", VS1053_volume);
 
   musicPlayer.sineTest(0x44, 50);    // Make a tone to indicate VS1053 is working
@@ -120,62 +109,8 @@ void updateSound() {
 // Setting the volume is very simple! Just write the 6-bit
 // volume to the i2c bus. That's it!
 
-uint8_t lastAmpVol = 100;
-boolean setAmpVolume(int8_t v) {
-  if (!USE_AMPLIFIER) {
-    Serial.println("Skipping amplifier");
-    return false;
-  }
-  // cant be higher than 63 or lower than 0
-  if (v > 63) v = 63;
 
-  if (v == lastAmpVol)
-    return true;
 
-  if (printInfo()) {
-    Serial.print("Setting volume to ");
-    Serial.println(v);
-  }
-  Wire.beginTransmission(MAX9744_I2CADDR);
-  Wire.write(v);
-  lastAmpVol = v;
-  if (Wire.endTransmission() == 0)
-    return true;
-  else {
-    Serial.println("Set volume failed");
-    return false;
-  }
-
-}
-
-void changeAmpVol(int8_t v) {
-  if (v < 0) v = 0;
-  else if (v > 63) v = 63;
-  thevol = v;
-}
-
-uint8_t getAdjustedVolume() {
-
-  uint8_t h = adjustedHour();
-  for (int i = 0; i < numTimeAdjustments; i++)
-    if (h >= timeAdjustments[i].hourStart
-        && h < timeAdjustments[i].hourStart + timeAdjustments[i].hoursLong
-        || h < timeAdjustments[i].hourStart + timeAdjustments[i].hoursLong - 24) {
-      return timeAdjustments[i].volume;
-    }
-
-  return thevol;
-
-}
-
-boolean turnAmpOn() {
-  ampOn = true;
-  return setAmpVolume(getAdjustedVolume());
-}
-boolean turnAmpOff() {
-  ampOn = false;
-  return setAmpVolume(0);
-}
 
 void slowlyStopMusic() {
   if (musicPlayer.playingMusic) {
