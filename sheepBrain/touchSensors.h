@@ -8,7 +8,9 @@ const uint8_t offsetToFirstSensor = 0;
 const uint8_t  lastTouchSensor = 5;
 const uint8_t  firstTouchSensor = 0;
 
+
 const uint8_t  numTouchSensors = lastTouchSensor+1;
+extern uint8_t  sensorToPlot ;
 extern uint16_t stableValue[numTouchSensors];
 extern uint16_t STABLE_VALUE;
 extern uint8_t swapLeftRightSensors(uint8_t touched);

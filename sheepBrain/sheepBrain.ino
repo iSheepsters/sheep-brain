@@ -500,9 +500,11 @@ void checkForCommand() {
   if (Serial && Serial.available()) {
     char c = Serial.read();
     if (c != '\n') {
+      if (printInfo()) {
       Serial.println();
       Serial.print("Got " );
       Serial.println(c);
+      }
       switch (c) {
 
         case 'a':
@@ -528,11 +530,26 @@ void checkForCommand() {
           dumpTouchData();
           debugTouch = !debugTouch;
           break;
+          
+         case '0':
+         case '1':
+         case '2':
+         case '3':
+         case '4':
+         case '5':
+         case '6':
+         if (plotTouch) {
+          sensorToPlot = c - '0';
+         }
+         break;
 
         case 'p':
           dumpConfiguration();
           dumpTouchData();
           plotTouch = !plotTouch;
+          if (plotTouch) {
+            sensorToPlot = numTouchSensors;
+          }
           break;
       }
     }
