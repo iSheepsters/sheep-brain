@@ -54,7 +54,7 @@ void musicPlayerSetVolume(uint8_t v) {
     rightSpeakerOn = false;
   } else {
     int right = getRightSpeakerSetting(v);
-      myprintf(Serial, "VS1053_volume %d, %d\n", v, right);
+    if (printInfo())  myprintf(Serial, "VS1053_volume %d, %d\n", v, right);
     musicPlayer.setVolume(v, right);
     rightSpeakerOn = true;
   }
@@ -63,7 +63,7 @@ void musicPlayerFullVolume() {
   musicPlayerSetVolume(0);
 }
 void musicPlayerNoVolume() {
-  Serial.println("musicPlayerNoVolume");
+  if (printInfo()) Serial.println("musicPlayerNoVolume");
   VS1053_volume = 0;
   rightSpeakerOn = false;
   musicPlayer.setVolume(0xfe, 0xfe);
@@ -140,7 +140,7 @@ void setNextAmbientSound(unsigned long durationOfLastSound) {
 
   if (durationOfLastSound < 6000) durationOfLastSound = 6000;
   else if (durationOfLastSound > 30000) durationOfLastSound = 30000;
-  
+
 
 
   unsigned long result = durationOfLastSound / 2 + (unsigned long)(random(20000, 40000) );
@@ -202,7 +202,7 @@ boolean playFile(const char *fmt, ... ) {
     Serial.print("Playing ");
     Serial.println(buf);
   }
-   
+
 
   lastSoundStarted = millis();
   boolean result = musicPlayer.startPlayingFile(buf);
