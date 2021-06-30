@@ -22,17 +22,14 @@ enum ActiveState {
 };
 
 struct __attribute__ ((packed)) CommData {
-  CommData() : BRC_time(0), feetFromMan(0), sheepNum(0), state(Bored),
+  CommData() : sheepNum(0), state(Bored),
     currTouched(0), activated(Active) {};
 
-  time_t BRC_time;
-  uint16_t feetFromMan;
   uint8_t sheepNum;
   enum State state;
   uint8_t currTouched;
   uint8_t backTouchQuality; // seconds
   uint8_t headTouchQuality; // seconds
-  boolean haveFix;
   enum ActiveState activated;
 };
 

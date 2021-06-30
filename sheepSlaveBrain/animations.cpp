@@ -3,7 +3,6 @@
 #include "animations.h"
 #include "comm.h"
 #include <SdFat.h>
-#include <Time.h>
 
 double ANIMATION_FEET_PER_SECOND = 5.0;
 const int ANIMATION_EPOC_SECONDS = 120;
@@ -19,41 +18,8 @@ double fractionalTime() {
 double lastManTime;
 unsigned long lastManTimeAt = 0;
 double manTime() {
-  if (!receivedMsg) {
-    return millis() / 1000.0;
-  }
-  unsigned long ms = millis();
-  double result = (now() - BEFORE_BURN) + fractionalTime();
-  result = result - commData.feetFromMan / ANIMATION_FEET_PER_SECOND;
-  unsigned interval = ms - lastManTimeAt;
-  if (lastManTimeAt != 0 && interval < 2000
-      && commData.haveFix && ms > 10000) {
-    double walkingDistance = interval / 100.0;
-    double expected = lastManTime + interval / 1000.0;
-    double expectedLow = expected - walkingDistance / ANIMATION_FEET_PER_SECOND - 1;
-    double expectedHigh = expected + walkingDistance / ANIMATION_FEET_PER_SECOND + 1;
-    if (result < expectedLow) {
-      Serial.println("result < expectedLow");
-      Serial.println(lastManTime);
-      Serial.println(result);
-      Serial.println(expectedLow);
-      Serial.println(commData.feetFromMan);
-      Serial.println(now() - BEFORE_BURN);
+  return millis() / 1000.0;
 
-      result = (expectedLow + result) / 2;
-    } else if (result > expectedHigh) {
-      Serial.println("result > expectedHigh");
-      Serial.println(lastManTime);
-      Serial.println(result);
-      Serial.println(expectedHigh);
-      Serial.println(commData.feetFromMan);
-      Serial.println(now());
-      result = (result + expectedHigh) / 2;
-    }
-  }
-  lastManTime = result;
-  lastManTimeAt = ms;
-  return result;
 }
 
 long millisToNextEpoc() {
@@ -63,10 +29,6 @@ long millisToNextEpoc() {
   if (true) {
     myprintf("current epoc started at: % 8d\n", animationEPOC * ANIMATION_EPOC_SECONDS);
     myprintf("next epoc starts at:     % 8d\n", (animationEPOC + 1) * ANIMATION_EPOC_SECONDS);
-    Serial.print("distance to man: ");
-    Serial.println(commData.feetFromMan);
-    Serial.print("now time: ");
-    Serial.println(now() - BEFORE_BURN);
     Serial.print("man time: ");
     Serial.println(manTime());
     Serial.print("time remaining: ");
@@ -98,9 +60,6 @@ unsigned long updateAnimation(unsigned long now) {
 boolean scheduleSetUp = false;
 void setupSchedule() {
   Serial.println("Setting up schedule");
-  myprintf("BRC time %d/%d %d:%02d:%02d\n", month(), day(), hour(), minute(), second());
-  Serial.print("distance to man: ");
-  Serial.println(commData.feetFromMan);
   myprintf("Man time: ");
   Serial.println(manTime());
 

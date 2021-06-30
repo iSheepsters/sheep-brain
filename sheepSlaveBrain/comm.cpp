@@ -63,8 +63,7 @@ void receiveEvent(size_t len)
     }
     if (oldState != commData.state)
       myprintf("commData.state = %d\n", commData.state);
-    setTime(commData.BRC_time);
-    if (!receivedMsg && year() >= 2018 && animationsSetUp) {
+    if (!receivedMsg && animationsSetUp) {
       receivedMsg = true;
       myprintf("Received message and animations setup\n");
       setupSchedule();

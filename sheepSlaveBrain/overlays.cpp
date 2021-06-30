@@ -354,6 +354,7 @@ void overlays(boolean receivedMsg) {
       uint8_t touchData = commData.currTouched;
 
       if (true) {
+        
         if (touchData & 0x1)
           privateLights();
         if (touchData & 0x2)

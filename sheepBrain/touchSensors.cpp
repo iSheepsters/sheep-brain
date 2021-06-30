@@ -276,17 +276,18 @@ void considerResettingTouchSensors() {
   boolean allStable = true;
   int potentialMaxChange = 0;
   sendSubActivity(10);
-  //  if (!MALL_SHEEP)
-  //    for (int i = firstTouchSensor; i <= lastTouchSensor; i++) {
-  //      if (i != LEFT_SENSOR && i != RIGHT_SENSOR && !isStable(i))
-  //        allStable = false;
-  //      potentialMaxChange = max(potentialMaxChange, abs(stableV(i) - (minRecentValue[i] - 1)));
-  //    }
+
+      for (int i = firstTouchSensor; i <= lastTouchSensor; i++) {
+        if (i != LEFT_SENSOR && i != RIGHT_SENSOR && !isStable(i))
+          allStable = false;
+        potentialMaxChange = max(potentialMaxChange, abs(stableV(i) - (minRecentValue[i] - 1)));
+      }
 
   if (printInfo() ) {
     noInterrupts();
+    myprintf(Serial, "potentialMaxChange %d, all stable: %s\n", potentialMaxChange, allStable ? "Yes" : "No");
+ 
     for (int t = firstTouchSensor; t <= lastTouchSensor; t++) {
-
       myprintf(Serial, "histogram for %d, stableValue %d\n",
                t, stableV(t));
 
@@ -353,19 +354,21 @@ void considerResettingTouchSensors() {
         lowBucket = 4;
     }
     int range = min(800, histogramPercentiles[t][highBucket]) - histogramPercentiles[t][lowBucket];
+    int oldStableValue = stableValue[t];
+    bool smallRange = range < touchThreshold(t) / 2;
     if (printInfo()) {
-      myprintf(Serial, "consider touch reset of %d(%d%%, %d secs) : %3d, %3d...%3d, %3d\n",
+      myprintf(Serial, "consider touch reset of %d(%d%%, %d secs) : %3d, %3d...%3d, %3d, touched %d sec, untouched %d sec, %s\n",
                t, lowBucket * 10,
                age,
                stableValue[t], histogramPercentiles[t][lowBucket],
-               histogramPercentiles[t][highBucket], range);
+               histogramPercentiles[t][highBucket], range,
+               secondsTouch, secondsUntouch,
+               smallRange ? "small range" : "large range");
     }
-    int oldStableValue = stableValue[t];
-    bool inRange = range < touchThreshold(t) / 2 + HISTOGRAM_SIZE;
 
-    if (inRange
-        || stableValue[t] < histogramPercentiles[t][0] && secondsUntouch > 60 ) {
-      if (!inRange && histogramPercentiles[t][highBucket - 1] <= stableValue[t] && secondsTouch < 120) {
+
+   if (!smallRange && histogramPercentiles[t][highBucket - 1] <= stableValue[t] && secondsTouch < 120) {
+        // touch unstable, currently touched, touched for less than two minutes
         if (printInfo())
           myprintf(Serial,
                    "for sensor %d, stableValue = %d, high bucket = %d, been touched for only %d seconds, ignoring\n",
@@ -373,9 +376,14 @@ void considerResettingTouchSensors() {
 
         continue;
       }
-      stableValue[t] = min(histogramPercentiles[t][lowBucket], 800);
+      
+    if (smallRange
+        || stableValue[t] < histogramPercentiles[t][0] && secondsUntouch > 60 ) {
+      // touch unstable or stable value below minimum and untouched for more than a minute
+      
+      stableValue[t] = min((stableValue[t]+histogramPercentiles[t][lowBucket])/2, 800);
       lastResetOf[t] = now;
-      if (oldStableValue != stableValue[t] && printInfo())
+      if (abs(oldStableValue - stableValue[t]) > 3 && printInfo())
         myprintf(Serial, "stable value of %d reset to %d\n", t, stableValue[t] );
     } else if (false && histogramPercentiles[t][highBucket] < stableValue[t]) {
       stableValue[t] = histogramPercentiles[t][highBucket];
@@ -383,6 +391,7 @@ void considerResettingTouchSensors() {
       if (oldStableValue != stableValue[t] && printInfo())
         myprintf(Serial, "unstable, but too high, stable value reset to %d\n",  stableValue[t] );
     }
+    
     if (oldStableValue != stableValue[t]) {
       noInterrupts();
       myprintf(logFile, "TR, %d, %d, %d, %d, %d, %d\n", t, age, oldStableValue, stableValue[t],

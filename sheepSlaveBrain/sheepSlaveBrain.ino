@@ -1,7 +1,5 @@
 #include <Adafruit_SleepyDog.h>
 
-const char * VERSION = "version as of 10/1/2019";
-
 #include<FastLED.h>
 
 #define STANDARD_SHEEP
@@ -99,6 +97,7 @@ void setup() {
   digitalWrite(led, HIGH);
   Serial.begin(115200);
   Serial.println("Starting sheep LED brain");
+  
   LEDS.show();
   if (true) {
     int countdownMS = Watchdog.enable(14000);
@@ -135,7 +134,8 @@ void setup() {
 
 
   Serial.println("setup complete");
-  Serial.println(VERSION);
+  myprintf( "\n\n\n\nCompiled %s, %s\n", F(__DATE__), F(__TIME__));
+
 
 }
 
@@ -193,12 +193,8 @@ void loop() {
 
     if (!receivedMsg || minutesSinceLastMessage > 5)
       commData.activated = Active;
-    myprintf(" currentEpoc %d, %dms to next epoc, %d feet to the man", animationEPOC,
-             millisToChange,  (int) commData.feetFromMan);
-    if (commData.haveFix)
-      Serial.println(", gps fix current");
-    else
-      Serial.println();
+    myprintf(" currentEpoc %d, %dms to next epoc", animationEPOC,
+             millisToChange);
     Serial.print("  animation: ");
     currentAnimation->printName();
     myprintf(" touched %02x, quality head = %d, quality back = %d\n",
@@ -216,7 +212,7 @@ void loop() {
     overlays(receivedMsg);
 
 #ifndef STANDARD_SHEEP
-    if (false) {
+    if (true) {
       getSheepLEDFor(HALF_GRID_WIDTH, 0) =  CRGB::LightGrey;
       getSheepLEDFor(HALF_GRID_WIDTH, 8) =  CRGB::LightGrey;
       getSheepLEDFor(HALF_GRID_WIDTH, 9) =  CRGB::LightGrey;
