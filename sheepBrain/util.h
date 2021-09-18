@@ -20,6 +20,8 @@ extern void yield(uint16_t ms);
 
 extern bool printInfo();
 
+extern bool isActive();
+
 extern uint8_t millisToSecondsCapped(unsigned long ms);
 
 const int minutesPerSheep = 0; // use 0 to not switch sheep

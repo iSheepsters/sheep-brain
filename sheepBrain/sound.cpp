@@ -54,12 +54,17 @@ void musicPlayerSetVolume(uint8_t v) {
     rightSpeakerOn = false;
   } else {
     int right = getRightSpeakerSetting(v);
-    if (printInfo())  myprintf(Serial, "VS1053_volume %d, %d\n", v, right);
+    if (false && printInfo())  myprintf(Serial, "VS1053_volume %d, %d\n", v, right);
     musicPlayer.setVolume(v, right);
     rightSpeakerOn = true;
   }
 }
 void musicPlayerFullVolume() {
+  if (!isActive()) {
+     if (printInfo()) Serial.println("inactive, not turning on volume");
+     musicPlayerNoVolume();
+     return;
+  }
   musicPlayerSetVolume(0);
 }
 void musicPlayerNoVolume() {
@@ -144,6 +149,9 @@ void setNextAmbientSound(unsigned long durationOfLastSound) {
 
 
   unsigned long result = durationOfLastSound / 2 + (unsigned long)(random(20000, 40000) );
+  if (currentSheepState->state == Bored) {
+    result = result*2;
+  }
   if (printInfo()) myprintf(Serial, "next ambient sound in %d ms\n", result);
   nextAmbientSound = millis() + result;
 }

@@ -216,24 +216,25 @@ void startBlink(unsigned long now) {
 
 void privateLights() {
   for (int x = 0; x < GRID_WIDTH; x++)
-    getSheepLEDFor(x, GRID_HEIGHT - 1) = CRGB::Red;
+  for( int y = GRID_HEIGHT - 1; y < GRID_HEIGHT; y++)
+    getSheepLEDFor(x, y) = CRGB::Red;
 }
 
 void rumpLights() {
-  for (int x = HALF_GRID_WIDTH - 3; x < HALF_GRID_WIDTH + 3; x++)
-    for (int y = GRID_HEIGHT - 4; y < GRID_HEIGHT - 1; y++)
+  for (int x = HALF_GRID_WIDTH - 5; x < HALF_GRID_WIDTH + 5; x++)
+    for (int y = GRID_HEIGHT - 5; y < GRID_HEIGHT - 2; y++)
       getSheepLEDFor(x, y) = pettingOnly() ? CRGB::Pink : CRGB::LightGrey;
 }
 
 void leftLights() {
   // left side
-  for (int y = 4; y < 12; y++)
+  for (int y = 4; y < 16; y++)
     getSheepLEDFor( QUARTER_GRID_WIDTH + 1, y)
       = pettingOnly() ? CRGB::Pink : CRGB::LightGrey;
 }
 void rightLights() {
   // right side
-  for (int y = 4; y < 12; y++)
+  for (int y = 4; y < 16; y++)
     getSheepLEDFor( QUARTER_GRID_WIDTH + HALF_GRID_WIDTH - 1, y)
       = pettingOnly() ? CRGB::Pink : CRGB::LightGrey;
 }
@@ -242,6 +243,11 @@ const int backLightSlowdown = 32;
 const int backLightStart = 4;
 const int backLightReadyToRide = midSaddle - 2;
 void backLights() {
+  for (int x = HALF_GRID_WIDTH - 4; x <= HALF_GRID_WIDTH + 3; x++)
+    getSheepLEDFor(x, 1)
+   = pettingOnly() ? CRGB::Pink : CRGB::LightGrey;
+   
+
   // back side
   int q = commData.backTouchQuality + commData.headTouchQuality / 4;
   int start = commData.state == ReadyToRide
@@ -258,7 +264,7 @@ void backLights() {
       if (backLightPosOff <= 0)
         backLightPosOff = backLightReadyToRide * backLightSlowdown;
     }
-    for (int x = HALF_GRID_WIDTH - 1; x <= HALF_GRID_WIDTH; x++)
+    for (int x = HALF_GRID_WIDTH - 2; x <= HALF_GRID_WIDTH+1; x++)
       getSheepLEDFor(x, y + midSaddle) = CRGB(brightness, brightness, brightness);
   }
 }
@@ -280,7 +286,7 @@ void headLights() {
   for (int j = HEAD_BOTTOM + HEAD_EYES; j < HEAD_BOTTOM + HEAD_EYES + 2 * HEAD_TOP; j++)
 
     leds[ j] = CRGB::Green;
-  for (int x = HALF_GRID_WIDTH - 2; x <= HALF_GRID_WIDTH + 1; x++)
+  for (int x = HALF_GRID_WIDTH - 4; x <= HALF_GRID_WIDTH + 3; x++)
     getSheepLEDFor(x, 0) = CRGB::Green;
 }
 

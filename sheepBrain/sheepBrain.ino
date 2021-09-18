@@ -1,7 +1,7 @@
 #include <Adafruit_SleepyDog.h>
 // #include <Adafruit_ASFcore.h>
 //#include <MemoryFree.h>
-const boolean WAIT_FOR_SERIAL = true;
+const boolean WAIT_FOR_SERIAL = false;
 #include <Adafruit_ZeroTimer.h>
 
 #include <Adafruit_ZeroDMA.h>
@@ -361,7 +361,10 @@ void generateReport() {
            sheepNumber, now, currentSheepState->name,
            batteryVoltage(),  minutesUptime(), 
            hour(), minute(), second());
- 
+  myprintf(Serial, "  untouch duration %d\n", untouchDuration());
+  if (!isActive()) {
+     myprintf(Serial, "not active");
+  }
 
   myprintf(Serial, "  local time %2d:%02d:%02d\n",
 

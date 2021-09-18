@@ -96,7 +96,7 @@ void sendComm() {
 
       commData.backTouchQuality = millisToSecondsCapped(qualityTime(BACK_SENSOR));
     commData.headTouchQuality = millisToSecondsCapped(qualityTime(HEAD_SENSOR));
-    commData.activated =  Active ;
+    commData.activated =  isActive() ? Active : Inactive ;
     uint8_t * p = (uint8_t *)&commData;
     if (false) {
       Serial.print("Sending ");
